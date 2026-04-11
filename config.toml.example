@@ -1,0 +1,45 @@
+# config.toml.example - IPAP Workflow 项目配置模板
+# 复制此文件并重命名为 config.toml，然后根据您的环境修改配置
+
+# --- [paths] - 路径配置 ---
+[paths]
+# 漫画/翻译项目工作区的基准目录 (请根据实际环境修改)
+base_project_dir = "D:/documents/translation/01_Projects_Active"
+# 默认的项目目录名称前缀
+project_dir_prefix = ""
+# 原始文件归档目录
+archive_dir = "D:/documents/translation/02_Archive_Completed"
+
+# --- [logging] - 日志配置 ---
+[logging]
+level = "INFO"
+# Loguru 格式字符串
+format = "<green>{time:HH:mm:ss}</green> <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
+colorize = true
+
+# --- [app_settings] - 业务参数 ---
+[app_settings]
+# 高清化后单张图片大小的上限目标（MB）
+# max_output_image_size_mb = 5 （暂时不要）
+# 并行处理高清化任务的最大进程数 (0 或负数表示由程序决定)
+max_workers = 8
+# 高清化超时时间（秒）暂时不知道是单张还是整个任务，所以暂时用3600秒
+upscale_timeout_sec = 3600
+# 模型选择，默认为"models-se"，可选"models-se"或"models-pro"
+model_select = "models-se"
+
+# --- [upscale] - 高清化配置 ---
+[upscale]
+# 放大倍数，可选值：2, 3, 4
+upscale_ratio = 2
+# 降噪级别，可选值：0, 1, 2, 3
+noise_level = 0
+
+# --- [webp] - WebP 转换配置 ---
+[webp]
+# 是否启用 WebP 转换
+enabled = true
+# 是否使用无损压缩
+lossless = true
+# 压缩质量 (0-100)，仅在非无损模式下有效
+quality = 100
