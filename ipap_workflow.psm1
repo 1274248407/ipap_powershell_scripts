@@ -3,30 +3,38 @@
 # 模块初始化
 function Initialize-IpapModule
 {
-    # 加上CmdletBinding()后，你的函数会自动获得以下功能：
-    # 通用参数：
-    # 函数会自动支持 PowerShell 的通用参数，无需手动编写代码。包括：
+    <#
+    .SYNOPSIS
+        初始化 IPAP 工作流 PowerShell 模块。
 
-    # -Verbose (输出详细信息)
-    # -Debug (输出调试信息)
-    # -ErrorAction (决定遇到错误时如何处理，如 Stop, SilentlyContinue)
-    # -WarningAction / -WarningVariable
-    # -ErrorVariable
-    # -OutVariable / -OutBuffer
-    # -WhatIf (模拟运行，显示会发生什么但不实际执行)
-    # -Confirm (执行前要求用户确认)
-    # 参数验证特性：
-    # 你可以在参数定义中使用验证属性（例如 [ValidateNotNull()]，[ValidateRange(1, 10)]），PowerShell 会在函数执行前自动检查输入参数是否符合要求。
+    .DESCRIPTION
+        初始化 IPAP 工作流模块，确保模块能够正常运行。
+        加上 CmdletBinding() 后，函数会自动获得以下功能：
+        - 通用参数支持：-Verbose, -Debug, -ErrorAction 等
+        - 参数验证特性
+        - 自动变量 $PSCmdlet
+        - Write-Verbose / Write-Debug 支持
+        - 参数集支持
 
-    # 自动变量 $PSCmdlet：
-    # 函数内部可以使用 $PSCmdlet 自动变量，调用其方法（如 $PSCmdlet.ShouldProcess()）来实现 -WhatIf 和 -Confirm 的逻辑支持。
+    .EXAMPLE
+        Initialize-IpapModule
 
-    # Write-Verbose / Write-Debug 支持：
-    # 你可以在代码中使用 Write-Verbose '消息' 或 Write-Debug '消息'。只有当用户调用函数时加上 -Verbose 或 -Debug 开关时，这些消息才会显示，否则会被隐藏。
+    .EXAMPLE
+        # 通过管道调用
+        $true | Initialize-IpapModule
 
-    # 参数集：
-    # 允许你定义互斥的参数组合。例如，你可以定义一组参数包含 -Id，另一组包含 -Name，用户在同一命令中不能混用这两组参数。
+    .INPUTS
+        无
+
+    .OUTPUTS
+        System.Boolean
+
+    .NOTES
+        Author:  lucas_gold
+        Website: `https://github.com/1274248407`
+    #>
     [CmdletBinding()]
+    [OutputType([System.Boolean])]
     param ()
     
     try
@@ -42,19 +50,40 @@ function Initialize-IpapModule
     }
 }
 
-<#
-.Synopsis
-    加载并验证 ipap_workflow 的 TOML 配置文件。
-.Description
-    1. 动态探测 bin/ 目录下的二进制解析工具。
-    2. 若配置文件缺失，生成示例文件并返回默认值。
-    3. 解析 TOML 并进行严格的数据类型、数值范围及路径真实性校验。
-#>
-
 function Get-IpapConfig
 {
+    <#
+    .SYNOPSIS
+        加载并验证 ipap_workflow 的 TOML 配置文件。
+
+    .DESCRIPTION
+        1. 动态探测 bin/ 目录下的二进制解析工具。
+        2. 若配置文件缺失，生成示例文件并返回默认值。
+        3. 解析 TOML 并进行严格的数据类型、数值范围及路径真实性校验。
+
+    .EXAMPLE
+        Get-IpapConfig
+
+    .EXAMPLE
+        # 通过管道调用
+        $true | Get-IpapConfig
+
+    .INPUTS
+        无
+
+    .OUTPUTS
+        System.Management.Automation.PSCustomObject
+
+    .NOTES
+        Author:  lucas_gold
+        Website: `https://github.com/1274248407`
+    #>
     [CmdletBinding()]
-    param()
+    [OutputType([System.Management.Automation.PSCustomObject])]
+    param(
+        [Parameter(Mandatory = $false, ValueFromPipeline = $true)]
+        [System.String]$ConfigPath
+    )
 
     # --- 环境初始化 ---
     # 强制设置 UTF8 编码，防止外部进程处理中文路径时乱码
@@ -62,7 +91,10 @@ function Get-IpapConfig
     $rootPath = $PSScriptRoot
     $binPath = Join-Path -Path $rootPath -ChildPath 'bin'
     $parserExe = Join-Path -Path $binPath -ChildPath 'tomljson.exe'
-    $configPath = Join-Path -Path $rootPath -ChildPath 'config.toml'
+    if (-not $ConfigPath)
+    {
+        $ConfigPath = Join-Path -Path $rootPath -ChildPath 'config.toml'
+    }
     $examplePath = Join-Path -Path $rootPath -ChildPath 'config.toml.example'
     $parserDownloadUrl = 'https://github.com/pelletier/go-toml/releases'
 
@@ -104,9 +136,9 @@ function Get-IpapConfig
     }
 
     # --- 2. 配置文件存在性检查 ---
-    if (-not (Test-Path -Path $configPath))
+    if (-not (Test-Path -Path $ConfigPath))
     {
-        Write-Warning "未找到配置文件: $configPath，将使用硬编码的默认配置。"
+        Write-Warning "未找到配置文件: $ConfigPath，将使用硬编码的默认配置。"
         New-ExampleConfig -OutputPath $examplePath
         return $defaultConfig
     }
@@ -115,7 +147,7 @@ function Get-IpapConfig
     try
     {
         # 执行转换：TOML -> JSON
-        $jsonContent = & $parserExe $configPath 2>&1
+        $jsonContent = & $parserExe $ConfigPath 2>&1
         if ($LASTEXITCODE -ne 0)
         {
             throw "TOML 语法解析失败: $jsonContent"
@@ -137,7 +169,41 @@ function Get-IpapConfig
 
 function Test-IpapConfig
 {
-    param([Parameter(Mandatory = $true)]$Config)
+    <#
+    .SYNOPSIS
+        验证 IPAP 工作流的配置对象。
+
+    .DESCRIPTION
+        对配置对象进行严格的验证，包括：
+        1. 路径校验：确保路径字段非空且真实存在
+        2. 数值合法性校验：确保 upscale_ratio 为有效值
+        3. 数值范围校验：确保 noise_level 在有效范围内
+
+    .PARAMETER Config
+        要验证的配置对象。
+
+    .EXAMPLE
+        Test-IpapConfig -Config $config
+
+    .EXAMPLE
+        # 通过管道调用
+        $config | Test-IpapConfig
+
+    .INPUTS
+        System.Management.Automation.PSCustomObject
+
+    .OUTPUTS
+        无
+
+    .NOTES
+        Author:  lucas_gold
+        Website: `https://github.com/1274248407`
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+        [object]$Config
+    )
 
     # A. 路径校验 (必须非空且真实存在)
     $pathFields = @('base_project_dir', 'archive_dir')
@@ -170,7 +236,38 @@ function Test-IpapConfig
 
 function New-ExampleConfig
 {
-    param([string]$OutputPath)
+    <#
+    .SYNOPSIS
+        生成 IPAP 工作流的配置文件模板。
+
+    .DESCRIPTION
+        生成一个示例配置文件模板，包含默认的配置值和注释说明。
+
+    .PARAMETER OutputPath
+        输出文件路径。
+
+    .EXAMPLE
+        New-ExampleConfig -OutputPath '.\config.toml.example'
+
+    .EXAMPLE
+        # 通过管道调用
+        '.\config.toml.example' | New-ExampleConfig
+
+    .INPUTS
+        System.String
+
+    .OUTPUTS
+        无
+
+    .NOTES
+        Author:  lucas_gold
+        Website: `https://github.com/1274248407`
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+        [System.String]$OutputPath
+    )
     $exampleContent = @'
 # config.toml.example - 自动生成的模板文件
 
@@ -201,10 +298,38 @@ quality = 100
 # 扫描目录中的图像文件
 function Get-IpapImageFiles
 {
+    <#
+    .SYNOPSIS
+        扫描目录中的图像文件。
+
+    .DESCRIPTION
+        递归扫描指定目录，找出所有支持的图像文件。
+
+    .PARAMETER DirectoryPath
+        要扫描的目录路径。
+
+    .EXAMPLE
+        Get-IpapImageFiles -DirectoryPath 'D:\path\to\images'
+
+    .EXAMPLE
+        # 通过管道调用
+        'D:\path\to\images' | Get-IpapImageFiles
+
+    .INPUTS
+        System.String
+
+    .OUTPUTS
+        System.IO.FileInfo[]
+
+    .NOTES
+        Author:  lucas_gold
+        Website: `https://github.com/1274248407`
+    #>
     [CmdletBinding()]
+    [OutputType([System.IO.FileInfo[]])]
     param (
-        [Parameter(Mandatory = $true, Position = 0)]
-        [string]$DirectoryPath
+        [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true)]
+        [System.String]$DirectoryPath
     )
     
     try
@@ -236,9 +361,37 @@ function Get-IpapImageFiles
 # 分析图像文件属性
 function Get-IpapImageInfo
 {
+    <#
+    .SYNOPSIS
+        分析图像文件属性。
+
+    .DESCRIPTION
+        分析图像文件的属性，包括数量、总大小和平均大小。
+
+    .PARAMETER ImageFiles
+        图像文件对象数组。
+
+    .EXAMPLE
+        Get-IpapImageInfo -ImageFiles $imageFiles
+
+    .EXAMPLE
+        # 通过管道调用
+        $imageFiles | Get-IpapImageInfo
+
+    .INPUTS
+        System.IO.FileInfo[]
+
+    .OUTPUTS
+        System.Collections.Hashtable
+
+    .NOTES
+        Author:  lucas_gold
+        Website: `https://github.com/1274248407`
+    #>
     [CmdletBinding()]
+    [OutputType([System.Collections.Hashtable])]
     param (
-        [Parameter(Mandatory = $true, Position = 0)]
+        [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true)]
         [System.IO.FileInfo[]]$ImageFiles
     )
     
@@ -269,13 +422,44 @@ function Get-IpapImageInfo
 # 创建项目目录结构
 function New-IpapProjectStructure
 {
+    <#
+    .SYNOPSIS
+        创建项目目录结构。
+
+    .DESCRIPTION
+        创建项目目录结构，包括基础目录和所有必要的子目录。
+
+    .PARAMETER BaseDirectory
+        基础目录路径。
+
+    .PARAMETER ProjectName
+        项目名称。
+
+    .EXAMPLE
+        New-IpapProjectStructure -BaseDirectory 'D:\projects' -ProjectName '测试项目'
+
+    .EXAMPLE
+        # 通过管道调用
+        'D:\projects' | New-IpapProjectStructure -ProjectName '测试项目'
+
+    .INPUTS
+        System.String
+
+    .OUTPUTS
+        System.String
+
+    .NOTES
+        Author:  lucas_gold
+        Website: `https://github.com/1274248407`
+    #>
     [CmdletBinding()]
+    [OutputType([System.String])]
     param (
-        [Parameter(Mandatory = $true, Position = 0)]
-        [string]$BaseDirectory,
+        [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true)]
+        [System.String]$BaseDirectory,
         
         [Parameter(Mandatory = $true, Position = 1)]
-        [string]$ProjectName
+        [System.String]$ProjectName
     )
     
     try
@@ -320,13 +504,43 @@ function New-IpapProjectStructure
 # 复制图像并分析
 function Copy-IpapImagesAndAnalyze
 {
+    <#
+    .SYNOPSIS
+        复制图像并分析。
+
+    .DESCRIPTION
+        复制图像文件到项目目录，并分析图像的数量、总大小和最大大小。
+
+    .PARAMETER SourcePath
+        源图像路径，可以是文件或目录。
+
+    .PARAMETER ProjectDirectory
+        项目目录路径。
+
+    .EXAMPLE
+        Copy-IpapImagesAndAnalyze -SourcePath 'D:\path\to\images' -ProjectDirectory 'D:\projects\test'
+
+    .EXAMPLE
+        # 通过管道调用
+        'D:\path\to\images' | Copy-IpapImagesAndAnalyze -ProjectDirectory 'D:\projects\test'
+
+    .INPUTS
+        System.String
+
+    .OUTPUTS
+        System.Object[]
+
+    .NOTES
+        Author:  lucas_gold
+        Website: `https://github.com/1274248407`
+    #>
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory = $true, Position = 0)]
-        [string]$SourcePath,
+        [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true)]
+        [System.String]$SourcePath,
         
         [Parameter(Mandatory = $true, Position = 1)]
-        [string]$ProjectDirectory
+        [System.String]$ProjectDirectory
     )
     
     try
@@ -389,22 +603,62 @@ function Copy-IpapImagesAndAnalyze
 # 执行图像放大
 function Invoke-IpapUpscaling
 {
+    <#
+    .SYNOPSIS
+        执行图像放大。
+
+    .DESCRIPTION
+        使用 RealCugan 工具执行图像放大操作。
+
+    .PARAMETER ImageFile
+        要放大的图像文件对象。
+
+    .PARAMETER OutputDirectory
+        输出目录路径。
+
+    .PARAMETER UpscaleRatio
+        放大倍数。
+
+    .PARAMETER ModelSelect
+        模型选择。
+
+    .PARAMETER RealCuganPath
+        RealCugan 可执行文件路径。
+
+    .EXAMPLE
+        Invoke-IpapUpscaling -ImageFile $imageFile -OutputDirectory 'D:\output' -UpscaleRatio 2 -ModelSelect 'models-se' -RealCuganPath 'D:\tools\realcugan.exe'
+
+    .EXAMPLE
+        # 通过管道调用
+        $imageFile | Invoke-IpapUpscaling -OutputDirectory 'D:\output' -UpscaleRatio 2 -ModelSelect 'models-se' -RealCuganPath 'D:\tools\realcugan.exe'
+
+    .INPUTS
+        System.IO.FileInfo
+
+    .OUTPUTS
+        System.String
+
+    .NOTES
+        Author:  lucas_gold
+        Website: `https://github.com/1274248407`
+    #>
     [CmdletBinding()]
+    [OutputType([System.String])]
     param (
-        [Parameter(Mandatory = $true, Position = 0)]
+        [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true)]
         [System.IO.FileInfo]$ImageFile,
         
         [Parameter(Mandatory = $true, Position = 1)]
-        [string]$OutputDirectory,
+        [System.String]$OutputDirectory,
         
         [Parameter(Mandatory = $true, Position = 2)]
-        [int]$UpscaleRatio,
+        [System.Int32]$UpscaleRatio,
         
         [Parameter(Mandatory = $true, Position = 3)]
-        [string]$ModelSelect,
+        [System.String]$ModelSelect,
         
         [Parameter(Mandatory = $true, Position = 4)]
-        [string]$RealCuganPath
+        [System.String]$RealCuganPath
     )
     
     try
@@ -461,13 +715,44 @@ function Invoke-IpapUpscaling
 # 归档原始文件
 function Move-IpapOriginalSource
 {
+    <#
+    .SYNOPSIS
+        归档原始文件。
+
+    .DESCRIPTION
+        将原始文件归档到指定的目录。
+
+    .PARAMETER SourceFile
+        源文件对象。
+
+    .PARAMETER ArchiveDirectory
+        归档目录路径。
+
+    .EXAMPLE
+        Move-IpapOriginalSource -SourceFile $sourceFile -ArchiveDirectory 'D:\archive'
+
+    .EXAMPLE
+        # 通过管道调用
+        $sourceFile | Move-IpapOriginalSource -ArchiveDirectory 'D:\archive'
+
+    .INPUTS
+        System.IO.FileInfo
+
+    .OUTPUTS
+        System.String
+
+    .NOTES
+        Author:  lucas_gold
+        Website: `https://github.com/1274248407`
+    #>
     [CmdletBinding(SupportsShouldProcess = $true)]
+    [OutputType([System.String])]
     param (
-        [Parameter(Mandatory = $true, Position = 0)]
+        [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true)]
         [System.IO.FileInfo]$SourceFile,
         
         [Parameter(Mandatory = $true, Position = 1)]
-        [string]$ArchiveDirectory
+        [System.String]$ArchiveDirectory
     )
     
     try
@@ -516,22 +801,62 @@ function Move-IpapOriginalSource
 # 图像的并行处理
 function Invoke-IpapParallelProcessing
 {
+    <#
+    .SYNOPSIS
+        并行处理图像。
+
+    .DESCRIPTION
+        并行处理多张图像，执行放大和 WebP 转换操作。
+
+    .PARAMETER ImageFiles
+        图像文件对象数组。
+
+    .PARAMETER OutputDirectory
+        输出目录路径。
+
+    .PARAMETER UpscaleRatio
+        放大倍数。
+
+    .PARAMETER ModelSelect
+        模型选择。
+
+    .PARAMETER MaxConcurrent
+        最大并发数。
+
+    .EXAMPLE
+        Invoke-IpapParallelProcessing -ImageFiles $imageFiles -OutputDirectory 'D:\output' -UpscaleRatio 2 -ModelSelect 'models-se' -MaxConcurrent 4
+
+    .EXAMPLE
+        # 通过管道调用
+        $imageFiles | Invoke-IpapParallelProcessing -OutputDirectory 'D:\output' -UpscaleRatio 2 -ModelSelect 'models-se' -MaxConcurrent 4
+
+    .INPUTS
+        System.IO.FileInfo[]
+
+    .OUTPUTS
+        System.Object[]
+
+    .NOTES
+        Author:  lucas_gold
+        Website: `https://github.com/1274248407`
+    #>
     [CmdletBinding()]
+    [OutputType([System.Object[]])]
     param (
-        [Parameter(Mandatory = $true, Position = 0)]
+        [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true)]
         [System.IO.FileInfo[]]$ImageFiles,
         
         [Parameter(Mandatory = $true, Position = 1)]
-        [string]$OutputDirectory,
+        [System.String]$OutputDirectory,
         
         [Parameter(Mandatory = $true, Position = 2)]
-        [int]$UpscaleRatio,
+        [System.Int32]$UpscaleRatio,
         
         [Parameter(Mandatory = $true, Position = 3)]
-        [string]$ModelSelect,
+        [System.String]$ModelSelect,
         
         [Parameter(Mandatory = $true, Position = 4)]
-        [int]$MaxConcurrent
+        [System.Int32]$MaxConcurrent
     )
     
     try
@@ -584,19 +909,56 @@ function Invoke-IpapParallelProcessing
 # 处理图像
 function Process-IpapImages
 {
+    <#
+    .SYNOPSIS
+        处理图像。
+
+    .DESCRIPTION
+        处理图像文件，执行放大和 WebP 转换操作。
+
+    .PARAMETER ImageFiles
+        图像文件对象数组。
+
+    .PARAMETER ProjectDirectory
+        项目目录路径。
+
+    .PARAMETER Settings
+        配置设置哈希表。
+
+    .PARAMETER AverageSizeKB
+        图像平均大小（KB）。
+
+    .EXAMPLE
+        Process-IpapImages -ImageFiles $imageFiles -ProjectDirectory 'D:\projects\test' -Settings $config -AverageSizeKB 500
+
+    .EXAMPLE
+        # 通过管道调用
+        $imageFiles | Process-IpapImages -ProjectDirectory 'D:\projects\test' -Settings $config -AverageSizeKB 500
+
+    .INPUTS
+        System.IO.FileInfo[]
+
+    .OUTPUTS
+        System.Object[]
+
+    .NOTES
+        Author:  lucas_gold
+        Website: `https://github.com/1274248407`
+    #>
     [CmdletBinding()]
+    [OutputType([System.Object[]])]
     param (
-        [Parameter(Mandatory = $true, Position = 0)]
+        [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true)]
         [System.IO.FileInfo[]]$ImageFiles,
         
         [Parameter(Mandatory = $true, Position = 1)]
-        [string]$ProjectDirectory,
+        [System.String]$ProjectDirectory,
         
         [Parameter(Mandatory = $true, Position = 2)]
-        [hashtable]$Settings,
+        [System.Collections.Hashtable]$Settings,
         
         [Parameter(Mandatory = $true, Position = 3)]
-        [double]$AverageSizeKB
+        [System.Double]$AverageSizeKB
     )
     
     try
@@ -642,22 +1004,62 @@ function Process-IpapImages
 # 创建项目文件
 function New-IpapProjectFiles
 {
+    <#
+    .SYNOPSIS
+        创建项目文件。
+
+    .DESCRIPTION
+        创建项目相关文件，包括 README.md、项目简介和词汇表。
+
+    .PARAMETER ProjectDirectory
+        项目目录路径。
+
+    .PARAMETER BriefText
+        项目简介文本。
+
+    .PARAMETER ProjectName
+        项目名称。
+
+    .PARAMETER ImageCount
+        图片数量。
+
+    .PARAMETER AverageSizeKB
+        图片平均大小（KB）。
+
+    .EXAMPLE
+        New-IpapProjectFiles -ProjectDirectory 'D:\projects\test' -BriefText '测试项目' -ProjectName '测试' -ImageCount 10 -AverageSizeKB 500
+
+    .EXAMPLE
+        # 通过管道调用
+        'D:\projects\test' | New-IpapProjectFiles -BriefText '测试项目' -ProjectName '测试' -ImageCount 10 -AverageSizeKB 500
+
+    .INPUTS
+        System.String
+
+    .OUTPUTS
+        System.Boolean
+
+    .NOTES
+        Author:  lucas_gold
+        Website: `https://github.com/1274248407`
+    #>
     [CmdletBinding()]
+    [OutputType([System.Boolean])]
     param (
-        [Parameter(Mandatory = $true, Position = 0)]
-        [string]$ProjectDirectory,
+        [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true)]
+        [System.String]$ProjectDirectory,
         
         [Parameter(Mandatory = $true, Position = 1)]
-        [string]$BriefText,
+        [System.String]$BriefText,
         
         [Parameter(Mandatory = $true, Position = 2)]
-        [string]$ProjectName,
+        [System.String]$ProjectName,
         
         [Parameter(Mandatory = $true, Position = 3)]
-        [int]$ImageCount,
+        [System.Int32]$ImageCount,
         
         [Parameter(Mandatory = $true, Position = 4)]
-        [double]$AverageSizeKB
+        [System.Double]$AverageSizeKB
     )
     
     try
@@ -712,10 +1114,37 @@ function New-IpapProjectFiles
 # 建立项目
 function Set-IpapProject
 {
+    <#
+    .SYNOPSIS
+        建立项目。
+
+    .DESCRIPTION
+        设置项目，包括获取用户输入和创建项目目录结构。
+
+    .PARAMETER Settings
+        配置设置哈希表。
+
+    .EXAMPLE
+        Set-IpapProject -Settings $config
+
+    .EXAMPLE
+        # 通过管道调用
+        $config | Set-IpapProject
+
+    .INPUTS
+        System.Collections.Hashtable
+
+    .OUTPUTS
+        System.Object[]
+
+    .NOTES
+        Author:  lucas_gold
+        Website: `https://github.com/1274248407`
+    #>
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory = $true, Position = 0)]
-        [hashtable]$Settings
+        [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true)]
+        [System.Collections.Hashtable]$Settings
     )
     
     try
@@ -743,19 +1172,56 @@ function Set-IpapProject
 # 主要工作流程功能
 function Invoke-IpapWorkflow
 {
+    <#
+    .SYNOPSIS
+        执行 IPAP 工作流。
+
+    .DESCRIPTION
+        执行完整的工作流，包括图像高清化、WebP 转换和文件归档。
+
+    .PARAMETER SourceDirectory
+        源图像目录路径。
+
+    .PARAMETER ConfigPath
+        配置文件路径。
+
+    .PARAMETER UpscaleRatio
+        放大倍数。
+
+    .PARAMETER ModelSelect
+        模型选择。
+
+    .EXAMPLE
+        Invoke-IpapWorkflow -SourceDirectory 'D:\path\to\images'
+
+    .EXAMPLE
+        # 通过管道调用
+        'D:\path\to\images' | Invoke-IpapWorkflow
+
+    .INPUTS
+        System.String
+
+    .OUTPUTS
+        System.String
+
+    .NOTES
+        Author:  lucas_gold
+        Website: `https://github.com/1274248407`
+    #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = '中等')]
+    [OutputType([System.String])]
     param (
-        [Parameter(Mandatory = $true, Position = 0)]
-        [string]$SourceDirectory,
+        [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true)]
+        [System.String]$SourceDirectory,
         
         [Parameter(Mandatory = $false, Position = 1)]
-        [string]$ConfigPath = "$PSScriptRoot\config.toml",
+        [System.String]$ConfigPath = "$PSScriptRoot\config.toml",
         
         [Parameter(Mandatory = $false, Position = 2)]
-        [int]$UpscaleRatio,
+        [System.Int32]$UpscaleRatio,
         
         [Parameter(Mandatory = $false, Position = 3)]
-        [string]$ModelSelect
+        [System.String]$ModelSelect
     )
     
     try
@@ -833,10 +1299,38 @@ function Invoke-IpapWorkflow
 # 完整工作流功能
 function Invoke-IpapCompleteWorkflow
 {
+    <#
+    .SYNOPSIS
+        执行完整的 IPAP 工作流。
+
+    .DESCRIPTION
+        执行完整的工作流，包括项目设置、图片处理、文档创建等。
+
+    .PARAMETER ConfigPath
+        配置文件路径。
+
+    .EXAMPLE
+        Invoke-IpapCompleteWorkflow
+
+    .EXAMPLE
+        # 通过管道调用
+        'D:\path\to\config.toml' | Invoke-IpapCompleteWorkflow
+
+    .INPUTS
+        System.String
+
+    .OUTPUTS
+        System.String
+
+    .NOTES
+        Author:  lucas_gold
+        Website: `https://github.com/1274248407`
+    #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = '中等')]
+    [OutputType([System.String])]
     param (
-        [Parameter(Mandatory = $false, Position = 0)]
-        [string]$ConfigPath = "$PSScriptRoot\config.toml"
+        [Parameter(Mandatory = $false, Position = 0, ValueFromPipeline = $true)]
+        [System.String]$ConfigPath = "$PSScriptRoot\config.toml"
     )
     
     try

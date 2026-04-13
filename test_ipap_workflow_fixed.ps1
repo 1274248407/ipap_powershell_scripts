@@ -35,29 +35,34 @@ if (-not (Test-Path -Path $testSourceDir -PathType Container)) {
     }
 }
 
-<#
-.SYNOPSIS
-    测试项目目录结构创建功能。
-
-.DESCRIPTION
-    测试 New-IpapProjectStructure 函数是否能够正确创建项目目录结构。
-    验证创建的目录结构是否符合预期。
-
-.EXAMPLE
-    Test-ProjectStructureCreation
-
-.INPUTS
-    无
-
-.OUTPUTS
-    System.Boolean
-
-.NOTES
-    Author:  lucas_gold
-    Website: `https://github.com/1274248407`
-#>
 function Test-ProjectStructureCreation {
+    <#
+    .SYNOPSIS
+        测试项目目录结构创建功能。
+
+    .DESCRIPTION
+        测试 New-IpapProjectStructure 函数是否能够正确创建项目目录结构。
+        验证创建的目录结构是否符合预期。
+
+    .EXAMPLE
+        Test-ProjectStructureCreation
+
+    .EXAMPLE
+        # 通过管道调用
+        $true | Test-ProjectStructureCreation
+
+    .INPUTS
+        无
+
+    .OUTPUTS
+        System.Boolean
+
+    .NOTES
+        Author:  lucas_gold
+        Website: `https://github.com/1274248407`
+    #>
     [CmdletBinding()]
+    [OutputType([System.Boolean])]
     param ()
     
     Write-Host "\n=== 测试 1: 项目目录结构创建 ===" -ForegroundColor Cyan
@@ -95,29 +100,34 @@ function Test-ProjectStructureCreation {
     }
 }
 
-<#
-.SYNOPSIS
-    测试配置文件加载功能。
-
-.DESCRIPTION
-    测试 Get-IpapConfig 函数是否能够正确加载配置文件。
-    验证加载的配置是否包含预期的设置。
-
-.EXAMPLE
-    Test-ConfigLoading
-
-.INPUTS
-    无
-
-.OUTPUTS
-    System.Boolean
-
-.NOTES
-    Author:  lucas_gold
-    Website: `https://github.com/1274248407`
-#>
 function Test-ConfigLoading {
+    <#
+    .SYNOPSIS
+        测试配置文件加载功能。
+
+    .DESCRIPTION
+        测试 Get-IpapConfig 函数是否能够正确加载配置文件。
+        验证加载的配置是否包含预期的设置。
+
+    .EXAMPLE
+        Test-ConfigLoading
+
+    .EXAMPLE
+        # 通过管道调用
+        $true | Test-ConfigLoading
+
+    .INPUTS
+        无
+
+    .OUTPUTS
+        System.Boolean
+
+    .NOTES
+        Author:  lucas_gold
+        Website: `https://github.com/1274248407`
+    #>
     [CmdletBinding()]
+    [OutputType([System.Boolean])]
     param ()
     
     Write-Host "\n=== 测试 2: 配置文件加载 ===" -ForegroundColor Cyan
@@ -140,29 +150,34 @@ function Test-ConfigLoading {
     }
 }
 
-<#
-.SYNOPSIS
-    测试图片文件扫描功能。
-
-.DESCRIPTION
-    测试 Get-IpapImageFiles 函数是否能够正确扫描目录中的图片文件。
-    验证扫描结果是否包含预期的图片文件。
-
-.EXAMPLE
-    Test-ImageScanning
-
-.INPUTS
-    无
-
-.OUTPUTS
-    System.Boolean
-
-.NOTES
-    Author:  lucas_gold
-    Website: `https://github.com/1274248407`
-#>
 function Test-ImageScanning {
+    <#
+    .SYNOPSIS
+        测试图片文件扫描功能。
+
+    .DESCRIPTION
+        测试 Get-IpapImageFiles 函数是否能够正确扫描目录中的图片文件。
+        验证扫描结果是否包含预期的图片文件。
+
+    .EXAMPLE
+        Test-ImageScanning
+
+    .EXAMPLE
+        # 通过管道调用
+        $true | Test-ImageScanning
+
+    .INPUTS
+        无
+
+    .OUTPUTS
+        System.Boolean
+
+    .NOTES
+        Author:  lucas_gold
+        Website: `https://github.com/1274248407`
+    #>
     [CmdletBinding()]
+    [OutputType([System.Boolean])]
     param ()
     
     Write-Host "\n=== 测试 3: 图片文件扫描 ===" -ForegroundColor Cyan
@@ -180,29 +195,34 @@ function Test-ImageScanning {
     }
 }
 
-<#
-.SYNOPSIS
-    测试图片分析功能。
-
-.DESCRIPTION
-    测试 Get-IpapImageInfo 函数是否能够正确分析图片文件的属性。
-    验证分析结果是否包含预期的信息。
-
-.EXAMPLE
-    Test-ImageAnalysis
-
-.INPUTS
-    无
-
-.OUTPUTS
-    System.Boolean
-
-.NOTES
-    Author:  lucas_gold
-    Website: `https://github.com/1274248407`
-#>
 function Test-ImageAnalysis {
+    <#
+    .SYNOPSIS
+        测试图片分析功能。
+
+    .DESCRIPTION
+        测试 Get-IpapImageInfo 函数是否能够正确分析图片文件的属性。
+        验证分析结果是否包含预期的信息。
+
+    .EXAMPLE
+        Test-ImageAnalysis
+
+    .EXAMPLE
+        # 通过管道调用
+        $true | Test-ImageAnalysis
+
+    .INPUTS
+        无
+
+    .OUTPUTS
+        System.Boolean
+
+    .NOTES
+        Author:  lucas_gold
+        Website: `https://github.com/1274248407`
+    #>
     [CmdletBinding()]
+    [OutputType([System.Boolean])]
     param ()
     
     Write-Host "\n=== 测试 4: 图片分析 ===" -ForegroundColor Cyan
@@ -221,29 +241,34 @@ function Test-ImageAnalysis {
     }
 }
 
-<#
-.SYNOPSIS
-    测试图片复制和分析功能。
-
-.DESCRIPTION
-    测试 Copy-IpapImagesAndAnalyze 函数是否能够正确复制图片文件并分析其属性。
-    验证复制和分析结果是否符合预期。
-
-.EXAMPLE
-    Test-ImageCopyAndAnalyze
-
-.INPUTS
-    无
-
-.OUTPUTS
-    System.Boolean
-
-.NOTES
-    Author:  lucas_gold
-    Website: `https://github.com/1274248407`
-#>
 function Test-ImageCopyAndAnalyze {
+    <#
+    .SYNOPSIS
+        测试图片复制和分析功能。
+
+    .DESCRIPTION
+        测试 Copy-IpapImagesAndAnalyze 函数是否能够正确复制图片文件并分析其属性。
+        验证复制和分析结果是否符合预期。
+
+    .EXAMPLE
+        Test-ImageCopyAndAnalyze
+
+    .EXAMPLE
+        # 通过管道调用
+        $true | Test-ImageCopyAndAnalyze
+
+    .INPUTS
+        无
+
+    .OUTPUTS
+        System.Boolean
+
+    .NOTES
+        Author:  lucas_gold
+        Website: `https://github.com/1274248407`
+    #>
     [CmdletBinding()]
+    [OutputType([System.Boolean])]
     param ()
     
     Write-Host "\n=== 测试 5: 图片复制和分析 ===" -ForegroundColor Cyan
@@ -262,29 +287,34 @@ function Test-ImageCopyAndAnalyze {
     }
 }
 
-<#
-.SYNOPSIS
-    测试项目文件创建功能。
-
-.DESCRIPTION
-    测试 New-IpapProjectFiles 函数是否能够正确创建项目相关文件。
-    验证创建的文件是否符合预期。
-
-.EXAMPLE
-    Test-ProjectFilesCreation
-
-.INPUTS
-    无
-
-.OUTPUTS
-    System.Boolean
-
-.NOTES
-    Author:  lucas_gold
-    Website: `https://github.com/1274248407`
-#>
 function Test-ProjectFilesCreation {
+    <#
+    .SYNOPSIS
+        测试项目文件创建功能。
+
+    .DESCRIPTION
+        测试 New-IpapProjectFiles 函数是否能够正确创建项目相关文件。
+        验证创建的文件是否符合预期。
+
+    .EXAMPLE
+        Test-ProjectFilesCreation
+
+    .EXAMPLE
+        # 通过管道调用
+        $true | Test-ProjectFilesCreation
+
+    .INPUTS
+        无
+
+    .OUTPUTS
+        System.Boolean
+
+    .NOTES
+        Author:  lucas_gold
+        Website: `https://github.com/1274248407`
+    #>
     [CmdletBinding()]
+    [OutputType([System.Boolean])]
     param ()
     
     Write-Host "\n=== 测试 6: 项目文件创建 ===" -ForegroundColor Cyan
