@@ -13,8 +13,7 @@
     FunctionsToExport = @(
         'Invoke-IpapWorkflow',
         'Move-IpapOriginalSource',
-        'Get-IpapImageInfo',
-        'Convert-IpapImageToWebP'
+        'Get-IpapImageInfo'
     )
     CmdletsToExport   = @()
     VariablesToExport = @()

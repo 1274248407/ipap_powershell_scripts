@@ -806,7 +806,7 @@ function Invoke-IpapParallelProcessing
         并行处理图像。
 
     .DESCRIPTION
-        并行处理多张图像，执行放大和 WebP 转换操作。
+        并行处理多张图像，执行放大操作。
 
     .PARAMETER ImageFiles
         图像文件对象数组。
@@ -882,9 +882,7 @@ function Invoke-IpapParallelProcessing
                 
                 if ($upscaledPath)
                 {
-                    # 转换为 WebP
-                    $webpPath = Convert-IpapImageToWebP -ImagePath $upscaledPath -OutputDirectory $outputDir
-                    return @{ Success = $true; Original = $imageFile.FullName; Upscaled = $upscaledPath; WebP = $webpPath }
+                    return @{ Success = $true; Original = $imageFile.FullName; Upscaled = $upscaledPath }
                 }
                 else
                 {
