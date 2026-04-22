@@ -7,8 +7,8 @@
 
 $ScriptRoot = $PSScriptRoot
 
-$Global:BinPath = Join-Path $ScriptRoot '..\bin'
-$Global:ConfigPath = Join-Path $ScriptRoot '..\config.toml'
+$Global:BinPath = Join-Path $ScriptRoot '..\..\bin'
+$Global:ConfigPath = Join-Path $ScriptRoot '..\..\config.toml'
 $Global:TomlJsonExePath = Join-Path $Global:BinPath 'tomljson.exe'
 $Global:Settings = $null
 

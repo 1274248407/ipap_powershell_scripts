@@ -16,7 +16,7 @@ function Get-RealCuganExePath
 {
     [CmdletBinding()]
     param (
-        [string]$SearchPath = "$ScriptRoot\..\bin"
+        [string]$SearchPath = "$ScriptRoot\..\..\bin"
     )
 
     $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
@@ -43,13 +43,13 @@ function Get-Config
 {
     [CmdletBinding()]
     param (
-        [string]$ConfigPath = "$ScriptRoot\..\config.toml"
+        [string]$ConfigPath = "$ScriptRoot\..\..\config.toml"
     )
 
     $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
     Write-Host "[$timestamp] [INFO] Reading configuration file: $ConfigPath" -ForegroundColor Cyan
 
-    $TomlJsonExePath = "$ScriptRoot\..\bin\tomljson.exe"
+    $TomlJsonExePath = "$ScriptRoot\..\..\bin\tomljson.exe"
     $DefaultSettings = @{
         paths        = @{
             base_project_dir   = ''
@@ -123,7 +123,7 @@ function Initialize-Environment
     Write-Host "[$timestamp] [INFO] Initializing environment..." -ForegroundColor Cyan
 
     # Locate realcugan-ncnn-vulkan.exe
-    $Global:RealCuganExePath = Get-RealCuganExePath
+    $Global:RealCuganExePath = Get-RealCuganExePath 
     if (-not $Global:RealCuganExePath)
     {
         $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
@@ -212,6 +212,25 @@ function Start-IPAPWorkflow
 
             if ($imageInfo.Count -gt 0)
             {
+                # Copy source images to raw_source directory
+                $rawSourceDir = Join-Path $projectDir '02_Preprocessing' 'raw_source'
+                $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+                Write-Host "[$timestamp] [INFO] Copying source images to $rawSourceDir" -ForegroundColor Cyan
+                
+                try
+                {
+                    $imageFormats = $Global:SupportedImageFormats | ForEach-Object { '*' + $_ }
+                    Get-ChildItem -Path $SourceDir -Include $imageFormats -File | Copy-Item -Destination $rawSourceDir -Force
+                    $copiedCount = (Get-ChildItem -Path $rawSourceDir -Include $imageFormats -File).Count
+                    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+                    Write-Host "[$timestamp] [SUCCESS] Copied $copiedCount images to raw_source directory" -ForegroundColor Green
+                }
+                catch
+                {
+                    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+                    Write-Host "[$timestamp] [ERROR] Failed to copy images: $($_.Exception.Message)" -ForegroundColor Red
+                }
+                
                 # Check if upscaling is needed
                 $needUpscale = Test-NeedUpscale -AverageSize $imageInfo.AverageSize
                 $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
