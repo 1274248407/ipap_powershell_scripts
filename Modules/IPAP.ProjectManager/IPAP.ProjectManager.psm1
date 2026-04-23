@@ -150,10 +150,11 @@ function New-ReadmeFile
 
     try
     {
+
         $readmePath = Join-Path $ProjectDir 'README.md'
+        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
         Write-Host "[$timestamp] [INFO] Writing README.md file to $readmePath"
         $content | Out-File -FilePath $readmePath -Encoding UTF8
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
         if (Test-Path $readmePath)
         {
             Write-Host "[$timestamp] [SUCCESS] README.md file overwritten successfully" -ForegroundColor Green
@@ -197,6 +198,7 @@ function New-TranslationFiles
 
     try
     {
+        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
         $translationDir = Join-Path $ProjectDir '03_Translation'
 
         if (-not (Test-Path $translationDir))
@@ -208,6 +210,7 @@ function New-TranslationFiles
         if ($BriefText)
         {
             $BriefText | Out-File -FilePath $briefFile -Encoding UTF8
+            
             Write-Host "[$timestamp] [INFO] Writing project brief file to $briefFile"
         }
 

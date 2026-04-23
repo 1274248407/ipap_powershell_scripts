@@ -37,7 +37,11 @@ config.toml
 # 原因：运行脚本时可能生成的临时文件，用于存储中间数据
 # 处理建议：这些文件是临时的，不应提交到版本库
 *.tmp
-
+# 测试脚本
+# 原因：测试脚本是本地开发环境特有的，不应提交到版本库
+*test*.ps1
+# 二进制依赖目录
+/bin/
 # 项目生成的文档
 # 原因：运行工作流时会在项目目录中生成 README.md、project_brief.md 等文档
 # 处理建议：这些文件是运行时生成的，不应提交到版本库
@@ -84,10 +88,6 @@ System Volume Information/
 # 处理建议：建议在 README 中说明如何下载和安装此工具，而不是将其提交到版本库
 realcugan-ncnn-vulkan-20220728-windows/
 
-# cwebp.exe 工具
-# 原因：cwebp.exe 是可选的第三方工具，用于 WebP 转换
-# 处理建议：建议在 README 中说明如何下载和安装此工具，而不是将其提交到版本库
-cwebp.exe
 
 ################################################################################
 # PowerShell 模块相关 - 排除模块安装和缓存文件
@@ -118,3 +118,8 @@ $HOME\Documents\PowerShell\Modules/
 # 处理建议：这些文件夹是临时的，不应提交到版本库
 temp/
 tmp/
+# 忽略 .gitignore 文件
+# 原因：.gitignore 是版本控制系统的配置文件，不应提交到版本库
+.gitignore
+# 打包目录
+IPAP_Package/

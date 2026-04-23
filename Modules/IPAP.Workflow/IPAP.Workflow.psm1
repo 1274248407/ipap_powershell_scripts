@@ -219,9 +219,8 @@ function Start-IPAPWorkflow
                 
                 try
                 {
-                    $imageFormats = $Global:SupportedImageFormats | ForEach-Object { '*' + $_ }
-                    Get-ChildItem -Path $SourceDir -Include $imageFormats -File | Copy-Item -Destination $rawSourceDir -Force
-                    $copiedCount = (Get-ChildItem -Path $rawSourceDir -Include $imageFormats -File).Count
+                    Get-ChildItem -Path $SourceDir -File | Where-Object { $Global:SupportedImageFormats -contains $_.Extension } | Copy-Item -Destination $rawSourceDir -Force
+                    $copiedCount = (Get-ChildItem -Path $rawSourceDir -File | Where-Object { $Global:SupportedImageFormats -contains $_.Extension }).Count
                     $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
                     Write-Host "[$timestamp] [SUCCESS] Copied $copiedCount images to raw_source directory" -ForegroundColor Green
                 }
