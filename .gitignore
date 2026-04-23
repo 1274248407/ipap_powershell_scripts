@@ -123,3 +123,4 @@ tmp/
 .gitignore
 # 打包目录
 IPAP_Package/
+*.zip

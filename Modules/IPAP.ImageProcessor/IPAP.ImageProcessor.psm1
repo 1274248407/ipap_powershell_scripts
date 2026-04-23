@@ -166,7 +166,7 @@ function Invoke-ImageUpscale
         $fileName = [System.IO.Path]::GetFileNameWithoutExtension($ImagePath)
         $outputPath = Join-Path $OutputDir "${fileName}.${OutputFormat}"
 
-        $args = @(
+        $realCuganArgs = @(
             '-i', $ImagePath,
             '-o', $outputPath,
             '-n', $NoiseLevel,
@@ -176,7 +176,7 @@ function Invoke-ImageUpscale
             '-f', $OutputFormat
         )
 
-        & $Global:RealCuganExePath @args
+        & $Global:RealCuganExePath @realCuganArgs
 
         if (Test-Path $outputPath)
         {
@@ -252,7 +252,7 @@ function Invoke-ParallelUpscale
 
         try
         {
-            $args = @(
+            $realCuganArgs = @(
                 '-i', $image.FullName,
                 '-o', $outputPath,
                 '-n', 0,
@@ -262,7 +262,7 @@ function Invoke-ParallelUpscale
                 '-f', $outputFormat
             )
 
-            & $realCuganExePath @args
+            & $realCuganExePath @realCuganArgs
 
             if (Test-Path $outputPath)
             {
