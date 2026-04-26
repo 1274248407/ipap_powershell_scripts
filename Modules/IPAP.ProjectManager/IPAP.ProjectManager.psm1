@@ -5,6 +5,14 @@
     提供项目目录结构创建、README 文件生成和翻译文件管理功能。
 #>
 
+$ScriptRoot = $PSScriptRoot
+
+$PoShLogPath = Join-Path $ScriptRoot '..\..\vendor\PoShLog'
+if (Test-Path $PoShLogPath)
+{
+    Import-Module -Name $PoShLogPath -Force
+}
+
 Import-Module "$PSScriptRoot\..\IPAP.Core\IPAP.Core.psm1" -Force
 
 <#
@@ -39,16 +47,14 @@ function New-ProjectStructure
         $response = Read-Host "Directory $projectDir already exists, overwrite? (Y/N)"
         if ($response -ne 'Y' -and $response -ne 'y')
         {
-            $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-            Write-Host "[$timestamp] [INFO] User cancelled overwrite operation" -ForegroundColor Cyan
+            Write-InfoLog "User cancelled overwrite operation"
             return $null
         }
     }
 
     try
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [INFO] Creating project directory: $projectDir" -ForegroundColor Cyan
+        Write-InfoLog "Creating project directory: $projectDir"
 
         New-Item -ItemType Directory -Path $projectDir -Force | Out-Null
 
@@ -66,18 +72,15 @@ function New-ProjectStructure
         {
             $fullPath = Join-Path $projectDir $subDir
             New-Item -ItemType Directory -Path $fullPath -Force | Out-Null
-            $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-            Write-Host "[$timestamp] [INFO] Created subdirectory: $fullPath" -ForegroundColor Cyan
+            Write-InfoLog "Created subdirectory: $fullPath"
         }
 
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [SUCCESS] Project directory structure created successfully" -ForegroundColor Green
+        Write-InfoLog "Project directory structure created successfully"
         return $projectDir
     }
     catch
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [ERROR] Failed to create project directory: $($_.Exception.Message)" -ForegroundColor Red
+        Write-ErrorLog "Failed to create project directory: $($PSItem.Exception.Message)"
         return $null
     }
 }
@@ -152,22 +155,20 @@ function New-ReadmeFile
     {
 
         $readmePath = Join-Path $ProjectDir 'README.md'
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [INFO] Writing README.md file to $readmePath"
+        Write-InfoLog "Writing README.md file to $readmePath"
         $content | Out-File -FilePath $readmePath -Encoding UTF8
         if (Test-Path $readmePath)
         {
-            Write-Host "[$timestamp] [SUCCESS] README.md file overwritten successfully" -ForegroundColor Green
+            Write-InfoLog "README.md file overwritten successfully"
         }
         else
         {
-            Write-Host "[$timestamp] [SUCCESS] README.md file created successfully" -ForegroundColor Green
+            Write-InfoLog "README.md file created successfully"
         }
     }
     catch
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [ERROR] Failed to create/overwrite README.md file: $($_.Exception.Message)" -ForegroundColor Red
+        Write-ErrorLog "Failed to create/overwrite README.md file: $($PSItem.Exception.Message)"
     }
 }
 
@@ -198,7 +199,6 @@ function New-TranslationFiles
 
     try
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
         $translationDir = Join-Path $ProjectDir '03_Translation'
 
         if (-not (Test-Path $translationDir))
@@ -211,23 +211,21 @@ function New-TranslationFiles
         {
             $BriefText | Out-File -FilePath $briefFile -Encoding UTF8
             
-            Write-Host "[$timestamp] [INFO] Writing project brief file to $briefFile"
+            Write-InfoLog "Writing project brief file to $briefFile"
         }
 
         $glossaryFile = Join-Path $translationDir 'glossary.json'
         '{}' | Out-File -FilePath $glossaryFile -Encoding UTF8
-        Write-Host "[$timestamp] [INFO] Writing glossary file to $glossaryFile"
+        Write-InfoLog "Writing glossary file to $glossaryFile"
 
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
         $briefStatus = if (Test-Path $briefFile) { 'overwritten' } else { 'created' }
         $glossaryStatus = if (Test-Path $glossaryFile) { 'overwritten' } else { 'created' }
-        Write-Host "[$timestamp] [SUCCESS] Translation files $briefStatus successfully" -ForegroundColor Green
-        Write-Host "[$timestamp] [SUCCESS] Glossary file $glossaryStatus successfully" -ForegroundColor Green
+        Write-InfoLog "Translation files $briefStatus successfully"
+        Write-InfoLog "Glossary file $glossaryStatus successfully"
     }
     catch
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [ERROR] Failed to create/overwrite translation files: $($_.Exception.Message)" -ForegroundColor Red
+        Write-ErrorLog "Failed to create/overwrite translation files: $($PSItem.Exception.Message)"
     }
 }
 
@@ -247,8 +245,7 @@ function Get-ProjectBriefInfo
     [CmdletBinding()]
     param ()
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] === 项目信息输入 ===" -ForegroundColor Cyan
+    Write-InfoLog "=== 项目信息输入 ==="
 
     $projectName = Read-Host '项目名称（格式：[作者] 原作品名）'
     $projectName = $projectName.Trim()
@@ -256,8 +253,7 @@ function Get-ProjectBriefInfo
     $authorChinese = Read-Host '作品中文译名（格式：[作者] 作品中文译名）'
     $authorChinese = $authorChinese.Trim()
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] 请输入【项目简介】（多行，空行结束）：" -ForegroundColor Cyan
+    Write-InfoLog "请输入【项目简介】（多行，空行结束）："
     $overviewLines = @()
     while ($true)
     {

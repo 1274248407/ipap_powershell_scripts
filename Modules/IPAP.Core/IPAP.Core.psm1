@@ -26,54 +26,10 @@ $Global:DefaultSettings = @{
     }
 }
 
-<#
-.SYNOPSIS
-    输出带时间戳和颜色的日志信息
-.DESCRIPTION
-    根据指定的日志级别输出不同颜色的日志信息，包含时间戳和日志级别标识。
-.PARAMETER Message
-    要输出的日志消息内容。
-.PARAMETER Level
-    日志级别，支持 INFO、SUCCESS、WARNING、ERROR。默认为 INFO。
-.EXAMPLE
-    Write-Log "Starting process"
-    输出 INFO 级别的日志。
-#>
-function Write-Log
-{
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory = $true)]
-        [string]$Message,
-        [string]$Level = 'INFO'
-    )
+$PoShLogPath = Join-Path $ScriptRoot '..\..\vendor\PoShLog'
+Import-Module -Name $PoShLogPath -Force -Scope Global
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
 
-    switch ($Level)
-    {
-        'INFO'
-        {
-            Write-Host "[$timestamp] [INFO] $Message" -ForegroundColor Cyan
-        }
-        'SUCCESS'
-        {
-            Write-Host "[$timestamp] [SUCCESS] $Message" -ForegroundColor Green
-        }
-        'WARNING'
-        {
-            Write-Host "[$timestamp] [WARNING] $Message" -ForegroundColor Yellow
-        }
-        'ERROR'
-        {
-            Write-Host "[$timestamp] [ERROR] $Message" -ForegroundColor Red
-        }
-        default
-        {
-            Write-Host "[$timestamp] [$Level] $Message"
-        }
-    }
-}
 
 function Get-Config
 {
@@ -82,20 +38,17 @@ function Get-Config
         [string]$ConfigPath = $Global:ConfigPath
     )
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] Reading configuration file: $ConfigPath" -ForegroundColor Cyan
+    Write-InfoLog "Reading configuration file: $ConfigPath"
 
     if (-not (Test-Path $ConfigPath))
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [WARNING] Configuration file not found, using default settings" -ForegroundColor Yellow
+        Write-WarningLog 'Configuration file not found, using default settings'
         return $Global:DefaultSettings
     }
 
     if (-not (Test-Path $Global:TomlJsonExePath))
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [WARNING] tomljson.exe not found, using default settings" -ForegroundColor Yellow
+        Write-WarningLog 'tomljson.exe not found, using default settings'
         return $Global:DefaultSettings
     }
 
@@ -115,14 +68,12 @@ function Get-Config
             upscale_timeout_sec = $config.app_settings.upscale_timeout_sec
         }
 
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [SUCCESS] Configuration file parsed successfully" -ForegroundColor Green
+        Write-InfoLog 'Configuration file parsed successfully'
         return $configHash
     }
     catch
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [ERROR] Configuration file parsing failed: $($_.Exception.Message), using default settings" -ForegroundColor Red
+        Write-ErrorLog "Configuration file parsing failed: $($PSItem.Exception.Message), using default settings"
         return $Global:DefaultSettings
     }
 }
@@ -160,56 +111,39 @@ function Get-RealCuganExePath
         [string]$SearchPath = $Global:BinPath
     )
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] Searching for realcugan-ncnn-vulkan.exe..." -ForegroundColor Cyan
+    Write-InfoLog 'Searching for realcugan-ncnn-vulkan.exe...'
 
     $exePath = Get-ChildItem -Path $SearchPath -Name 'realcugan-ncnn-vulkan.exe' -Recurse -ErrorAction SilentlyContinue
 
     if ($exePath)
     {
         $fullPath = Join-Path $SearchPath $exePath
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [SUCCESS] Found realcugan-ncnn-vulkan.exe: $fullPath" -ForegroundColor Green
+        Write-InfoLog "Found realcugan-ncnn-vulkan.exe: $fullPath"
         return $fullPath
     }
     else
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [ERROR] realcugan-ncnn-vulkan.exe not found" -ForegroundColor Red
+        Write-ErrorLog 'realcugan-ncnn-vulkan.exe not found'
         return $null
     }
 }
 
-<#
-.SYNOPSIS
-    初始化环境
-.DESCRIPTION
-    定位 realcugan-ncnn-vulkan.exe 并加载配置文件，为后续操作做准备。
-.EXAMPLE
-    Initialize-Environment
-    初始化运行环境。
-#>
 function Initialize-Environment
 {
     [CmdletBinding()]
     param()
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] Initializing environment..." -ForegroundColor Cyan
+    Write-InfoLog 'Initializing environment...'
 
-    # Locate realcugan-ncnn-vulkan.exe
     $Global:RealCuganExePath = Get-RealCuganExePath
     if (-not $Global:RealCuganExePath)
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [WARNING] Cannot locate realcugan-ncnn-vulkan.exe, upscaling functionality will be unavailable" -ForegroundColor Yellow
+        Write-WarningLog 'Cannot locate realcugan-ncnn-vulkan.exe, upscaling functionality will be unavailable'
     }
 
-    # Load configuration
     $Global:Settings = Get-Config
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [SUCCESS] Environment initialization completed" -ForegroundColor Green
+    Write-InfoLog 'Environment initialization completed'
 }
 
 Export-ModuleMember -Variable @(
@@ -223,7 +157,6 @@ Export-ModuleMember -Variable @(
 )
 
 Export-ModuleMember -Function @(
-    'Write-Log',
     'Get-Config',
     'Get-NaturalSortKey',
     'Get-RealCuganExePath',

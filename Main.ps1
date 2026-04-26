@@ -14,67 +14,53 @@ Date: 2026-04-14
 # Ensure PowerShell 7 or above
 if ($PSVersionTable.PSVersion.Major -lt 7)
 {
-    Write-Host 'Error: PowerShell 7 or above is required' -ForegroundColor Red
+    Write-ErrorLog 'Error: PowerShell 7 or above is required'
     exit 1
 }
+# 设置控制台输出编码为 UTF-8，以支持特殊字符（如 ✓）
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-# Set script root
 $ScriptRoot = $PSScriptRoot
 
+# Import PoShLog module
+$PoShLogPath = Join-Path $ScriptRoot 'vendor\PoShLog'
+Import-Module -Name $PoShLogPath -Force -Scope Global
+
+# Initialize Logger in the Global scope so all modules can see it
+& {
+    $Global:Logger = New-Logger |
+        Set-MinimumLevel -Value Verbose |
+        Add-SinkConsole |
+        Start-Logger
+}
+
+Write-InfoLog '✓ PoShLog module imported'
+
+
 # Import modules
-Write-Host 'Importing IPAP modules...'
+Write-InfoLog 'Importing IPAP modules...'
 
 # Import IPAP.Core module
 $coreModulePath = "$ScriptRoot\Modules\IPAP.Core\IPAP.Core.psd1"
-if (Test-Path $coreModulePath)
-{
-    Import-Module $coreModulePath -Force -Scope Global
-    Write-Host '✓ IPAP.Core module imported'
-}
-else
-{
-    Write-Host '✗ IPAP.Core module not found' -ForegroundColor Red
-    exit 1
-}
+Import-Module $coreModulePath -Force -Scope Global
+Write-InfoLog '✓ IPAP.Core module imported'
 
 # Import IPAP.ImageProcessor module
 $imageProcessorModulePath = "$ScriptRoot\Modules\IPAP.ImageProcessor\IPAP.ImageProcessor.psd1"
-if (Test-Path $imageProcessorModulePath)
-{
-    Import-Module $imageProcessorModulePath -Force -Scope Global
-    Write-Host '✓ IPAP.ImageProcessor module imported'
-}
-else
-{
-    Write-Host '✗ IPAP.ImageProcessor module not found' -ForegroundColor Red
-    exit 1
-}
+Import-Module $imageProcessorModulePath -Force -Scope Global
+Write-InfoLog '✓ IPAP.ImageProcessor module imported'
 
 # Import IPAP.ProjectManager module
 $projectManagerModulePath = "$ScriptRoot\Modules\IPAP.ProjectManager\IPAP.ProjectManager.psd1"
-if (Test-Path $projectManagerModulePath)
-{
-    Import-Module $projectManagerModulePath -Force -Scope Global
-    Write-Host '✓ IPAP.ProjectManager module imported'
-}
-else
-{
-    Write-Host '✗ IPAP.ProjectManager module not found' -ForegroundColor Red
-    exit 1
-}
+Import-Module $projectManagerModulePath -Force -Scope Global
+Write-InfoLog '✓ IPAP.ProjectManager module imported'  
 
 # Import IPAP.Workflow module
 $workflowModulePath = "$ScriptRoot\Modules\IPAP.Workflow\IPAP.Workflow.psd1"
-if (Test-Path $workflowModulePath)
-{
-    Import-Module $workflowModulePath -Force -Scope Global
-    Write-Host '✓ IPAP.Workflow module imported'
-}
-else
-{
-    Write-Host '✗ IPAP.Workflow module not found' -ForegroundColor Red
-    exit 1
-}
+
+Import-Module $workflowModulePath -Force -Scope Global
+Write-InfoLog '✓ IPAP.Workflow module imported'
+
 
 # Define helper functions directly in Main.ps1
 function Get-RealCuganExePath
@@ -84,21 +70,18 @@ function Get-RealCuganExePath
         [string]$SearchPath = "$ScriptRoot\bin"
     )
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] Searching for realcugan-ncnn-vulkan.exe..." -ForegroundColor Cyan
+    Write-InfoLog 'Searching for realcugan-ncnn-vulkan.exe...'
 
     $exePath = Get-ChildItem -Path $SearchPath -Name 'realcugan-ncnn-vulkan.exe' -Recurse -ErrorAction SilentlyContinue
     if ($exePath)
     {
         $fullPath = Join-Path $SearchPath $exePath
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [SUCCESS] Found realcugan-ncnn-vulkan.exe: $fullPath" -ForegroundColor Green
+        Write-InfoLog "Found realcugan-ncnn-vulkan.exe: $fullPath"
         return $fullPath
     }
     else
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [ERROR] realcugan-ncnn-vulkan.exe not found" -ForegroundColor Red
+        Write-ErrorLog 'realcugan-ncnn-vulkan.exe not found'
         return $null
     }
 }
@@ -110,8 +93,7 @@ function Get-Config
         [string]$ConfigPath = "$ScriptRoot\config.toml"
     )
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] Reading configuration file: $ConfigPath" -ForegroundColor Cyan
+    Write-InfoLog "Reading configuration file: $ConfigPath"
 
     $TomlJsonExePath = "$ScriptRoot\bin\tomljson.exe"
     $DefaultSettings = @{
@@ -128,15 +110,13 @@ function Get-Config
 
     if (-not (Test-Path $ConfigPath))
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [WARNING] Configuration file not found, using default settings" -ForegroundColor Yellow
+        Write-WarningLog 'Configuration file not found, using default settings'
         return $DefaultSettings
     }
 
     if (-not (Test-Path $TomlJsonExePath))
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [WARNING] tomljson.exe not found, using default settings" -ForegroundColor Yellow
+        Write-WarningLog 'tomljson.exe not found, using default settings'
         return $DefaultSettings
     }
 
@@ -156,14 +136,12 @@ function Get-Config
             upscale_timeout_sec = $config.app_settings.upscale_timeout_sec
         }
 
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [SUCCESS] Configuration file parsed successfully" -ForegroundColor Green
+        Write-InfoLog 'Configuration file parsed successfully'
         return $configHash
     }
     catch
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [ERROR] Configuration file parsing failed: $($_.Exception.Message), using default settings" -ForegroundColor Red
+        Write-ErrorLog "Configuration file parsing failed: $($PSItem.Exception.Message), using default settings"
         return $DefaultSettings
     }
 }
@@ -174,48 +152,45 @@ function Initialize-Environment
     [CmdletBinding()]
     param()
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] Initializing environment..." -ForegroundColor Cyan
+    Write-InfoLog 'Initializing environment...'
 
     # Locate realcugan-ncnn-vulkan.exe
     $Global:RealCuganExePath = Get-RealCuganExePath
     if (-not $Global:RealCuganExePath)
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [WARNING] Cannot locate realcugan-ncnn-vulkan.exe, upscaling functionality will be unavailable" -ForegroundColor Yellow
+        Write-WarningLog 'Cannot locate realcugan-ncnn-vulkan.exe, upscaling functionality will be unavailable'
     }
 
     # Load configuration
     $Global:Settings = Get-Config
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [SUCCESS] Environment initialization completed" -ForegroundColor Green
+    Write-InfoLog 'Environment initialization completed'
 }
 
 # Check if Start-IPAPWorkflow function is available
 if (Get-Command Start-IPAPWorkflow -ErrorAction SilentlyContinue)
 {
-    Write-Host "`nAll modules imported successfully!" -ForegroundColor Green
+    Write-InfoLog "`nAll modules imported successfully!"
     
     # Test Initialize-Environment function
-    Write-Host 'Testing Initialize-Environment function...'
+    Write-InfoLog 'Testing Initialize-Environment function...'
     if (Get-Command -Name 'Initialize-Environment' -ErrorAction SilentlyContinue)
     {
-        Write-Host '✓ Initialize-Environment function found'
+        Write-InfoLog '✓ Initialize-Environment function found'
     }
     else
     {
-        Write-Host '✗ Initialize-Environment function not found' -ForegroundColor Red
+        Write-ErrorLog '✗ Initialize-Environment function not found'
         exit 1
     }
     
-    Write-Host "Starting IPAP Workflow...`n"
+    Write-InfoLog "Starting IPAP Workflow...`n"
 
     # Execute main workflow
     Start-IPAPWorkflow
 }
 else
 {
-    Write-Host '✗ Start-IPAPWorkflow function not found' -ForegroundColor Red
+    Write-ErrorLog '✗ Start-IPAPWorkflow function not found'
     exit 1
 }

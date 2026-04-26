@@ -124,3 +124,8 @@ tmp/
 # 打包目录
 IPAP_Package/
 *.zip
+TestResults.json
+TestResults.xml
+CodeCoverage.xml
+vendor/PoShLog/2.1.1/PSGetModuleInfo.xml
+vendor/

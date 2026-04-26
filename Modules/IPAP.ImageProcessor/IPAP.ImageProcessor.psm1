@@ -5,6 +5,14 @@
     提供图片分析、高清化处理和并行处理功能。
 #>
 
+$ScriptRoot = $PSScriptRoot
+
+$PoShLogPath = Join-Path $ScriptRoot '..\..\vendor\PoShLog'
+if (Test-Path $PoShLogPath)
+{
+    Import-Module -Name $PoShLogPath -Force
+}
+
 Import-Module "$PSScriptRoot\..\IPAP.Core\IPAP.Core.psm1" -Force
 
 $Global:RealCuganExePath = $null
@@ -30,13 +38,11 @@ function Get-ImageInfo
         [string]$SourceDir
     )
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] Analyzing image directory: $SourceDir" -ForegroundColor Cyan
+    Write-InfoLog "Analyzing image directory: $SourceDir"
 
     if (-not (Test-Path $SourceDir))
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [ERROR] Source directory not found: $SourceDir" -ForegroundColor Red
+        Write-ErrorLog "Source directory not found: $SourceDir"
         return @{ Images = @(); TotalSize = 0; AverageSize = 0; Count = 0 }
     }
 
@@ -45,15 +51,15 @@ function Get-ImageInfo
     $count = 0
 
     Get-ChildItem -Path $SourceDir -File | ForEach-Object {
-        if ($Global:SupportedImageFormats -contains $_.Extension.ToLower())
+        if ($Global:SupportedImageFormats -contains $PSItem.Extension.ToLower())
         {
-            $images += $_
-            $totalSize += $_.Length
+            $images += $PSItem
+            $totalSize += $PSItem.Length
             $count++
         }
     }
 
-    $images = $images | Sort-Object -Property { Get-NaturalSortKey $_.Name }
+    $images = $images | Sort-Object -Property { Get-NaturalSortKey $PSItem.Name }
 
     $averageSize = 0
     if ($count -gt 0)
@@ -61,8 +67,7 @@ function Get-ImageInfo
         $averageSize = $totalSize / 1024 / $count
     }
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] Found $count images, total size: $([math]::Round($totalSize / 1024 / 1024, 2)) MB, average size: $([math]::Round($averageSize, 2)) KB" -ForegroundColor Cyan
+    Write-InfoLog "Found $count images, total size: $([math]::Round($totalSize / 1024 / 1024, 2)) MB, average size: $([math]::Round($averageSize, 2)) KB"
 
     return @{
         Images      = $images
@@ -95,14 +100,12 @@ function Test-NeedUpscale
 
     if ($AverageSize -lt $threshold)
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [INFO] Average file size $([math]::Round($AverageSize, 2)) KB < $threshold KB, upscaling needed" -ForegroundColor Cyan
+        Write-InfoLog "Average file size $([math]::Round($AverageSize, 2)) KB < $threshold KB, upscaling needed"
         return $true
     }
     else
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [INFO] Average file size $([math]::Round($AverageSize, 2)) KB >= $threshold KB, skipping upscaling" -ForegroundColor Cyan
+        Write-InfoLog "Average file size $([math]::Round($AverageSize, 2)) KB >= $threshold KB, skipping upscaling"
         return $false
     }
 }
@@ -144,15 +147,13 @@ function Invoke-ImageUpscale
 
     if (-not $Global:RealCuganExePath)
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [ERROR] realcugan-ncnn-vulkan.exe not found, cannot perform upscaling" -ForegroundColor Red
+        Write-ErrorLog "realcugan-ncnn-vulkan.exe not found, cannot perform upscaling"
         return $false
     }
 
     if (-not (Test-Path $ImagePath))
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [ERROR] Input file not found: $ImagePath" -ForegroundColor Red
+        Write-ErrorLog "Input file not found: $ImagePath"
         return $false
     }
 
@@ -228,8 +229,7 @@ function Invoke-ParallelUpscale
         [string]$OutputFormat = 'webp'
     )
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] Starting parallel image processing, concurrency: $MaxWorkers" -ForegroundColor Cyan
+    Write-InfoLog "Starting parallel image processing, concurrency: $MaxWorkers"
 
     if (-not (Test-Path $OutputDir))
     {
@@ -240,7 +240,7 @@ function Invoke-ParallelUpscale
     $failedCount = 0
 
     $Images | ForEach-Object -Parallel {
-        $image = $_
+        $image = $PSItem
         $outputDir = $using:OutputDir
         $scale = $using:Scale
         $modelPath = $using:ModelPath
@@ -275,25 +275,22 @@ function Invoke-ParallelUpscale
         }
         catch
         {
-            return @{ Success = $false; Image = $image.Name; Error = $_.Exception.Message }
+            return @{ Success = $false; Image = $image.Name; Error = $PSItem.Exception.Message }
         }
     } -ThrottleLimit $MaxWorkers | ForEach-Object {
-        if ($_.Success)
+        if ($PSItem.Success)
         {
-            $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-            Write-Host "[$timestamp] [SUCCESS] Image processed successfully: $($_.Image)" -ForegroundColor Green
+            Write-InfoLog "Image processed successfully: $($PSItem.Image)"
             $successCount++
         }
         else
         {
-            $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-            Write-Host "[$timestamp] [ERROR] Image processing failed: $($_.Image)" -ForegroundColor Red
+            Write-ErrorLog "Image processing failed: $($PSItem.Image)"
             $failedCount++
         }
     }
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] Parallel processing completed, success: $successCount, failed: $failedCount" -ForegroundColor Cyan
+    Write-InfoLog "Parallel processing completed, success: $successCount, failed: $failedCount"
 
     return @{ SuccessCount = $successCount; FailedCount = $failedCount }
 }
@@ -315,8 +312,7 @@ function Initialize-ImageProcessor
     $Global:RealCuganExePath = Get-RealCuganExePath
     if (-not $Global:RealCuganExePath)
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [WARNING] Cannot locate realcugan-ncnn-vulkan.exe, upscaling functionality will be unavailable" -ForegroundColor Yellow
+        Write-WarningLog "Cannot locate realcugan-ncnn-vulkan.exe, upscaling functionality will be unavailable"
     }
 }
 

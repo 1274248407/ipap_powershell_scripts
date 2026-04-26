@@ -7,6 +7,13 @@
 
 # Import dependent modules
 $ScriptRoot = $PSScriptRoot
+
+$PoShLogPath = Join-Path $ScriptRoot '..\..\vendor\PoShLog'
+if (Test-Path $PoShLogPath)
+{
+    Import-Module -Name $PoShLogPath -Force
+}
+
 Import-Module "$ScriptRoot\..\IPAP.Core\IPAP.Core.psd1" -Force -Scope Global
 Import-Module "$ScriptRoot\..\IPAP.ImageProcessor\IPAP.ImageProcessor.psd1" -Force -Scope Global
 Import-Module "$ScriptRoot\..\IPAP.ProjectManager\IPAP.ProjectManager.psd1" -Force -Scope Global
@@ -19,22 +26,19 @@ function Get-RealCuganExePath
         [string]$SearchPath = "$ScriptRoot\..\..\bin"
     )
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] Searching for realcugan-ncnn-vulkan.exe..." -ForegroundColor Cyan
+    Write-InfoLog 'Searching for realcugan-ncnn-vulkan.exe...'
 
     $exePath = Get-ChildItem -Path $SearchPath -Name 'realcugan-ncnn-vulkan.exe' -Recurse -ErrorAction SilentlyContinue
 
     if ($exePath)
     {
         $fullPath = Join-Path $SearchPath $exePath
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [SUCCESS] Found realcugan-ncnn-vulkan.exe: $fullPath" -ForegroundColor Green
+        Write-InfoLog "Found realcugan-ncnn-vulkan.exe: $fullPath"
         return $fullPath
     }
     else
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [ERROR] realcugan-ncnn-vulkan.exe not found" -ForegroundColor Red
+        Write-ErrorLog 'realcugan-ncnn-vulkan.exe not found'
         return $null
     }
 }
@@ -46,8 +50,7 @@ function Get-Config
         [string]$ConfigPath = "$ScriptRoot\..\..\config.toml"
     )
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] Reading configuration file: $ConfigPath" -ForegroundColor Cyan
+    Write-InfoLog "Reading configuration file: $ConfigPath"
 
     $TomlJsonExePath = "$ScriptRoot\..\..\bin\tomljson.exe"
     $DefaultSettings = @{
@@ -64,15 +67,13 @@ function Get-Config
 
     if (-not (Test-Path $ConfigPath))
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [WARNING] Configuration file not found, using default settings" -ForegroundColor Yellow
+        Write-WarningLog 'Configuration file not found, using default settings'
         return $DefaultSettings
     }
 
     if (-not (Test-Path $TomlJsonExePath))
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [WARNING] tomljson.exe not found, using default settings" -ForegroundColor Yellow
+        Write-WarningLog 'tomljson.exe not found, using default settings'
         return $DefaultSettings
     }
 
@@ -92,14 +93,12 @@ function Get-Config
             upscale_timeout_sec = $config.app_settings.upscale_timeout_sec
         }
 
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [SUCCESS] Configuration file parsed successfully" -ForegroundColor Green
+        Write-InfoLog 'Configuration file parsed successfully'
         return $configHash
     }
     catch
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [ERROR] Configuration file parsing failed: $($_.Exception.Message), using default settings" -ForegroundColor Red
+        Write-ErrorLog "Configuration file parsing failed: $($PSItem.Exception.Message), using default settings"
         return $DefaultSettings
     }
 }
@@ -119,22 +118,19 @@ function Initialize-Environment
     [CmdletBinding()]
     param()
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] Initializing environment..." -ForegroundColor Cyan
+    Write-InfoLog 'Initializing environment...'
 
     # Locate realcugan-ncnn-vulkan.exe
     $Global:RealCuganExePath = Get-RealCuganExePath 
     if (-not $Global:RealCuganExePath)
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [WARNING] Cannot locate realcugan-ncnn-vulkan.exe, upscaling functionality will be unavailable" -ForegroundColor Yellow
+        Write-WarningLog 'Cannot locate realcugan-ncnn-vulkan.exe, upscaling functionality will be unavailable'
     }
 
     # Load configuration
     $Global:Settings = Get-Config
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [SUCCESS] Environment initialization completed" -ForegroundColor Green
+    Write-InfoLog 'Environment initialization completed'
 }
 
 <#
@@ -167,8 +163,7 @@ function Start-IPAPWorkflow
     try
     {
         # Initialize environment
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [INFO] Initializing IPAP workflow..." -ForegroundColor Cyan
+        Write-InfoLog 'Initializing IPAP workflow...'
         Initialize-Environment
 
         # Get base directory
@@ -198,8 +193,7 @@ function Start-IPAPWorkflow
 
         if ($projectDir)
         {
-            $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-            Write-Host "[$timestamp] [SUCCESS] Project initialization successful: $projectDir" -ForegroundColor Green
+            Write-InfoLog "Project initialization successful: $projectDir"
 
             # Get source directory
             if (-not $SourceDir)
@@ -214,26 +208,22 @@ function Start-IPAPWorkflow
             {
                 # Copy source images to raw_source directory
                 $rawSourceDir = Join-Path $projectDir '02_Preprocessing' 'raw_source'
-                $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-                Write-Host "[$timestamp] [INFO] Copying source images to $rawSourceDir" -ForegroundColor Cyan
+                Write-InfoLog "Copying source images to $rawSourceDir"
                 
                 try
                 {
-                    Get-ChildItem -Path $SourceDir -File | Where-Object { $Global:SupportedImageFormats -contains $_.Extension } | Copy-Item -Destination $rawSourceDir -Force
-                    $copiedCount = (Get-ChildItem -Path $rawSourceDir -File | Where-Object { $Global:SupportedImageFormats -contains $_.Extension }).Count
-                    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-                    Write-Host "[$timestamp] [SUCCESS] Copied $copiedCount images to raw_source directory" -ForegroundColor Green
+                    Get-ChildItem -Path $SourceDir -File | Where-Object { $Global:SupportedImageFormats -contains $PSItem.Extension } | Copy-Item -Destination $rawSourceDir -Force
+                    $copiedCount = (Get-ChildItem -Path $rawSourceDir -File | Where-Object { $Global:SupportedImageFormats -contains $PSItem.Extension }).Count
+                    Write-InfoLog "Copied $copiedCount images to raw_source directory"
                 }
                 catch
                 {
-                    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-                    Write-Host "[$timestamp] [ERROR] Failed to copy images: $($_.Exception.Message)" -ForegroundColor Red
+                    Write-ErrorLog "Failed to copy images: $($PSItem.Exception.Message)"
                 }
                 
                 # Check if upscaling is needed
                 $needUpscale = Test-NeedUpscale -AverageSize $imageInfo.AverageSize
-                $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-                Write-Host "[$timestamp] [INFO] Upscaling needed: $needUpscale" -ForegroundColor Cyan
+                Write-InfoLog "Upscaling needed: $needUpscale"
 
                 # Create project documentation files
                 New-ReadmeFile -ProjectDir $projectDir -ProjectName $projectNameFormatted -ImageCount $imageInfo.Count -NeedUpscale $needUpscale -UpscaleRatio 2
@@ -247,34 +237,29 @@ function Start-IPAPWorkflow
                     $maxWorkers = $Global:Settings.app_settings.max_workers
 
                     # Test parallel processing
-                    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-                    Write-Host "[$timestamp] [INFO] Testing parallel processing with $maxWorkers concurrency" -ForegroundColor Cyan
+                    Write-InfoLog "Testing parallel processing with $maxWorkers concurrency"
                     $result = Invoke-ParallelUpscale -Images $imageInfo.Images -OutputDir $outputDir -MaxWorkers $maxWorkers -ModelPath $modelPath
 
                     if ($result.SuccessCount -gt 0)
                     {
-                        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-                        Write-Host "[$timestamp] [SUCCESS] Parallel processing test successful, success: $($result.SuccessCount), failed: $($result.FailedCount)" -ForegroundColor Green
+                        Write-InfoLog "Parallel processing test successful, success: $($result.SuccessCount), failed: $($result.FailedCount)"
                     }
                     else
                     {
-                        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-                        Write-Host "[$timestamp] [ERROR] Parallel processing test failed" -ForegroundColor Red
+                        Write-ErrorLog "Parallel processing test failed"
                     }
                 }
             }
         }
         else
         {
-            $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-            Write-Host "[$timestamp] [ERROR] Project initialization failed" -ForegroundColor Red
+            Write-ErrorLog 'Project initialization failed'
         }
 
     }
     catch
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [ERROR] Error during execution: $($_.Exception.Message)" -ForegroundColor Red
+        Write-ErrorLog "Error during execution: $($PSItem.Exception.Message)"
         exit 1
     }
 }
