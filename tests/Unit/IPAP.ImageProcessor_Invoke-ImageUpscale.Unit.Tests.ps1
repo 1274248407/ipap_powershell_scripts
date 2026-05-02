@@ -73,7 +73,7 @@ Describe 'Invoke-ImageUpscale Unit Tests' -Tag 'Invoke-ImageUpscale', 'IPAP.Imag
 
             $result = Invoke-ImageUpscale -ImagePath 'C:\test.jpg' -OutputDir 'C:\output'
 
-            Assert-MockCalled -ModuleName IPAP.ImageProcessor New-Item -Times 1
+            Should -Invoke -ModuleName IPAP.ImageProcessor New-Item -Times 1
         }
     }
 

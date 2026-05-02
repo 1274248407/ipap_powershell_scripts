@@ -43,7 +43,7 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP.Workfl
 
             Start-IPAPWorkflow -BaseDir 'C:\Projects'
 
-            Assert-MockCalled -ModuleName IPAP.Workflow Initialize-Environment -Times 1
+            Should -Invoke -ModuleName IPAP.Workflow Initialize-Environment -Times 1
         }
 
         It '应接受 ProjectName 参数' {
@@ -53,7 +53,7 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP.Workfl
 
             Start-IPAPWorkflow -ProjectName 'TestProject'
 
-            Assert-MockCalled -ModuleName IPAP.Workflow Initialize-Environment -Times 1
+            Should -Invoke -ModuleName IPAP.Workflow Initialize-Environment -Times 1
         }
 
         It '应接受 SourceDir 参数' {
@@ -63,7 +63,7 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP.Workfl
 
             Start-IPAPWorkflow -SourceDir 'C:\Images'
 
-            Assert-MockCalled -ModuleName IPAP.Workflow Initialize-Environment -Times 1
+            Should -Invoke -ModuleName IPAP.Workflow Initialize-Environment -Times 1
         }
     }
 
@@ -75,7 +75,7 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP.Workfl
 
             Start-IPAPWorkflow
 
-            Assert-MockCalled -ModuleName IPAP.Workflow Initialize-Environment -Times 1
+            Should -Invoke -ModuleName IPAP.Workflow Initialize-Environment -Times 1
         }
 
         It '应调用 Get-ProjectBriefInfo' {
@@ -85,7 +85,7 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP.Workfl
 
             Start-IPAPWorkflow -BaseDir 'C:\Projects'
 
-            Assert-MockCalled -ModuleName IPAP.Workflow Get-ProjectBriefInfo -Times 1
+            Should -Invoke -ModuleName IPAP.Workflow Get-ProjectBriefInfo -Times 1
         }
     }
 
@@ -98,7 +98,7 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP.Workfl
 
             Start-IPAPWorkflow -BaseDir 'C:\Projects'
 
-            Assert-MockCalled -ModuleName IPAP.Workflow Write-ErrorLog -Times 1
+            Should -Invoke -ModuleName IPAP.Workflow Write-ErrorLog -Times 1
         }
     }
 }

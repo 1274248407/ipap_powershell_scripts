@@ -57,7 +57,7 @@ Describe 'Invoke-ParallelUpscale Unit Tests' -Tag 'Invoke-ParallelUpscale', 'IPA
 
             $result = Invoke-ParallelUpscale -Images @() -OutputDir 'C:\output'
 
-            Assert-MockCalled -ModuleName IPAP.ImageProcessor New-Item -Times 1
+            Should -Invoke -ModuleName IPAP.ImageProcessor New-Item -Times 1
         }
 
         It '输出目录存在时应直接使用' {

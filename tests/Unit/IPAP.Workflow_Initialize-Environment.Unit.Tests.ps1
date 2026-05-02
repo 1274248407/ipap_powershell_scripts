@@ -59,7 +59,7 @@ Describe 'IPAP.Workflow Initialize-Environment Unit Tests' -Tag 'Initialize-Envi
 
             Initialize-Environment
 
-            Assert-MockCalled -ModuleName IPAP.Workflow Write-WarningLog -Times 1
+            Should -Invoke -ModuleName IPAP.Workflow Write-WarningLog -Times 1
         }
     }
 }

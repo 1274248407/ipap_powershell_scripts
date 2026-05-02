@@ -20,13 +20,23 @@ Import-Module "$PSScriptRoot\..\IPAP.Core\IPAP.Core.psm1" -Force
     创建项目目录结构
 .DESCRIPTION
     创建符合 IPAP 工作流标准的项目目录结构，包括预处理、翻译和排版目录。
+    若目录已存在则询问用户是否覆盖，创建失败时记录错误日志。
 .PARAMETER BaseDir
-    项目基础目录。
+    (string, Mandatory) 项目基础目录。
+    （适用于所有参数集）
 .PARAMETER ProjectName
-    项目名称。
+    (string, Mandatory) 项目名称。
+    （适用于所有参数集）
 .EXAMPLE
     New-ProjectStructure -BaseDir "C:\Projects" -ProjectName "Manga1"
     在 C:\Projects 目录下创建名为 2026-04-20_Manga1 的项目目录。
+.INPUTS
+    无
+.OUTPUTS
+    string 或 $null
+.NOTES
+    Author:  lucas_gold
+    Website: `https://github.com/1274248407`
 #>
 function New-ProjectStructure
 {
@@ -47,7 +57,7 @@ function New-ProjectStructure
         $response = Read-Host "Directory $projectDir already exists, overwrite? (Y/N)"
         if ($response -ne 'Y' -and $response -ne 'y')
         {
-            Write-InfoLog "User cancelled overwrite operation"
+            Write-InfoLog 'User cancelled overwrite operation'
             return $null
         }
     }
@@ -75,7 +85,7 @@ function New-ProjectStructure
             Write-InfoLog "Created subdirectory: $fullPath"
         }
 
-        Write-InfoLog "Project directory structure created successfully"
+        Write-InfoLog 'Project directory structure created successfully'
         return $projectDir
     }
     catch
@@ -90,19 +100,32 @@ function New-ProjectStructure
     创建 README.md 文件
 .DESCRIPTION
     根据项目配置和日期信息生成 README.md 文件，包含项目基本信息、进度跟踪和处理笔记等模板内容。
+    创建失败时记录错误日志。
 .PARAMETER ProjectDir
-    项目根目录路径。
+    (string, Mandatory) 项目根目录路径。
+    （适用于所有参数集）
 .PARAMETER ProjectName
-    项目名称。
+    (string, Mandatory) 项目名称。
+    （适用于所有参数集）
 .PARAMETER ImageCount
-    原始文件数量。
+    (int, Mandatory) 原始文件数量。
+    （适用于所有参数集）
 .PARAMETER NeedUpscale
-    是否需要高清化处理。
+    (bool, Mandatory) 是否需要高清化处理。
+    （适用于所有参数集）
 .PARAMETER UpscaleRatio
-    高清化倍数。
+    (int) 高清化倍数，默认为 2。
+    （适用于所有参数集）
 .EXAMPLE
     New-ReadmeFile -ProjectDir "C:\Projects\Manga1" -ProjectName "Manga1" -ImageCount 50 -NeedUpscale `$true -UpscaleRatio 2
     在项目目录下创建包含高清化状态的 README.md 文件。
+.INPUTS
+    无
+.OUTPUTS
+    无
+.NOTES
+    Author:  lucas_gold
+    Website: `https://github.com/1274248407`
 #>
 function New-ReadmeFile
 {
@@ -159,11 +182,11 @@ function New-ReadmeFile
         $content | Out-File -FilePath $readmePath -Encoding UTF8
         if (Test-Path $readmePath)
         {
-            Write-InfoLog "README.md file overwritten successfully"
+            Write-InfoLog 'README.md file overwritten successfully'
         }
         else
         {
-            Write-InfoLog "README.md file created successfully"
+            Write-InfoLog 'README.md file created successfully'
         }
     }
     catch
@@ -177,16 +200,26 @@ function New-ReadmeFile
     创建翻译相关文件
 .DESCRIPTION
     在项目目录下创建 03_Translation 文件夹，并生成项目简介文件和词汇表文件。
+    创建失败时记录错误日志。
 .PARAMETER ProjectDir
-    项目根目录路径。
+    (string, Mandatory) 项目根目录路径。
+    （适用于所有参数集）
 .PARAMETER BriefText
-    项目简介文本（可选）。
+    (string) 项目简介文本（可选）。
+    （适用于所有参数集）
 .EXAMPLE
     New-TranslationFiles -ProjectDir "C:\Projects\Manga1"
     创建翻译文件夹和空词汇表文件。
 .EXAMPLE
     New-TranslationFiles -ProjectDir "C:\Projects\Manga1" -BriefText "这是一个漫画翻译项目"
     创建翻译文件夹并包含项目简介。
+.INPUTS
+    无
+.OUTPUTS
+    无
+.NOTES
+    Author:  lucas_gold
+    Website: `https://github.com/1274248407`
 #>
 function New-TranslationFiles
 {
@@ -239,13 +272,20 @@ function New-TranslationFiles
 .EXAMPLE
     Get-ProjectBriefInfo
     获取项目简介信息并返回格式化后的字符串和项目名称。
+.INPUTS
+    无
+.OUTPUTS
+    object[] (包含格式化字符串和项目名称)
+.NOTES
+    Author:  lucas_gold
+    Website: `https://github.com/1274248407`
 #>
 function Get-ProjectBriefInfo
 {
     [CmdletBinding()]
     param ()
 
-    Write-InfoLog "=== 项目信息输入 ==="
+    Write-InfoLog '=== 项目信息输入 ==='
 
     $projectName = Read-Host '项目名称（格式：[作者] 原作品名）'
     $projectName = $projectName.Trim()
@@ -253,7 +293,7 @@ function Get-ProjectBriefInfo
     $authorChinese = Read-Host '作品中文译名（格式：[作者] 作品中文译名）'
     $authorChinese = $authorChinese.Trim()
 
-    Write-InfoLog "请输入【项目简介】（多行，空行结束）："
+    Write-InfoLog '请输入【项目简介】（多行，空行结束）：'
     $overviewLines = @()
     while ($true)
     {

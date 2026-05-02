@@ -34,7 +34,7 @@ Describe 'New-ReadmeFile Unit Tests' -Tag 'New-ReadmeFile', 'IPAP.ProjectManager
 
             New-ReadmeFile -ProjectDir 'C:\Projects\Test' -ProjectName 'TestProject' -ImageCount 50 -NeedUpscale $true -UpscaleRatio 2
 
-            Assert-MockCalled -ModuleName IPAP.ProjectManager Out-File -Times 1
+            Should -Invoke -ModuleName IPAP.ProjectManager Out-File -Times 1
         }
 
         It 'NeedUpscale 为 $true 时应有正确标记' {
@@ -43,7 +43,7 @@ Describe 'New-ReadmeFile Unit Tests' -Tag 'New-ReadmeFile', 'IPAP.ProjectManager
 
             New-ReadmeFile -ProjectDir 'C:\Projects\Test' -ProjectName 'TestProject' -ImageCount 50 -NeedUpscale $true -UpscaleRatio 2
 
-            Assert-MockCalled -ModuleName IPAP.ProjectManager Out-File -Times 1
+            Should -Invoke -ModuleName IPAP.ProjectManager Out-File -Times 1
         }
 
         It 'NeedUpscale 为 $false 时应有正确标记' {
@@ -52,7 +52,7 @@ Describe 'New-ReadmeFile Unit Tests' -Tag 'New-ReadmeFile', 'IPAP.ProjectManager
 
             New-ReadmeFile -ProjectDir 'C:\Projects\Test' -ProjectName 'TestProject' -ImageCount 50 -NeedUpscale $false -UpscaleRatio 2
 
-            Assert-MockCalled -ModuleName IPAP.ProjectManager Out-File -Times 1
+            Should -Invoke -ModuleName IPAP.ProjectManager Out-File -Times 1
         }
     }
 
@@ -63,7 +63,7 @@ Describe 'New-ReadmeFile Unit Tests' -Tag 'New-ReadmeFile', 'IPAP.ProjectManager
 
             New-ReadmeFile -ProjectDir 'C:\Projects\Test' -ProjectName 'TestProject' -ImageCount 50 -NeedUpscale $true
 
-            Assert-MockCalled -ModuleName IPAP.ProjectManager Out-File -Times 1
+            Should -Invoke -ModuleName IPAP.ProjectManager Out-File -Times 1
         }
 
         It '自定义 UpscaleRatio 应被接受' {
@@ -72,7 +72,7 @@ Describe 'New-ReadmeFile Unit Tests' -Tag 'New-ReadmeFile', 'IPAP.ProjectManager
 
             New-ReadmeFile -ProjectDir 'C:\Projects\Test' -ProjectName 'TestProject' -ImageCount 50 -NeedUpscale $true -UpscaleRatio 4
 
-            Assert-MockCalled -ModuleName IPAP.ProjectManager Out-File -Times 1
+            Should -Invoke -ModuleName IPAP.ProjectManager Out-File -Times 1
         }
     }
 
@@ -101,7 +101,7 @@ Describe 'New-ReadmeFile Unit Tests' -Tag 'New-ReadmeFile', 'IPAP.ProjectManager
 
             New-ReadmeFile -ProjectDir 'C:\Projects\Test' -ProjectName 'TestProject' -ImageCount 50 -NeedUpscale $false
 
-            Assert-MockCalled -ModuleName IPAP.ProjectManager Write-ErrorLog -Times 1
+            Should -Invoke -ModuleName IPAP.ProjectManager Write-ErrorLog -Times 1
         }
     }
 }

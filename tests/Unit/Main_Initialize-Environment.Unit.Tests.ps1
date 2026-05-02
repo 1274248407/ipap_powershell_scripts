@@ -9,16 +9,27 @@
 
 Describe 'Main Initialize-Environment Unit Tests' -Tag 'Initialize-Environment', 'Main' {
     BeforeAll {
-        $ProjectRoot = Split-Path -Parent $PSScriptRoot
+        $ProjectRoot = $PSScriptRoot | Split-Path -Parent | Split-Path -Parent
         $MainScriptPath = Join-Path $ProjectRoot 'Main.ps1'
+        
+        # 导入 PoShLog 模块
+        $PoshLogModulePath = Join-Path $ProjectRoot 'vendor\PoShLog\2.1.1\PoShLog.psd1'
+        if (Test-Path $PoshLogModulePath)
+        {
+            Import-Module $PoshLogModulePath -Force
+            New-Logger | Set-MinimumLevel -Value Verbose | Add-SinkConsole | Start-Logger
+        }
 
+        # 直接导入 Main.ps1（现在只加载函数，不执行主工作流）
         if (Test-Path $MainScriptPath)
         {
             . $MainScriptPath
         }
 
+        # Mock 日志函数和依赖函数
         Mock Write-InfoLog {}
         Mock Write-WarningLog {}
+        Mock Write-ErrorLog {}
         Mock Get-RealCuganExePath { return 'C:\bin\realcugan-ncnn-vulkan.exe' }
         Mock Get-Config {
             return @{
@@ -43,7 +54,7 @@ Describe 'Main Initialize-Environment Unit Tests' -Tag 'Initialize-Environment',
 
             Initialize-Environment
 
-            Assert-MockCalled Write-WarningLog -Times 1
+            Should -Invoke Write-WarningLog -Times 1
         }
     }
 

@@ -63,7 +63,7 @@ Describe 'Initialize-Environment Unit Tests' -Tag 'Initialize-Environment', 'IPA
 
             Initialize-Environment
 
-            Assert-MockCalled -ModuleName IPAP.Core Write-WarningLog -Times 1
+            Should -Invoke -ModuleName IPAP.Core Write-WarningLog -Times 1
         }
 
         It 'exe 缺失时 Settings 仍应被设置' {

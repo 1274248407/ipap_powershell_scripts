@@ -19,6 +19,26 @@ Import-Module "$ScriptRoot\..\IPAP.ImageProcessor\IPAP.ImageProcessor.psd1" -For
 Import-Module "$ScriptRoot\..\IPAP.ProjectManager\IPAP.ProjectManager.psd1" -Force -Scope Global
 
 # Define helper functions
+<#
+.SYNOPSIS
+    查找 realcugan-ncnn-vulkan.exe 可执行文件路径
+.DESCRIPTION
+    在指定搜索路径中递归查找 realcugan-ncnn-vulkan.exe 文件，返回完整路径或 $null。
+    若未找到文件则记录错误日志。
+.PARAMETER SearchPath
+    (string) 搜索目录路径，默认为项目根目录下的 bin 文件夹。
+    （适用于所有参数集）
+.EXAMPLE
+    Get-RealCuganExePath
+    在默认路径查找 realcugan-ncnn-vulkan.exe。
+.INPUTS
+    无
+.OUTPUTS
+    string 或 $null
+.NOTES
+    Author:  lucas_gold
+    Website: `https://github.com/1274248407`
+#>
 function Get-RealCuganExePath
 {
     [CmdletBinding()]
@@ -43,6 +63,26 @@ function Get-RealCuganExePath
     }
 }
 
+<#
+.SYNOPSIS
+    读取配置文件
+.DESCRIPTION
+    从指定路径读取 config.toml 配置文件，使用 tomljson.exe 解析并返回配置哈希表。
+    若配置文件不存在、tomljson.exe 不存在或解析失败，返回默认配置。
+.PARAMETER ConfigPath
+    (string) 配置文件路径，默认为项目根目录下的 config.toml。
+    （适用于所有参数集）
+.EXAMPLE
+    Get-Config
+    读取默认配置文件。
+.INPUTS
+    无
+.OUTPUTS
+    hashtable
+.NOTES
+    Author:  lucas_gold
+    Website: `https://github.com/1274248407`
+#>
 function Get-Config
 {
     [CmdletBinding()]
@@ -109,9 +149,17 @@ function Get-Config
     初始化环境
 .DESCRIPTION
     定位 realcugan-ncnn-vulkan.exe 并加载配置文件，为后续操作做准备。
+    若无法定位可执行文件则记录警告日志，不影响后续流程。
 .EXAMPLE
     Initialize-Environment
     初始化运行环境。
+.INPUTS
+    无
+.OUTPUTS
+    无
+.NOTES
+    Author:  lucas_gold
+    Website: `https://github.com/1274248407`
 #>
 function Initialize-Environment
 {
@@ -138,18 +186,29 @@ function Initialize-Environment
     主工作流函数
 .DESCRIPTION
     执行完整的 IPAP 工作流，包括环境初始化、项目创建、图片分析和处理。
+    支持交互式输入或参数指定，处理过程中若发生错误则记录日志并退出。
 .PARAMETER BaseDir
-    项目基础目录（可选）。
+    (string) 项目基础目录（可选），若未指定则从配置读取或交互式输入。
+    （适用于所有参数集）
 .PARAMETER ProjectName
-    项目名称（可选）。
+    (string) 项目名称（可选），若未指定则交互式输入。
+    （适用于所有参数集）
 .PARAMETER SourceDir
-    源图片目录（可选）。
+    (string) 源图片目录（可选），若未指定则交互式输入。
+    （适用于所有参数集）
 .EXAMPLE
     Start-IPAPWorkflow
     执行完整的工作流，交互式输入所有参数。
 .EXAMPLE
     Start-IPAPWorkflow -BaseDir "C:\Projects" -ProjectName "Manga1" -SourceDir "C:\Images"
     使用指定参数执行工作流。
+.INPUTS
+    无
+.OUTPUTS
+    无
+.NOTES
+    Author:  lucas_gold
+    Website: `https://github.com/1274248407`
 #>
 function Start-IPAPWorkflow
 {
@@ -246,7 +305,7 @@ function Start-IPAPWorkflow
                     }
                     else
                     {
-                        Write-ErrorLog "Parallel processing test failed"
+                        Write-ErrorLog 'Parallel processing test failed'
                     }
                 }
             }

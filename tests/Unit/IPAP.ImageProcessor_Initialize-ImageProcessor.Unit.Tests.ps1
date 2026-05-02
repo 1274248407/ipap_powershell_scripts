@@ -49,7 +49,7 @@ Describe 'Initialize-ImageProcessor Unit Tests' -Tag 'Initialize-ImageProcessor'
 
             Initialize-ImageProcessor
 
-            Assert-MockCalled -ModuleName IPAP.ImageProcessor Write-WarningLog -Times 1
+            Should -Invoke -ModuleName IPAP.ImageProcessor Write-WarningLog -Times 1
         }
 
         It 'exe 缺失时 RealCuganExePath 应为 $null' {

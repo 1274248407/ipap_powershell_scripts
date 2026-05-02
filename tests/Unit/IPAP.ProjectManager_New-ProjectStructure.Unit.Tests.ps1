@@ -45,7 +45,7 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP.Pr
 
             $result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'TestProject'
 
-            Assert-MockCalled -ModuleName IPAP.ProjectManager New-Item -Times 8
+            Should -Invoke -ModuleName IPAP.ProjectManager New-Item -Times 8
         }
     }
 
@@ -57,7 +57,7 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP.Pr
 
             $result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'ExistingProject'
 
-            Assert-MockCalled Read-Host -Times 1
+            Should -Invoke Read-Host -Times 1
         }
 
         It '用户选择覆盖时应创建目录' {
@@ -67,7 +67,7 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP.Pr
 
             $result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'ExistingProject'
 
-            Assert-MockCalled -ModuleName IPAP.ProjectManager New-Item -Times 8
+            Should -Invoke -ModuleName IPAP.ProjectManager New-Item -Times 8
         }
 
         It '用户拒绝覆盖时应返回 $null' {
@@ -77,7 +77,7 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP.Pr
             $result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'ExistingProject'
 
             $result | Should -BeNullOrEmpty
-            Assert-MockCalled -ModuleName IPAP.ProjectManager New-Item -Times 0
+            Should -Invoke -ModuleName IPAP.ProjectManager New-Item -Times 0
         }
 
         It '用户输入小写 y 应视为同意' {
@@ -87,7 +87,7 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP.Pr
 
             $result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'ExistingProject'
 
-            Assert-MockCalled -ModuleName IPAP.ProjectManager New-Item -Times 8
+            Should -Invoke -ModuleName IPAP.ProjectManager New-Item -Times 8
         }
     }
 
@@ -109,7 +109,7 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP.Pr
             $result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'TestProject'
 
             $result | Should -BeNullOrEmpty
-            Assert-MockCalled -ModuleName IPAP.ProjectManager Write-ErrorLog -Times 1
+            Should -Invoke -ModuleName IPAP.ProjectManager Write-ErrorLog -Times 1
         }
     }
 

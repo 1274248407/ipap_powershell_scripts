@@ -35,7 +35,7 @@ Describe 'New-TranslationFiles Unit Tests' -Tag 'New-TranslationFiles', 'IPAP.Pr
 
             New-TranslationFiles -ProjectDir 'C:\Projects\Test'
 
-            Assert-MockCalled -ModuleName IPAP.ProjectManager New-Item -Times 1
+            Should -Invoke -ModuleName IPAP.ProjectManager New-Item -Times 1
         }
 
         It '应创建 project_brief.md 文件' {
@@ -45,7 +45,7 @@ Describe 'New-TranslationFiles Unit Tests' -Tag 'New-TranslationFiles', 'IPAP.Pr
 
             New-TranslationFiles -ProjectDir 'C:\Projects\Test'
 
-            Assert-MockCalled -ModuleName IPAP.ProjectManager Out-File -Times 2
+            Should -Invoke -ModuleName IPAP.ProjectManager Out-File -Times 2
         }
 
         It '应创建 glossary.json 文件' {
@@ -55,7 +55,7 @@ Describe 'New-TranslationFiles Unit Tests' -Tag 'New-TranslationFiles', 'IPAP.Pr
 
             New-TranslationFiles -ProjectDir 'C:\Projects\Test'
 
-            Assert-MockCalled -ModuleName IPAP.ProjectManager Out-File -Times 2
+            Should -Invoke -ModuleName IPAP.ProjectManager Out-File -Times 2
         }
     }
 
@@ -67,7 +67,7 @@ Describe 'New-TranslationFiles Unit Tests' -Tag 'New-TranslationFiles', 'IPAP.Pr
 
             New-TranslationFiles -ProjectDir 'C:\Projects\Test' -BriefText $null
 
-            Assert-MockCalled -ModuleName IPAP.ProjectManager Out-File -Times 1
+            Should -Invoke -ModuleName IPAP.ProjectManager Out-File -Times 1
         }
 
         It 'BriefText 有值时应写入 project_brief.md' {
@@ -77,7 +77,7 @@ Describe 'New-TranslationFiles Unit Tests' -Tag 'New-TranslationFiles', 'IPAP.Pr
 
             New-TranslationFiles -ProjectDir 'C:\Projects\Test' -BriefText 'Test brief content'
 
-            Assert-MockCalled -ModuleName IPAP.ProjectManager Out-File -Times 2
+            Should -Invoke -ModuleName IPAP.ProjectManager Out-File -Times 2
         }
     }
 
@@ -88,7 +88,7 @@ Describe 'New-TranslationFiles Unit Tests' -Tag 'New-TranslationFiles', 'IPAP.Pr
 
             New-TranslationFiles -ProjectDir 'C:\Projects\Test'
 
-            Assert-MockCalled -ModuleName IPAP.ProjectManager New-Item -Times 0
+            Should -Invoke -ModuleName IPAP.ProjectManager New-Item -Times 0
         }
     }
 
@@ -105,7 +105,7 @@ Describe 'New-TranslationFiles Unit Tests' -Tag 'New-TranslationFiles', 'IPAP.Pr
 
             New-TranslationFiles -ProjectDir 'C:\Projects\Test'
 
-            Assert-MockCalled -ModuleName IPAP.ProjectManager Write-ErrorLog -Times 1
+            Should -Invoke -ModuleName IPAP.ProjectManager Write-ErrorLog -Times 1
         }
 
         It 'Out-File 失败时应记录错误' {
@@ -115,7 +115,7 @@ Describe 'New-TranslationFiles Unit Tests' -Tag 'New-TranslationFiles', 'IPAP.Pr
 
             New-TranslationFiles -ProjectDir 'C:\Projects\Test'
 
-            Assert-MockCalled -ModuleName IPAP.ProjectManager Write-ErrorLog -Times 1
+            Should -Invoke -ModuleName IPAP.ProjectManager Write-ErrorLog -Times 1
         }
     }
 }
