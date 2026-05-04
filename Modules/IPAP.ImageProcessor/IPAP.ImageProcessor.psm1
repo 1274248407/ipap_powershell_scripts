@@ -5,22 +5,30 @@
     提供图片分析、高清化处理和并行处理功能。
 #>
 
-Import-Module "$PSScriptRoot\..\IPAP.Core\IPAP.Core.psm1" -Force
+# ImageProcessor 模块依赖 IPAP.Core，IPAP.Core 由 Main.ps1 统一导入
+# 不需要重复导入 PoShLog 和 IPAP.Core
 
-$Global:RealCuganExePath = $null
-
-Export-ModuleMember -Variable @('RealCuganExePath')
+Export-ModuleMember
 
 <#
 .SYNOPSIS
     分析图片目录并计算平均文件大小
 .DESCRIPTION
     遍历指定目录中的图片文件，计算总大小和平均大小，并按自然顺序排序。
+    若目录不存在则记录错误日志并返回空结果。
 .PARAMETER SourceDir
-    源图片目录路径。
+    (string, Mandatory) 源图片目录路径。
+    （适用于所有参数集）
 .EXAMPLE
     Get-ImageInfo -SourceDir "C:\Images"
     分析 C:\Images 目录中的图片文件。
+.INPUTS
+    无
+.OUTPUTS
+    hashtable (包含 Images, TotalSize, AverageSize, Count)
+.NOTES
+    Author:  lucas_gold
+    Website: `https://github.com/1274248407`
 #>
 function Get-ImageInfo
 {
@@ -30,13 +38,11 @@ function Get-ImageInfo
         [string]$SourceDir
     )
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] Analyzing image directory: $SourceDir" -ForegroundColor Cyan
+    Write-InfoLog "Analyzing image directory: $SourceDir"
 
-    if (-not (Test-Path $SourceDir))
+    if (-not (Test-Path -LiteralPath $SourceDir))
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [ERROR] Source directory not found: $SourceDir" -ForegroundColor Red
+        Write-ErrorLog "Source directory not found: $SourceDir"
         return @{ Images = @(); TotalSize = 0; AverageSize = 0; Count = 0 }
     }
 
@@ -44,16 +50,16 @@ function Get-ImageInfo
     $totalSize = 0
     $count = 0
 
-    Get-ChildItem -Path $SourceDir -File | ForEach-Object {
-        if ($Global:SupportedImageFormats -contains $_.Extension.ToLower())
+    Get-ChildItem -LiteralPath $SourceDir -File | ForEach-Object {
+        if ($Global:SupportedImageFormats -contains $PSItem.Extension.ToLower())
         {
-            $images += $_
-            $totalSize += $_.Length
+            $images += $PSItem
+            $totalSize += $PSItem.Length
             $count++
         }
     }
 
-    $images = $images | Sort-Object -Property { Get-NaturalSortKey $_.Name }
+    $images = $images | Sort-Object -Property { Get-NaturalSortKey $PSItem.Name }
 
     $averageSize = 0
     if ($count -gt 0)
@@ -61,8 +67,7 @@ function Get-ImageInfo
         $averageSize = $totalSize / 1024 / $count
     }
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] Found $count images, total size: $([math]::Round($totalSize / 1024 / 1024, 2)) MB, average size: $([math]::Round($averageSize, 2)) KB" -ForegroundColor Cyan
+    Write-InfoLog "Found $count images, total size: $([math]::Round($totalSize / 1024 / 1024, 2)) MB, average size: $([math]::Round($averageSize, 2)) KB"
 
     return @{
         Images      = $images
@@ -78,10 +83,21 @@ function Get-ImageInfo
 .DESCRIPTION
     根据平均文件大小判断是否需要进行图片高清化处理，阈值为 1000KB。
 .PARAMETER AverageSize
-    平均文件大小（KB）。
+    (double, Mandatory) 平均文件大小（KB）。
+    （适用于所有参数集）
 .EXAMPLE
     Test-NeedUpscale -AverageSize 500
     平均文件大小小于 1000KB，返回 $true。
+.EXAMPLE
+    Test-NeedUpscale -AverageSize 1500
+    平均文件大小大于等于 1000KB，返回 $false。
+.INPUTS
+    double
+.OUTPUTS
+    bool
+.NOTES
+    Author:  lucas_gold
+    Website: `https://github.com/1274248407`
 #>
 function Test-NeedUpscale
 {
@@ -95,14 +111,12 @@ function Test-NeedUpscale
 
     if ($AverageSize -lt $threshold)
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [INFO] Average file size $([math]::Round($AverageSize, 2)) KB < $threshold KB, upscaling needed" -ForegroundColor Cyan
+        Write-InfoLog "Average file size $([math]::Round($AverageSize, 2)) KB < $threshold KB, upscaling needed"
         return $true
     }
     else
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [INFO] Average file size $([math]::Round($AverageSize, 2)) KB >= $threshold KB, skipping upscaling" -ForegroundColor Cyan
+        Write-InfoLog "Average file size $([math]::Round($AverageSize, 2)) KB >= $threshold KB, skipping upscaling"
         return $false
     }
 }
@@ -112,21 +126,35 @@ function Test-NeedUpscale
     对单张图片进行高清化处理
 .DESCRIPTION
     使用 realcugan-ncnn-vulkan 对单张图片进行高清化处理，支持指定缩放比例、噪声级别和输出格式。
+    若可执行文件不存在或输入文件不存在则记录错误日志并返回 $false。
 .PARAMETER ImagePath
-    源图片路径。
+    (string, Mandatory) 源图片路径。
+    （适用于所有参数集）
 .PARAMETER OutputDir
-    输出目录。
+    (string, Mandatory) 输出目录。
+    （适用于所有参数集）
 .PARAMETER Scale
-    缩放比例，默认为 2。
+    (int) 缩放比例，默认为 2。
+    （适用于所有参数集）
 .PARAMETER NoiseLevel
-    噪声级别，默认为 0。
+    (int) 噪声级别，默认为 0。
+    （适用于所有参数集）
 .PARAMETER ModelPath
-    模型路径，默认为 "models-se"。
+    (string) 模型路径，默认为 "models-se"。
+    （适用于所有参数集）
 .PARAMETER OutputFormat
-    输出格式，默认为 "webp"。
+    (string) 输出格式，默认为 "webp"。
+    （适用于所有参数集）
 .EXAMPLE
     Invoke-ImageUpscale -ImagePath "input.jpg" -OutputDir "output"
     对 input.jpg 进行高清化处理。
+.INPUTS
+    无
+.OUTPUTS
+    bool
+.NOTES
+    Author:  lucas_gold
+    Website: `https://github.com/1274248407`
 #>
 function Invoke-ImageUpscale
 {
@@ -144,19 +172,17 @@ function Invoke-ImageUpscale
 
     if (-not $Global:RealCuganExePath)
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [ERROR] realcugan-ncnn-vulkan.exe not found, cannot perform upscaling" -ForegroundColor Red
+        Write-ErrorLog 'realcugan-ncnn-vulkan.exe not found, cannot perform upscaling'
         return $false
     }
 
-    if (-not (Test-Path $ImagePath))
+    if (-not (Test-Path -LiteralPath $ImagePath))
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [ERROR] Input file not found: $ImagePath" -ForegroundColor Red
+        Write-ErrorLog "Input file not found: $ImagePath"
         return $false
     }
 
-    if (-not (Test-Path $OutputDir))
+    if (-not (Test-Path -LiteralPath $OutputDir))
     {
         New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
     }
@@ -178,7 +204,7 @@ function Invoke-ImageUpscale
 
         & $Global:RealCuganExePath @realCuganArgs
 
-        if (Test-Path $outputPath)
+        if (Test-Path -LiteralPath $outputPath)
         {
             return $true
         }
@@ -195,24 +221,38 @@ function Invoke-ImageUpscale
 
 <#
 .SYNOPSIS
-    并行使用realcugan-ncnn-vulkan高清化处理图片
+    并行使用 realcugan-ncnn-vulkan 高清化处理图片
 .DESCRIPTION
     使用 PowerShell 的并行处理功能同时高清化多张图片，提高处理效率。
+    返回处理结果统计（成功数和失败数）。
 .PARAMETER Images
-    图片文件对象数组。
+    (array, Mandatory) 图片文件对象数组。
+    （适用于所有参数集）
 .PARAMETER OutputDir
-    输出目录。
+    (string, Mandatory) 输出目录。
+    （适用于所有参数集）
 .PARAMETER MaxWorkers
-    最大并发数，默认为 8。
+    (int) 最大并发数，默认为 8。
+    （适用于所有参数集）
 .PARAMETER Scale
-    缩放比例，默认为 2。
+    (int) 缩放比例，默认为 2。
+    （适用于所有参数集）
 .PARAMETER ModelPath
-    模型路径，默认为 "models-se"。
+    (string) 模型路径，默认为 "models-se"。
+    （适用于所有参数集）
 .PARAMETER OutputFormat
-    输出格式，默认为 "webp"。
+    (string) 输出格式，默认为 "webp"。
+    （适用于所有参数集）
 .EXAMPLE
     Invoke-ParallelUpscale -Images $images -OutputDir "output" -MaxWorkers 4
     使用 4 个并发处理图片。
+.INPUTS
+    无
+.OUTPUTS
+    hashtable (包含 SuccessCount, FailedCount)
+.NOTES
+    Author:  lucas_gold
+    Website: `https://github.com/1274248407`
 #>
 function Invoke-ParallelUpscale
 {
@@ -228,10 +268,9 @@ function Invoke-ParallelUpscale
         [string]$OutputFormat = 'webp'
     )
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] Starting parallel image processing, concurrency: $MaxWorkers" -ForegroundColor Cyan
+    Write-InfoLog "Starting parallel image processing, concurrency: $MaxWorkers"
 
-    if (-not (Test-Path $OutputDir))
+    if (-not (Test-Path -LiteralPath $OutputDir))
     {
         New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
     }
@@ -240,7 +279,7 @@ function Invoke-ParallelUpscale
     $failedCount = 0
 
     $Images | ForEach-Object -Parallel {
-        $image = $_
+        $image = $PSItem
         $outputDir = $using:OutputDir
         $scale = $using:Scale
         $modelPath = $using:ModelPath
@@ -264,7 +303,7 @@ function Invoke-ParallelUpscale
 
             & $realCuganExePath @realCuganArgs
 
-            if (Test-Path $outputPath)
+            if (Test-Path -LiteralPath $outputPath)
             {
                 return @{ Success = $true; Image = $image.Name }
             }
@@ -275,25 +314,22 @@ function Invoke-ParallelUpscale
         }
         catch
         {
-            return @{ Success = $false; Image = $image.Name; Error = $_.Exception.Message }
+            return @{ Success = $false; Image = $image.Name; Error = $PSItem.Exception.Message }
         }
     } -ThrottleLimit $MaxWorkers | ForEach-Object {
-        if ($_.Success)
+        if ($PSItem.Success)
         {
-            $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-            Write-Host "[$timestamp] [SUCCESS] Image processed successfully: $($_.Image)" -ForegroundColor Green
+            Write-InfoLog "Image processed successfully: $($PSItem.Image)"
             $successCount++
         }
         else
         {
-            $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-            Write-Host "[$timestamp] [ERROR] Image processing failed: $($_.Image)" -ForegroundColor Red
+            Write-ErrorLog "Image processing failed: $($PSItem.Image)"
             $failedCount++
         }
     }
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] Parallel processing completed, success: $successCount, failed: $failedCount" -ForegroundColor Cyan
+    Write-InfoLog "Parallel processing completed, success: $successCount, failed: $failedCount"
 
     return @{ SuccessCount = $successCount; FailedCount = $failedCount }
 }
@@ -303,9 +339,17 @@ function Invoke-ParallelUpscale
     初始化图片处理模块
 .DESCRIPTION
     定位 realcugan-ncnn-vulkan.exe，为后续高清化处理做准备。
+    若无法定位可执行文件则记录警告日志。
 .EXAMPLE
     Initialize-ImageProcessor
     初始化图片处理模块。
+.INPUTS
+    无
+.OUTPUTS
+    无
+.NOTES
+    Author:  lucas_gold
+    Website: `https://github.com/1274248407`
 #>
 function Initialize-ImageProcessor
 {
@@ -315,8 +359,7 @@ function Initialize-ImageProcessor
     $Global:RealCuganExePath = Get-RealCuganExePath
     if (-not $Global:RealCuganExePath)
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [WARNING] Cannot locate realcugan-ncnn-vulkan.exe, upscaling functionality will be unavailable" -ForegroundColor Yellow
+        Write-WarningLog 'Cannot locate realcugan-ncnn-vulkan.exe, upscaling functionality will be unavailable'
     }
 }
 

@@ -5,155 +5,38 @@
     提供完整的 IPAP 工作流执行逻辑，包括环境初始化、项目创建、图片分析和处理。
 #>
 
-# Import dependent modules
-$ScriptRoot = $PSScriptRoot
-Import-Module "$ScriptRoot\..\IPAP.Core\IPAP.Core.psd1" -Force -Scope Global
-Import-Module "$ScriptRoot\..\IPAP.ImageProcessor\IPAP.ImageProcessor.psd1" -Force -Scope Global
-Import-Module "$ScriptRoot\..\IPAP.ProjectManager\IPAP.ProjectManager.psd1" -Force -Scope Global
-
-# Define helper functions
-function Get-RealCuganExePath
-{
-    [CmdletBinding()]
-    param (
-        [string]$SearchPath = "$ScriptRoot\..\..\bin"
-    )
-
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] Searching for realcugan-ncnn-vulkan.exe..." -ForegroundColor Cyan
-
-    $exePath = Get-ChildItem -Path $SearchPath -Name 'realcugan-ncnn-vulkan.exe' -Recurse -ErrorAction SilentlyContinue
-
-    if ($exePath)
-    {
-        $fullPath = Join-Path $SearchPath $exePath
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [SUCCESS] Found realcugan-ncnn-vulkan.exe: $fullPath" -ForegroundColor Green
-        return $fullPath
-    }
-    else
-    {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [ERROR] realcugan-ncnn-vulkan.exe not found" -ForegroundColor Red
-        return $null
-    }
-}
-
-function Get-Config
-{
-    [CmdletBinding()]
-    param (
-        [string]$ConfigPath = "$ScriptRoot\..\..\config.toml"
-    )
-
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] Reading configuration file: $ConfigPath" -ForegroundColor Cyan
-
-    $TomlJsonExePath = "$ScriptRoot\..\..\bin\tomljson.exe"
-    $DefaultSettings = @{
-        paths        = @{
-            base_project_dir   = ''
-            project_dir_prefix = ''
-        }
-        app_settings = @{
-            model_select        = 'models-se'
-            max_workers         = 8
-            upscale_timeout_sec = 600
-        }
-    }
-
-    if (-not (Test-Path $ConfigPath))
-    {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [WARNING] Configuration file not found, using default settings" -ForegroundColor Yellow
-        return $DefaultSettings
-    }
-
-    if (-not (Test-Path $TomlJsonExePath))
-    {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [WARNING] tomljson.exe not found, using default settings" -ForegroundColor Yellow
-        return $DefaultSettings
-    }
-
-    try
-    {
-        $jsonOutput = & $TomlJsonExePath $ConfigPath
-        $config = $jsonOutput | ConvertFrom-Json
-
-        $configHash = @{}
-        $configHash.paths = @{
-            base_project_dir   = $config.paths.base_project_dir
-            project_dir_prefix = $config.paths.project_dir_prefix
-        }
-        $configHash.app_settings = @{
-            model_select        = $config.app_settings.model_select
-            max_workers         = $config.app_settings.max_workers
-            upscale_timeout_sec = $config.app_settings.upscale_timeout_sec
-        }
-
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [SUCCESS] Configuration file parsed successfully" -ForegroundColor Green
-        return $configHash
-    }
-    catch
-    {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [ERROR] Configuration file parsing failed: $($_.Exception.Message), using default settings" -ForegroundColor Red
-        return $DefaultSettings
-    }
-}
+# Workflow 模块依赖 IPAP.Core、IPAP.ImageProcessor、IPAP.ProjectManager
+# 这些模块由 Main.ps1 统一导入，不需要重复导入
 
 # Main workflow function
-<#
-.SYNOPSIS
-    初始化环境
-.DESCRIPTION
-    定位 realcugan-ncnn-vulkan.exe 并加载配置文件，为后续操作做准备。
-.EXAMPLE
-    Initialize-Environment
-    初始化运行环境。
-#>
-function Initialize-Environment
-{
-    [CmdletBinding()]
-    param()
-
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] Initializing environment..." -ForegroundColor Cyan
-
-    # Locate realcugan-ncnn-vulkan.exe
-    $Global:RealCuganExePath = Get-RealCuganExePath 
-    if (-not $Global:RealCuganExePath)
-    {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [WARNING] Cannot locate realcugan-ncnn-vulkan.exe, upscaling functionality will be unavailable" -ForegroundColor Yellow
-    }
-
-    # Load configuration
-    $Global:Settings = Get-Config
-
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [SUCCESS] Environment initialization completed" -ForegroundColor Green
-}
-
 <#
 .SYNOPSIS
     主工作流函数
 .DESCRIPTION
     执行完整的 IPAP 工作流，包括环境初始化、项目创建、图片分析和处理。
+    支持交互式输入或参数指定，处理过程中若发生错误则记录日志并退出。
 .PARAMETER BaseDir
-    项目基础目录（可选）。
+    (string) 项目基础目录（可选），若未指定则从配置读取或交互式输入。
+    （适用于所有参数集）
 .PARAMETER ProjectName
-    项目名称（可选）。
+    (string) 项目名称（可选），若未指定则交互式输入。
+    （适用于所有参数集）
 .PARAMETER SourceDir
-    源图片目录（可选）。
+    (string) 源图片目录（可选），若未指定则交互式输入。
+    （适用于所有参数集）
 .EXAMPLE
     Start-IPAPWorkflow
     执行完整的工作流，交互式输入所有参数。
 .EXAMPLE
     Start-IPAPWorkflow -BaseDir "C:\Projects" -ProjectName "Manga1" -SourceDir "C:\Images"
     使用指定参数执行工作流。
+.INPUTS
+    无
+.OUTPUTS
+    无
+.NOTES
+    Author:  lucas_gold
+    Website: `https://github.com/1274248407`
 #>
 function Start-IPAPWorkflow
 {
@@ -167,8 +50,7 @@ function Start-IPAPWorkflow
     try
     {
         # Initialize environment
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [INFO] Initializing IPAP workflow..." -ForegroundColor Cyan
+        Write-InfoLog 'Initializing IPAP workflow...'
         Initialize-Environment
 
         # Get base directory
@@ -184,59 +66,51 @@ function Start-IPAPWorkflow
             }
         }
 
-        # Get project name
-        if (-not $ProjectName)
+        # Get source directory first
+        if (-not $SourceDir)
         {
-            $ProjectName = Read-Host 'Enter project name'
+            $SourceDir = Read-Host 'Enter source image directory'
         }
 
-        # Get project brief information
-        $briefText, $projectNameFormatted = Get-ProjectBriefInfo
+        # Analyze images first to verify there are images
+        $imageInfo = Get-ImageInfo -SourceDir $SourceDir
 
-        # Create project structure
-        $projectDir = New-ProjectStructure -BaseDir $BaseDir -ProjectName $projectNameFormatted
-
-        if ($projectDir)
+        if ($imageInfo.Count -gt 0)
         {
-            $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-            Write-Host "[$timestamp] [SUCCESS] Project initialization successful: $projectDir" -ForegroundColor Green
+            # Get project brief information (returns briefText and projectName)
+            $briefText, $ProjectName = Get-ProjectBriefInfo
 
-            # Get source directory
-            if (-not $SourceDir)
+            # Create project structure using the projectName from Get-ProjectBriefInfo
+            $projectDir = New-ProjectStructure -BaseDir $BaseDir -ProjectName $ProjectName
+
+            if ($projectDir)
             {
-                $SourceDir = Read-Host 'Enter source image directory'
-            }
+                Write-InfoLog "Project initialization successful: $projectDir"
 
-            # Analyze images
-            $imageInfo = Get-ImageInfo -SourceDir $SourceDir
-
-            if ($imageInfo.Count -gt 0)
-            {
                 # Copy source images to raw_source directory
                 $rawSourceDir = Join-Path $projectDir '02_Preprocessing' 'raw_source'
-                $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-                Write-Host "[$timestamp] [INFO] Copying source images to $rawSourceDir" -ForegroundColor Cyan
-                
+                Write-InfoLog "Copying source images to $rawSourceDir"
+            
                 try
                 {
-                    Get-ChildItem -Path $SourceDir -File | Where-Object { $Global:SupportedImageFormats -contains $_.Extension } | Copy-Item -Destination $rawSourceDir -Force
-                    $copiedCount = (Get-ChildItem -Path $rawSourceDir -File | Where-Object { $Global:SupportedImageFormats -contains $_.Extension }).Count
-                    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-                    Write-Host "[$timestamp] [SUCCESS] Copied $copiedCount images to raw_source directory" -ForegroundColor Green
+                    # 使用 -LiteralPath 处理包含特殊字符的路径
+                    Get-ChildItem -LiteralPath $SourceDir -File | Where-Object { $Global:SupportedImageFormats -contains $PSItem.Extension } | Copy-Item -Destination $rawSourceDir -Force
+                    # 统计已复制的图片文件数量
+                    $copiedCount = (Get-ChildItem -LiteralPath $rawSourceDir -File | Where-Object { $Global:SupportedImageFormats -contains $PSItem.Extension }).Count
+                    # 记录日志，输出已复制的图片数量
+                    Write-InfoLog "Copied $copiedCount images to raw_source directory"
                 }
                 catch
                 {
-                    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-                    Write-Host "[$timestamp] [ERROR] Failed to copy images: $($_.Exception.Message)" -ForegroundColor Red
+                    Write-ErrorLog "Failed to copy images: $($PSItem.Exception.Message)"
                 }
-                
+            
                 # Check if upscaling is needed
                 $needUpscale = Test-NeedUpscale -AverageSize $imageInfo.AverageSize
-                $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-                Write-Host "[$timestamp] [INFO] Upscaling needed: $needUpscale" -ForegroundColor Cyan
+                Write-InfoLog "Upscaling needed: $needUpscale"
 
                 # Create project documentation files
-                New-ReadmeFile -ProjectDir $projectDir -ProjectName $projectNameFormatted -ImageCount $imageInfo.Count -NeedUpscale $needUpscale -UpscaleRatio 2
+                New-ReadmeFile -ProjectDir $projectDir -ProjectName $ProjectName -ImageCount $imageInfo.Count -NeedUpscale $needUpscale -UpscaleRatio 2
                 New-TranslationFiles -ProjectDir $projectDir -BriefText $briefText
 
                 # Perform upscaling if needed
@@ -247,40 +121,96 @@ function Start-IPAPWorkflow
                     $maxWorkers = $Global:Settings.app_settings.max_workers
 
                     # Test parallel processing
-                    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-                    Write-Host "[$timestamp] [INFO] Testing parallel processing with $maxWorkers concurrency" -ForegroundColor Cyan
+                    Write-InfoLog "Testing parallel processing with $maxWorkers concurrency"
                     $result = Invoke-ParallelUpscale -Images $imageInfo.Images -OutputDir $outputDir -MaxWorkers $maxWorkers -ModelPath $modelPath
 
-                    if ($result.SuccessCount -gt 0)
-                    {
-                        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-                        Write-Host "[$timestamp] [SUCCESS] Parallel processing test successful, success: $($result.SuccessCount), failed: $($result.FailedCount)" -ForegroundColor Green
-                    }
-                    else
-                    {
-                        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-                        Write-Host "[$timestamp] [ERROR] Parallel processing test failed" -ForegroundColor Red
-                    }
+                    # Verify processing result by checking actual output files
+                    Test-UpscaleResult -ExpectedCount $imageInfo.Count -OutputDir $outputDir -ProcessResult $result
                 }
+                else
+                {
+                    Write-InfoLog "Upscaling skipped - needUpscale: $needUpscale, RealCugan available: $($null -ne $Global:RealCuganExePath)"
+                }
+            }
+            else
+            {
+                Write-ErrorLog 'Project initialization failed'
             }
         }
         else
         {
-            $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-            Write-Host "[$timestamp] [ERROR] Project initialization failed" -ForegroundColor Red
+            Write-WarningLog 'No images found in source directory, workflow terminated'
         }
-
     }
     catch
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [ERROR] Error during execution: $($_.Exception.Message)" -ForegroundColor Red
+        Write-ErrorLog "Error during execution: $($PSItem.Exception.Message)"
         exit 1
+    }
+}
+
+<#
+.SYNOPSIS
+    验证图片高清化处理结果
+.DESCRIPTION
+    通过实际检查输出目录中的文件来验证高清化处理是否成功完成，支持分级日志输出，并对比函数返回结果。
+.PARAMETER ExpectedCount
+    (int, Mandatory) 预期处理的图片数量。
+.PARAMETER OutputDir
+    (string, Mandatory) 输出目录路径。
+.PARAMETER ProcessResult
+    (hashtable) Invoke-ParallelUpscale 的返回结果（可选，用于对比验证）。
+.INPUTS
+    无
+.OUTPUTS
+    bool (是否全部成功)
+.NOTES
+    Author:  lucas_gold
+    Website: https://github.com/1274248407
+#>
+function Test-UpscaleResult
+{
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory = $true)]
+        [int]$ExpectedCount,
+        
+        [Parameter(Mandatory = $true)]
+        [string]$OutputDir,
+        
+        [hashtable]$ProcessResult
+    )
+
+    $processedImages = Get-ChildItem -LiteralPath $OutputDir -File | Where-Object { $Global:SupportedImageFormats -contains $PSItem.Extension }
+    $actualCount = $processedImages.Count
+
+    $successRate = if ($ExpectedCount -gt 0) { [math]::Round($actualCount / $ExpectedCount * 100, 2) } else { 0 }
+
+    if ($ProcessResult)
+    {
+        Write-InfoLog "Processing result vs actual files: reported success=$($ProcessResult.SuccessCount), actual=$actualCount"
+    }
+
+    if ($actualCount -eq $ExpectedCount -and $ExpectedCount -gt 0)
+    {
+        Write-InfoLog "Parallel processing completed successfully, all $ExpectedCount images processed (verified)"
+        return $true
+    }
+    elseif ($actualCount -eq 0)
+    {
+        Write-ErrorLog 'Parallel processing failed completely, no output files generated'
+        return $false
+    }
+    else
+    {
+        $failedCount = $ExpectedCount - $actualCount
+        Write-WarningLog "Parallel processing partially completed - expected: $ExpectedCount, actual: $actualCount, failed: $failedCount ($successRate%)"
+        return $false
     }
 }
 
 # Export module members
 Export-ModuleMember -Function @(
     'Start-IPAPWorkflow',
-    'Initialize-Environment'
+    'Test-UpscaleResult'
 )

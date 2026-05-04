@@ -5,20 +5,31 @@
     提供项目目录结构创建、README 文件生成和翻译文件管理功能。
 #>
 
-Import-Module "$PSScriptRoot\..\IPAP.Core\IPAP.Core.psm1" -Force
+# ProjectManager 模块依赖 IPAP.Core，IPAP.Core 由 Main.ps1 统一导入
+# 不需要重复导入 PoShLog 和 IPAP.Core
 
 <#
 .SYNOPSIS
     创建项目目录结构
 .DESCRIPTION
     创建符合 IPAP 工作流标准的项目目录结构，包括预处理、翻译和排版目录。
+    若目录已存在则询问用户是否覆盖，创建失败时记录错误日志。
 .PARAMETER BaseDir
-    项目基础目录。
+    (string, Mandatory) 项目基础目录。
+    （适用于所有参数集）
 .PARAMETER ProjectName
-    项目名称。
+    (string, Mandatory) 项目名称。
+    （适用于所有参数集）
 .EXAMPLE
     New-ProjectStructure -BaseDir "C:\Projects" -ProjectName "Manga1"
     在 C:\Projects 目录下创建名为 2026-04-20_Manga1 的项目目录。
+.INPUTS
+    无
+.OUTPUTS
+    string 或 $null
+.NOTES
+    Author:  lucas_gold
+    Website: `https://github.com/1274248407`
 #>
 function New-ProjectStructure
 {
@@ -34,21 +45,20 @@ function New-ProjectStructure
     $projectDirName = "${today}_${ProjectName}"
     $projectDir = Join-Path $BaseDir $projectDirName
 
-    if (Test-Path $projectDir)
+    # 使用 -LiteralPath 处理包含特殊字符的路径
+    if (Test-Path -LiteralPath $projectDir)
     {
         $response = Read-Host "Directory $projectDir already exists, overwrite? (Y/N)"
         if ($response -ne 'Y' -and $response -ne 'y')
         {
-            $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-            Write-Host "[$timestamp] [INFO] User cancelled overwrite operation" -ForegroundColor Cyan
+            Write-InfoLog 'User cancelled overwrite operation'
             return $null
         }
     }
 
     try
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [INFO] Creating project directory: $projectDir" -ForegroundColor Cyan
+        Write-InfoLog "Creating project directory: $projectDir"
 
         New-Item -ItemType Directory -Path $projectDir -Force | Out-Null
 
@@ -66,18 +76,15 @@ function New-ProjectStructure
         {
             $fullPath = Join-Path $projectDir $subDir
             New-Item -ItemType Directory -Path $fullPath -Force | Out-Null
-            $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-            Write-Host "[$timestamp] [INFO] Created subdirectory: $fullPath" -ForegroundColor Cyan
+            Write-InfoLog "Created subdirectory: $fullPath"
         }
 
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [SUCCESS] Project directory structure created successfully" -ForegroundColor Green
+        Write-InfoLog 'Project directory structure created successfully'
         return $projectDir
     }
     catch
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [ERROR] Failed to create project directory: $($_.Exception.Message)" -ForegroundColor Red
+        Write-ErrorLog "Failed to create project directory: $($PSItem.Exception.Message)"
         return $null
     }
 }
@@ -87,19 +94,32 @@ function New-ProjectStructure
     创建 README.md 文件
 .DESCRIPTION
     根据项目配置和日期信息生成 README.md 文件，包含项目基本信息、进度跟踪和处理笔记等模板内容。
+    创建失败时记录错误日志。
 .PARAMETER ProjectDir
-    项目根目录路径。
+    (string, Mandatory) 项目根目录路径。
+    （适用于所有参数集）
 .PARAMETER ProjectName
-    项目名称。
+    (string, Mandatory) 项目名称。
+    （适用于所有参数集）
 .PARAMETER ImageCount
-    原始文件数量。
+    (int, Mandatory) 原始文件数量。
+    （适用于所有参数集）
 .PARAMETER NeedUpscale
-    是否需要高清化处理。
+    (bool, Mandatory) 是否需要高清化处理。
+    （适用于所有参数集）
 .PARAMETER UpscaleRatio
-    高清化倍数。
+    (int) 高清化倍数，默认为 2。
+    （适用于所有参数集）
 .EXAMPLE
     New-ReadmeFile -ProjectDir "C:\Projects\Manga1" -ProjectName "Manga1" -ImageCount 50 -NeedUpscale `$true -UpscaleRatio 2
     在项目目录下创建包含高清化状态的 README.md 文件。
+.INPUTS
+    无
+.OUTPUTS
+    无
+.NOTES
+    Author:  lucas_gold
+    Website: `https://github.com/1274248407`
 #>
 function New-ReadmeFile
 {
@@ -150,24 +170,31 @@ function New-ReadmeFile
 
     try
     {
-
         $readmePath = Join-Path $ProjectDir 'README.md'
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [INFO] Writing README.md file to $readmePath"
-        $content | Out-File -FilePath $readmePath -Encoding UTF8
-        if (Test-Path $readmePath)
+        Write-InfoLog "Writing README.md file to $readmePath"
+        
+        # 确保项目目录存在（使用 -LiteralPath 处理特殊字符）
+        if (-not (Test-Path -LiteralPath $ProjectDir))
         {
-            Write-Host "[$timestamp] [SUCCESS] README.md file overwritten successfully" -ForegroundColor Green
+            Write-ErrorLog "Project directory does not exist: $ProjectDir"
+            return
+        }
+        
+        # 使用 .NET 方法写入文件，避免 PowerShell 通配符问题
+        [System.IO.File]::WriteAllText($readmePath, $content, [System.Text.Encoding]::UTF8)
+        
+        if (Test-Path -LiteralPath $readmePath)
+        {
+            Write-InfoLog 'README.md file created/overwritten successfully'
         }
         else
         {
-            Write-Host "[$timestamp] [SUCCESS] README.md file created successfully" -ForegroundColor Green
+            Write-ErrorLog 'Failed to verify README.md file creation'
         }
     }
     catch
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [ERROR] Failed to create/overwrite README.md file: $($_.Exception.Message)" -ForegroundColor Red
+        Write-ErrorLog "Failed to create/overwrite README.md file: $($PSItem.Exception.Message)"
     }
 }
 
@@ -176,16 +203,26 @@ function New-ReadmeFile
     创建翻译相关文件
 .DESCRIPTION
     在项目目录下创建 03_Translation 文件夹，并生成项目简介文件和词汇表文件。
+    创建失败时记录错误日志。
 .PARAMETER ProjectDir
-    项目根目录路径。
+    (string, Mandatory) 项目根目录路径。
+    （适用于所有参数集）
 .PARAMETER BriefText
-    项目简介文本（可选）。
+    (string) 项目简介文本（可选）。
+    （适用于所有参数集）
 .EXAMPLE
     New-TranslationFiles -ProjectDir "C:\Projects\Manga1"
     创建翻译文件夹和空词汇表文件。
 .EXAMPLE
     New-TranslationFiles -ProjectDir "C:\Projects\Manga1" -BriefText "这是一个漫画翻译项目"
     创建翻译文件夹并包含项目简介。
+.INPUTS
+    无
+.OUTPUTS
+    无
+.NOTES
+    Author:  lucas_gold
+    Website: `https://github.com/1274248407`
 #>
 function New-TranslationFiles
 {
@@ -198,36 +235,42 @@ function New-TranslationFiles
 
     try
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
         $translationDir = Join-Path $ProjectDir '03_Translation'
 
-        if (-not (Test-Path $translationDir))
+        # 使用 -LiteralPath 处理特殊字符
+        if (-not (Test-Path -LiteralPath $translationDir))
         {
             New-Item -ItemType Directory -Path $translationDir -Force | Out-Null
         }
 
         $briefFile = Join-Path $translationDir 'project_brief.md'
+        Write-InfoLog "Writing project brief file to $briefFile"
+        
+        # 使用 .NET 方法写入文件，避免 PowerShell 通配符问题
         if ($BriefText)
         {
-            $BriefText | Out-File -FilePath $briefFile -Encoding UTF8
-            
-            Write-Host "[$timestamp] [INFO] Writing project brief file to $briefFile"
+            [System.IO.File]::WriteAllText($briefFile, $BriefText, [System.Text.Encoding]::UTF8)
+        }
+        else
+        {
+            # 创建空文件或默认内容
+            [System.IO.File]::WriteAllText($briefFile, '## 项目简介', [System.Text.Encoding]::UTF8)
         }
 
         $glossaryFile = Join-Path $translationDir 'glossary.json'
-        '{}' | Out-File -FilePath $glossaryFile -Encoding UTF8
-        Write-Host "[$timestamp] [INFO] Writing glossary file to $glossaryFile"
+        # 使用 .NET 方法写入文件，避免 PowerShell 通配符问题
+        [System.IO.File]::WriteAllText($glossaryFile, '{}', [System.Text.Encoding]::UTF8)
+        Write-InfoLog "Writing glossary file to $glossaryFile"
 
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        $briefStatus = if (Test-Path $briefFile) { 'overwritten' } else { 'created' }
-        $glossaryStatus = if (Test-Path $glossaryFile) { 'overwritten' } else { 'created' }
-        Write-Host "[$timestamp] [SUCCESS] Translation files $briefStatus successfully" -ForegroundColor Green
-        Write-Host "[$timestamp] [SUCCESS] Glossary file $glossaryStatus successfully" -ForegroundColor Green
+        # 使用 -LiteralPath 检查文件是否创建成功
+        $briefStatus = if (Test-Path -LiteralPath $briefFile) { 'overwritten' } else { 'created' }
+        $glossaryStatus = if (Test-Path -LiteralPath $glossaryFile) { 'overwritten' } else { 'created' }
+        Write-InfoLog "Translation files $briefStatus successfully"
+        Write-InfoLog "Glossary file $glossaryStatus successfully"
     }
     catch
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [ERROR] Failed to create/overwrite translation files: $($_.Exception.Message)" -ForegroundColor Red
+        Write-ErrorLog "Failed to create/overwrite translation files: $($PSItem.Exception.Message)"
     }
 }
 
@@ -241,24 +284,40 @@ function New-TranslationFiles
 .EXAMPLE
     Get-ProjectBriefInfo
     获取项目简介信息并返回格式化后的字符串和项目名称。
+.INPUTS
+    无
+.OUTPUTS
+    object[] (包含格式化字符串和项目名称)
+.NOTES
+    Author:  lucas_gold
+    Website: `https://github.com/1274248407`
 #>
 function Get-ProjectBriefInfo
 {
     [CmdletBinding()]
     param ()
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] === 项目信息输入 ===" -ForegroundColor Cyan
+    Write-InfoLog '=== 项目信息输入 ==='
 
-    $projectName = Read-Host '项目名称（格式：[作者] 原作品名）'
-    $projectName = $projectName.Trim()
+    # 输入作者名
+    $author = Read-Host '作者名'
+    $author = $author.Trim()
 
-    $authorChinese = Read-Host '作品中文译名（格式：[作者] 作品中文译名）'
-    $authorChinese = $authorChinese.Trim()
+    # 输入原作品名（原文名称）
+    $originalTitle = Read-Host '原作品名（原文）'
+    $originalTitle = $originalTitle.Trim()
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] 请输入【项目简介】（多行，空行结束）：" -ForegroundColor Cyan
-    $overviewLines = @()
+    # 输入作品中文译名
+    $chineseTitle = Read-Host '作品中文译名'
+    $chineseTitle = $chineseTitle.Trim()
+
+    # 自动组合 projectName 和 authorChinese
+    $projectName = "[${author}] ${originalTitle}"
+    $authorChinese = "[${author}] ${chineseTitle}"
+
+    # 输入原文简介
+    Write-InfoLog '请输入【原文简介】（多行，空行结束）：'
+    $originalOverviewLines = @()
     while ($true)
     {
         $line = Read-Host
@@ -266,22 +325,49 @@ function Get-ProjectBriefInfo
         {
             break
         }
-        $overviewLines += $line
+        $originalOverviewLines += $line
     }
+    $originalOverview = $originalOverviewLines -join "`n"
 
+    # 输入中文简介
+    Write-InfoLog '请输入【中文简介】（多行，空行结束）：'
+    $chineseOverviewLines = @()
+    while ($true)
+    {
+        $line = Read-Host
+        if (-not $line.Trim())
+        {
+            break
+        }
+        $chineseOverviewLines += $line
+    }
+    $chineseOverview = $chineseOverviewLines -join "`n"
+
+    # 构建格式化的 tpl
     $tpl = @(
-        "项目名称 ：$projectName | $authorChinese",
-        '；',
-        '项目简介 ：{世界观概述：',
-        $overviewLines,
-        '；本地化目标（如文化适配方向或语言风格定位），总字数≤200字}',
-        '；',
-        '角色译名表 ：原名|中文译名|{身份标签}（按需增行）',
-        '；',
-        '名词对照表 ：标签:原文:译名|补充说明（支持新增标签）'
+        '╔═══════════════════════════════════════════════╗',
+        '                   项目信息',
+        '╚═══════════════════════════════════════════════╝',
+        '',
+        '【项目名称】',
+        "  原文：$projectName",
+        "  中文：$authorChinese",
+        '',
+        '【项目简介】',
+        '  ┌───────────────────────────────────────────┐',
+        '  │ 原文简介：',
+        "  │ $originalOverview",
+        '  └───────────────────────────────────────────┘',
+        '',
+        '  ┌───────────────────────────────────────────┐',
+        '  │ 中文简介：',
+        "  │ $chineseOverview",
+        '  └───────────────────────────────────────────┘',
+        '',
+        '╔═══════════════════════════════════════════════╗'
     )
 
-    $formatted = $tpl -join "`n" + "`n"
+    $formatted = $tpl -join "`n"
 
     return $formatted, $projectName
 }

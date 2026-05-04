@@ -8,7 +8,6 @@
     Description       = '提供日志系统、配置解析和通用工具函数。'
     PowerShellVersion = '7.0'
     FunctionsToExport = @(
-        'Write-Log',
         'Get-Config',
         'Get-NaturalSortKey',
         'Get-RealCuganExePath',

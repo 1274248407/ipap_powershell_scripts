@@ -5,10 +5,17 @@
     提供日志系统、配置解析和通用工具函数。
 #>
 
-$ScriptRoot = $PSScriptRoot
+# 项目根目录：使用模块自身路径向上两级（Modules/IPAP.Core -> 项目根目录）
+$ProjectRoot = Join-Path $PSScriptRoot '..\..'
 
-$Global:BinPath = Join-Path $ScriptRoot '..\..\bin'
-$Global:ConfigPath = Join-Path $ScriptRoot '..\..\config.toml'
+$PoShLogPath = Join-Path $ProjectRoot 'vendor\PoShLog'
+if (Test-Path -LiteralPath $PoShLogPath)
+{
+    Import-Module -Name $PoShLogPath -Force -Scope Global
+}
+
+$Global:BinPath = Join-Path $ProjectRoot 'bin'
+$Global:ConfigPath = Join-Path $ProjectRoot 'config.toml'
 $Global:TomlJsonExePath = Join-Path $Global:BinPath 'tomljson.exe'
 $Global:Settings = $null
 
@@ -26,55 +33,35 @@ $Global:DefaultSettings = @{
     }
 }
 
+$PoShLogPath = Join-Path $ScriptRoot '..\..\vendor\PoShLog'
+Import-Module -Name $PoShLogPath -Force -Scope Global
+
+
+
+
 <#
 .SYNOPSIS
-    输出带时间戳和颜色的日志信息
+    读取配置文件
 .DESCRIPTION
-    根据指定的日志级别输出不同颜色的日志信息，包含时间戳和日志级别标识。
-.PARAMETER Message
-    要输出的日志消息内容。
-.PARAMETER Level
-    日志级别，支持 INFO、SUCCESS、WARNING、ERROR。默认为 INFO。
+    从指定路径读取 config.toml 配置文件，使用 tomljson.exe 解析并返回配置哈希表。
+    若配置文件不存在、tomljson.exe 不存在或解析失败，返回默认配置。
+.PARAMETER ConfigPath
+    (string) 配置文件路径，默认为脚本目录下的 config.toml。
+    （适用于所有参数集）
 .EXAMPLE
-    Write-Log "Starting process"
-    输出 INFO 级别的日志。
+    Get-Config
+    读取默认配置文件。
+.EXAMPLE
+    Get-Config -ConfigPath "C:\custom\config.toml"
+    读取指定路径的配置文件。
+.INPUTS
+    无
+.OUTPUTS
+    hashtable
+.NOTES
+    Author:  lucas_gold
+    Website: `https://github.com/1274248407`
 #>
-function Write-Log
-{
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory = $true)]
-        [string]$Message,
-        [string]$Level = 'INFO'
-    )
-
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-
-    switch ($Level)
-    {
-        'INFO'
-        {
-            Write-Host "[$timestamp] [INFO] $Message" -ForegroundColor Cyan
-        }
-        'SUCCESS'
-        {
-            Write-Host "[$timestamp] [SUCCESS] $Message" -ForegroundColor Green
-        }
-        'WARNING'
-        {
-            Write-Host "[$timestamp] [WARNING] $Message" -ForegroundColor Yellow
-        }
-        'ERROR'
-        {
-            Write-Host "[$timestamp] [ERROR] $Message" -ForegroundColor Red
-        }
-        default
-        {
-            Write-Host "[$timestamp] [$Level] $Message"
-        }
-    }
-}
-
 function Get-Config
 {
     [CmdletBinding()]
@@ -82,26 +69,36 @@ function Get-Config
         [string]$ConfigPath = $Global:ConfigPath
     )
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] Reading configuration file: $ConfigPath" -ForegroundColor Cyan
+    Write-InfoLog "Reading configuration file: $ConfigPath"
 
-    if (-not (Test-Path $ConfigPath))
-    {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [WARNING] Configuration file not found, using default settings" -ForegroundColor Yellow
-        return $Global:DefaultSettings
+    $TomlJsonExePath = $Global:TomlJsonExePath
+    $DefaultSettings = @{
+        paths        = @{
+            base_project_dir   = ''
+            project_dir_prefix = ''
+        }
+        app_settings = @{
+            model_select        = 'models-se'
+            max_workers         = 8
+            upscale_timeout_sec = 600
+        }
     }
 
-    if (-not (Test-Path $Global:TomlJsonExePath))
+    if (-not (Test-Path -LiteralPath $ConfigPath))
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [WARNING] tomljson.exe not found, using default settings" -ForegroundColor Yellow
-        return $Global:DefaultSettings
+        Write-WarningLog 'Configuration file not found, using default settings'
+        return $DefaultSettings
+    }
+
+    if (-not (Test-Path -LiteralPath $TomlJsonExePath))
+    {
+        Write-WarningLog 'tomljson.exe not found, using default settings'
+        return $DefaultSettings
     }
 
     try
     {
-        $jsonOutput = & $Global:TomlJsonExePath $ConfigPath
+        $jsonOutput = Invoke-TomlJsonExe -ExePath $TomlJsonExePath -ConfigPath $ConfigPath
         $config = $jsonOutput | ConvertFrom-Json
 
         $configHash = @{}
@@ -115,18 +112,38 @@ function Get-Config
             upscale_timeout_sec = $config.app_settings.upscale_timeout_sec
         }
 
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [SUCCESS] Configuration file parsed successfully" -ForegroundColor Green
+        Write-InfoLog 'Configuration file parsed successfully'
         return $configHash
     }
     catch
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [ERROR] Configuration file parsing failed: $($_.Exception.Message), using default settings" -ForegroundColor Red
-        return $Global:DefaultSettings
+        Write-ErrorLog "Configuration file parsing failed: $($PSItem.Exception.Message), using default settings"
+        return $DefaultSettings
     }
 }
 
+<#
+.SYNOPSIS
+    生成自然排序键
+.DESCRIPTION
+    将字符串按数字和非数字部分分割，生成可用于自然排序的数组。数字部分转换为整数，非数字部分保持原样。
+.PARAMETER String
+    (string, Mandatory) 需要生成排序键的输入字符串。
+    （适用于所有参数集）
+.EXAMPLE
+    Get-NaturalSortKey -String "file12.txt"
+    返回 @("file", 12, ".txt")。
+.EXAMPLE
+    Get-NaturalSortKey -String "Chapter 3.2"
+    返回 @("Chapter ", 3, ".", 2)。
+.INPUTS
+    string
+.OUTPUTS
+    array
+.NOTES
+    Author:  lucas_gold
+    Website: `https://github.com/1274248407`
+#>
 function Get-NaturalSortKey
 {
     [CmdletBinding()]
@@ -153,6 +170,29 @@ function Get-NaturalSortKey
     return $result
 }
 
+<#
+.SYNOPSIS
+    查找 realcugan-ncnn-vulkan.exe 可执行文件路径
+.DESCRIPTION
+    在指定搜索路径中递归查找 realcugan-ncnn-vulkan.exe 文件，返回完整路径或 $null。
+    若未找到文件则记录错误日志。
+.PARAMETER SearchPath
+    (string) 搜索目录路径，默认为全局变量 BinPath。
+    （适用于所有参数集）
+.EXAMPLE
+    Get-RealCuganExePath
+    在默认路径查找 realcugan-ncnn-vulkan.exe。
+.EXAMPLE
+    Get-RealCuganExePath -SearchPath "C:\tools"
+    在指定路径查找 realcugan-ncnn-vulkan.exe。
+.INPUTS
+    无
+.OUTPUTS
+    string 或 $null
+.NOTES
+    Author:  lucas_gold
+    Website: `https://github.com/1274248407`
+#>
 function Get-RealCuganExePath
 {
     [CmdletBinding()]
@@ -160,56 +200,84 @@ function Get-RealCuganExePath
         [string]$SearchPath = $Global:BinPath
     )
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] Searching for realcugan-ncnn-vulkan.exe..." -ForegroundColor Cyan
+    Write-InfoLog 'Searching for realcugan-ncnn-vulkan.exe...'
 
-    $exePath = Get-ChildItem -Path $SearchPath -Name 'realcugan-ncnn-vulkan.exe' -Recurse -ErrorAction SilentlyContinue
+    $exePath = Get-ChildItem -LiteralPath $SearchPath -Name 'realcugan-ncnn-vulkan.exe' -Recurse -ErrorAction SilentlyContinue
 
     if ($exePath)
     {
         $fullPath = Join-Path $SearchPath $exePath
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [SUCCESS] Found realcugan-ncnn-vulkan.exe: $fullPath" -ForegroundColor Green
+        Write-InfoLog "Found realcugan-ncnn-vulkan.exe: $fullPath"
         return $fullPath
     }
     else
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [ERROR] realcugan-ncnn-vulkan.exe not found" -ForegroundColor Red
+        Write-ErrorLog 'realcugan-ncnn-vulkan.exe not found'
         return $null
     }
 }
-
 <#
 .SYNOPSIS
-    初始化环境
+    调用 tomljson.exe 解析配置文件
 .DESCRIPTION
-    定位 realcugan-ncnn-vulkan.exe 并加载配置文件，为后续操作做准备。
+    调用 tomljson.exe 外部程序来解析 TOML 配置文件并返回 JSON 输出。
+.PARAMETER ExePath
+    tomljson.exe 的路径
+.PARAMETER ConfigPath
+    要解析的 TOML 配置文件路径
+.EXAMPLE
+    $json = Invoke-TomlJsonExe -ExePath 'C:\bin\tomljson.exe' -ConfigPath 'config.toml'
+.INPUTS
+    无
+.OUTPUTS
+    string
+.NOTES
+    Author:  lucas_gold
+    Website: `https://github.com/1274248407`
+#>
+function Invoke-TomlJsonExe
+{
+    [CmdletBinding()]
+    param (
+        [string]$ExePath,
+        [string]$ConfigPath
+    )
+    
+    & $ExePath $ConfigPath
+}
+<#
+.SYNOPSIS
+    初始化运行环境
+.DESCRIPTION
+    定位 realcugan-ncnn-vulkan.exe 并加载配置文件，将结果存储到全局变量中供后续操作使用。
+    若无法定位可执行文件则记录警告日志。
 .EXAMPLE
     Initialize-Environment
-    初始化运行环境。
+    初始化 IPAP 运行环境。
+.INPUTS
+    无
+.OUTPUTS
+    无
+.NOTES
+    Author:  lucas_gold
+    Website: `https://github.com/1274248407`
 #>
 function Initialize-Environment
 {
     [CmdletBinding()]
     param()
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [INFO] Initializing environment..." -ForegroundColor Cyan
+    Write-InfoLog 'Initializing environment...'
 
-    # Locate realcugan-ncnn-vulkan.exe
     $Global:RealCuganExePath = Get-RealCuganExePath
     if (-not $Global:RealCuganExePath)
     {
-        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        Write-Host "[$timestamp] [WARNING] Cannot locate realcugan-ncnn-vulkan.exe, upscaling functionality will be unavailable" -ForegroundColor Yellow
+        Write-WarningLog 'Cannot locate realcugan-ncnn-vulkan.exe, upscaling functionality will be unavailable'
     }
 
-    # Load configuration
     $Global:Settings = Get-Config
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Write-Host "[$timestamp] [SUCCESS] Environment initialization completed" -ForegroundColor Green
+    Write-InfoLog 'Environment initialization completed'
 }
 
 Export-ModuleMember -Variable @(
@@ -223,9 +291,9 @@ Export-ModuleMember -Variable @(
 )
 
 Export-ModuleMember -Function @(
-    'Write-Log',
     'Get-Config',
     'Get-NaturalSortKey',
     'Get-RealCuganExePath',
+    'Invoke-TomlJsonExe',
     'Initialize-Environment'
 )
