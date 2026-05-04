@@ -180,7 +180,8 @@ function New-ReadmeFile
             return
         }
         
-        $content | Out-File -FilePath $readmePath -Encoding UTF8
+        # 使用 .NET 方法写入文件，避免 PowerShell 通配符问题
+        [System.IO.File]::WriteAllText($readmePath, $content, [System.Text.Encoding]::UTF8)
         
         if (Test-Path -LiteralPath $readmePath)
         {
@@ -245,18 +246,20 @@ function New-TranslationFiles
         $briefFile = Join-Path $translationDir 'project_brief.md'
         Write-InfoLog "Writing project brief file to $briefFile"
         
+        # 使用 .NET 方法写入文件，避免 PowerShell 通配符问题
         if ($BriefText)
         {
-            $BriefText | Out-File -FilePath $briefFile -Encoding UTF8
+            [System.IO.File]::WriteAllText($briefFile, $BriefText, [System.Text.Encoding]::UTF8)
         }
         else
         {
             # 创建空文件或默认内容
-            '## 项目简介' | Out-File -FilePath $briefFile -Encoding UTF8
+            [System.IO.File]::WriteAllText($briefFile, '## 项目简介', [System.Text.Encoding]::UTF8)
         }
 
         $glossaryFile = Join-Path $translationDir 'glossary.json'
-        '{}' | Out-File -FilePath $glossaryFile -Encoding UTF8
+        # 使用 .NET 方法写入文件，避免 PowerShell 通配符问题
+        [System.IO.File]::WriteAllText($glossaryFile, '{}', [System.Text.Encoding]::UTF8)
         Write-InfoLog "Writing glossary file to $glossaryFile"
 
         # 使用 -LiteralPath 检查文件是否创建成功

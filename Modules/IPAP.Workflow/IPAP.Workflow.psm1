@@ -11,19 +11,6 @@
 # Main workflow function
 <#
 .SYNOPSIS
-    初始化环境
-.DESCRIPTION
-    定位 realcugan-ncnn-vulkan.exe 并加载配置文件，为后续操作做准备。
-    若无法定位可执行文件则记录警告日志，不影响后续流程。
-.EXAMPLE
-    Initialize-Environment
-    初始化运行环境。
-.INPUTS
-    无
-.OUTPUTS
-    无
-<#
-.SYNOPSIS
     主工作流函数
 .DESCRIPTION
     执行完整的 IPAP 工作流，包括环境初始化、项目创建、图片分析和处理。
@@ -137,14 +124,12 @@ function Start-IPAPWorkflow
                     Write-InfoLog "Testing parallel processing with $maxWorkers concurrency"
                     $result = Invoke-ParallelUpscale -Images $imageInfo.Images -OutputDir $outputDir -MaxWorkers $maxWorkers -ModelPath $modelPath
 
-                    if ($result.SuccessCount -gt 0)
-                    {
-                        Write-InfoLog "Parallel processing test successful, success: $($result.SuccessCount), failed: $($result.FailedCount)"
-                    }
-                    else
-                    {
-                        Write-ErrorLog 'Parallel processing test failed'
-                    }
+                    # Verify processing result by checking actual output files
+                    Test-UpscaleResult -ExpectedCount $imageInfo.Count -OutputDir $outputDir -ProcessResult $result
+                }
+                else
+                {
+                    Write-InfoLog "Upscaling skipped - needUpscale: $needUpscale, RealCugan available: $($null -ne $Global:RealCuganExePath)"
                 }
             }
             else
@@ -164,7 +149,68 @@ function Start-IPAPWorkflow
     }
 }
 
+<#
+.SYNOPSIS
+    验证图片高清化处理结果
+.DESCRIPTION
+    通过实际检查输出目录中的文件来验证高清化处理是否成功完成，支持分级日志输出，并对比函数返回结果。
+.PARAMETER ExpectedCount
+    (int, Mandatory) 预期处理的图片数量。
+.PARAMETER OutputDir
+    (string, Mandatory) 输出目录路径。
+.PARAMETER ProcessResult
+    (hashtable) Invoke-ParallelUpscale 的返回结果（可选，用于对比验证）。
+.INPUTS
+    无
+.OUTPUTS
+    bool (是否全部成功)
+.NOTES
+    Author:  lucas_gold
+    Website: https://github.com/1274248407
+#>
+function Test-UpscaleResult
+{
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory = $true)]
+        [int]$ExpectedCount,
+        
+        [Parameter(Mandatory = $true)]
+        [string]$OutputDir,
+        
+        [hashtable]$ProcessResult
+    )
+
+    $processedImages = Get-ChildItem -LiteralPath $OutputDir -File | Where-Object { $Global:SupportedImageFormats -contains $PSItem.Extension }
+    $actualCount = $processedImages.Count
+
+    $successRate = if ($ExpectedCount -gt 0) { [math]::Round($actualCount / $ExpectedCount * 100, 2) } else { 0 }
+
+    if ($ProcessResult)
+    {
+        Write-InfoLog "Processing result vs actual files: reported success=$($ProcessResult.SuccessCount), actual=$actualCount"
+    }
+
+    if ($actualCount -eq $ExpectedCount -and $ExpectedCount -gt 0)
+    {
+        Write-InfoLog "Parallel processing completed successfully, all $ExpectedCount images processed (verified)"
+        return $true
+    }
+    elseif ($actualCount -eq 0)
+    {
+        Write-ErrorLog 'Parallel processing failed completely, no output files generated'
+        return $false
+    }
+    else
+    {
+        $failedCount = $ExpectedCount - $actualCount
+        Write-WarningLog "Parallel processing partially completed - expected: $ExpectedCount, actual: $actualCount, failed: $failedCount ($successRate%)"
+        return $false
+    }
+}
+
 # Export module members
 Export-ModuleMember -Function @(
-    'Start-IPAPWorkflow'
+    'Start-IPAPWorkflow',
+    'Test-UpscaleResult'
 )
