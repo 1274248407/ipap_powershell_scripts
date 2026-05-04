@@ -91,8 +91,10 @@ Describe 'Test-NeedUpscale Unit Tests' -Tag 'Test-NeedUpscale', 'IPAP.ImageProce
     }
 
     Context '必填参数测试 - Mandatory Parameter' {
-        It 'AverageSize 必填参数缺失时应报错' {
-            { Test-NeedUpscale } | Should -Throw
+        It '函数应有 Mandatory 参数 AverageSize' {
+            $cmd = Get-Command Test-NeedUpscale
+            $param = $cmd.Parameters['AverageSize']
+            $param.Attributes.Mandatory | Should -Be $true
         }
     }
 

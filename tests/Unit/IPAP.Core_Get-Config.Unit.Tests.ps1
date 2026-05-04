@@ -47,7 +47,7 @@ Describe 'Get-Config Unit Tests' -Tag 'Get-Config', 'IPAP.Core' {
 
             $result = Get-Config
 
-            $result | Should -BeOfType [System.Hashtable]
+            $result | Should -BeOfType [hashtable]
             $result.Keys | Should -Contain 'paths'
             $result.Keys | Should -Contain 'app_settings'
         }

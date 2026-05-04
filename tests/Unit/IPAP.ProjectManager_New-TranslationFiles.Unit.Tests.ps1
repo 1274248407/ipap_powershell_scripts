@@ -93,8 +93,10 @@ Describe 'New-TranslationFiles Unit Tests' -Tag 'New-TranslationFiles', 'IPAP.Pr
     }
 
     Context '必填参数测试' {
-        It 'ProjectDir 缺失时应报错' {
-            { New-TranslationFiles } | Should -Throw
+        It '函数应有 Mandatory 参数 ProjectDir' {
+            $cmd = Get-Command New-TranslationFiles
+            $param = $cmd.Parameters['ProjectDir']
+            $param.Attributes.Mandatory | Should -Be $true
         }
     }
 

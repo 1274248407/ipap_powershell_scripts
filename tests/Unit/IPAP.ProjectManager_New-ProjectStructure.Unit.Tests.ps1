@@ -92,12 +92,16 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP.Pr
     }
 
     Context '必填参数测试 - Mandatory Parameters' {
-        It 'BaseDir 缺失时应报错' {
-            { New-ProjectStructure -ProjectName 'Test' } | Should -Throw
+        It '函数应有 Mandatory 参数 BaseDir' {
+            $cmd = Get-Command New-ProjectStructure
+            $param = $cmd.Parameters['BaseDir']
+            $param.Attributes.Mandatory | Should -Be $true
         }
 
-        It 'ProjectName 缺失时应报错' {
-            { New-ProjectStructure -BaseDir 'C:\Projects' } | Should -Throw
+        It '函数应有 Mandatory 参数 ProjectName' {
+            $cmd = Get-Command New-ProjectStructure
+            $param = $cmd.Parameters['ProjectName']
+            $param.Attributes.Mandatory | Should -Be $true
         }
     }
 

@@ -5,143 +5,8 @@
     提供完整的 IPAP 工作流执行逻辑，包括环境初始化、项目创建、图片分析和处理。
 #>
 
-# Import dependent modules
-$ScriptRoot = $PSScriptRoot
-
-$PoShLogPath = Join-Path $ScriptRoot '..\..\vendor\PoShLog'
-if (Test-Path $PoShLogPath)
-{
-    Import-Module -Name $PoShLogPath -Force
-}
-
-Import-Module "$ScriptRoot\..\IPAP.Core\IPAP.Core.psd1" -Force -Scope Global
-Import-Module "$ScriptRoot\..\IPAP.ImageProcessor\IPAP.ImageProcessor.psd1" -Force -Scope Global
-Import-Module "$ScriptRoot\..\IPAP.ProjectManager\IPAP.ProjectManager.psd1" -Force -Scope Global
-
-# Define helper functions
-<#
-.SYNOPSIS
-    查找 realcugan-ncnn-vulkan.exe 可执行文件路径
-.DESCRIPTION
-    在指定搜索路径中递归查找 realcugan-ncnn-vulkan.exe 文件，返回完整路径或 $null。
-    若未找到文件则记录错误日志。
-.PARAMETER SearchPath
-    (string) 搜索目录路径，默认为项目根目录下的 bin 文件夹。
-    （适用于所有参数集）
-.EXAMPLE
-    Get-RealCuganExePath
-    在默认路径查找 realcugan-ncnn-vulkan.exe。
-.INPUTS
-    无
-.OUTPUTS
-    string 或 $null
-.NOTES
-    Author:  lucas_gold
-    Website: `https://github.com/1274248407`
-#>
-function Get-RealCuganExePath
-{
-    [CmdletBinding()]
-    param (
-        [string]$SearchPath = "$ScriptRoot\..\..\bin"
-    )
-
-    Write-InfoLog 'Searching for realcugan-ncnn-vulkan.exe...'
-
-    $exePath = Get-ChildItem -Path $SearchPath -Name 'realcugan-ncnn-vulkan.exe' -Recurse -ErrorAction SilentlyContinue
-
-    if ($exePath)
-    {
-        $fullPath = Join-Path $SearchPath $exePath
-        Write-InfoLog "Found realcugan-ncnn-vulkan.exe: $fullPath"
-        return $fullPath
-    }
-    else
-    {
-        Write-ErrorLog 'realcugan-ncnn-vulkan.exe not found'
-        return $null
-    }
-}
-
-<#
-.SYNOPSIS
-    读取配置文件
-.DESCRIPTION
-    从指定路径读取 config.toml 配置文件，使用 tomljson.exe 解析并返回配置哈希表。
-    若配置文件不存在、tomljson.exe 不存在或解析失败，返回默认配置。
-.PARAMETER ConfigPath
-    (string) 配置文件路径，默认为项目根目录下的 config.toml。
-    （适用于所有参数集）
-.EXAMPLE
-    Get-Config
-    读取默认配置文件。
-.INPUTS
-    无
-.OUTPUTS
-    hashtable
-.NOTES
-    Author:  lucas_gold
-    Website: `https://github.com/1274248407`
-#>
-function Get-Config
-{
-    [CmdletBinding()]
-    param (
-        [string]$ConfigPath = "$ScriptRoot\..\..\config.toml"
-    )
-
-    Write-InfoLog "Reading configuration file: $ConfigPath"
-
-    $TomlJsonExePath = "$ScriptRoot\..\..\bin\tomljson.exe"
-    $DefaultSettings = @{
-        paths        = @{
-            base_project_dir   = ''
-            project_dir_prefix = ''
-        }
-        app_settings = @{
-            model_select        = 'models-se'
-            max_workers         = 8
-            upscale_timeout_sec = 600
-        }
-    }
-
-    if (-not (Test-Path $ConfigPath))
-    {
-        Write-WarningLog 'Configuration file not found, using default settings'
-        return $DefaultSettings
-    }
-
-    if (-not (Test-Path $TomlJsonExePath))
-    {
-        Write-WarningLog 'tomljson.exe not found, using default settings'
-        return $DefaultSettings
-    }
-
-    try
-    {
-        $jsonOutput = & $TomlJsonExePath $ConfigPath
-        $config = $jsonOutput | ConvertFrom-Json
-
-        $configHash = @{}
-        $configHash.paths = @{
-            base_project_dir   = $config.paths.base_project_dir
-            project_dir_prefix = $config.paths.project_dir_prefix
-        }
-        $configHash.app_settings = @{
-            model_select        = $config.app_settings.model_select
-            max_workers         = $config.app_settings.max_workers
-            upscale_timeout_sec = $config.app_settings.upscale_timeout_sec
-        }
-
-        Write-InfoLog 'Configuration file parsed successfully'
-        return $configHash
-    }
-    catch
-    {
-        Write-ErrorLog "Configuration file parsing failed: $($PSItem.Exception.Message), using default settings"
-        return $DefaultSettings
-    }
-}
+# Workflow 模块依赖 IPAP.Core、IPAP.ImageProcessor、IPAP.ProjectManager
+# 这些模块由 Main.ps1 统一导入，不需要重复导入
 
 # Main workflow function
 <#
@@ -157,30 +22,6 @@ function Get-Config
     无
 .OUTPUTS
     无
-.NOTES
-    Author:  lucas_gold
-    Website: `https://github.com/1274248407`
-#>
-function Initialize-Environment
-{
-    [CmdletBinding()]
-    param()
-
-    Write-InfoLog 'Initializing environment...'
-
-    # Locate realcugan-ncnn-vulkan.exe
-    $Global:RealCuganExePath = Get-RealCuganExePath 
-    if (-not $Global:RealCuganExePath)
-    {
-        Write-WarningLog 'Cannot locate realcugan-ncnn-vulkan.exe, upscaling functionality will be unavailable'
-    }
-
-    # Load configuration
-    $Global:Settings = Get-Config
-
-    Write-InfoLog 'Environment initialization completed'
-}
-
 <#
 .SYNOPSIS
     主工作流函数
@@ -238,54 +79,51 @@ function Start-IPAPWorkflow
             }
         }
 
-        # Get project name
-        if (-not $ProjectName)
+        # Get source directory first
+        if (-not $SourceDir)
         {
-            $ProjectName = Read-Host 'Enter project name'
+            $SourceDir = Read-Host 'Enter source image directory'
         }
 
-        # Get project brief information
-        $briefText, $projectNameFormatted = Get-ProjectBriefInfo
+        # Analyze images first to verify there are images
+        $imageInfo = Get-ImageInfo -SourceDir $SourceDir
 
-        # Create project structure
-        $projectDir = New-ProjectStructure -BaseDir $BaseDir -ProjectName $projectNameFormatted
-
-        if ($projectDir)
+        if ($imageInfo.Count -gt 0)
         {
-            Write-InfoLog "Project initialization successful: $projectDir"
+            # Get project brief information (returns briefText and projectName)
+            $briefText, $ProjectName = Get-ProjectBriefInfo
 
-            # Get source directory
-            if (-not $SourceDir)
+            # Create project structure using the projectName from Get-ProjectBriefInfo
+            $projectDir = New-ProjectStructure -BaseDir $BaseDir -ProjectName $ProjectName
+
+            if ($projectDir)
             {
-                $SourceDir = Read-Host 'Enter source image directory'
-            }
+                Write-InfoLog "Project initialization successful: $projectDir"
 
-            # Analyze images
-            $imageInfo = Get-ImageInfo -SourceDir $SourceDir
-
-            if ($imageInfo.Count -gt 0)
-            {
                 # Copy source images to raw_source directory
                 $rawSourceDir = Join-Path $projectDir '02_Preprocessing' 'raw_source'
                 Write-InfoLog "Copying source images to $rawSourceDir"
-                
+            
                 try
                 {
-                    Get-ChildItem -Path $SourceDir -File | Where-Object { $Global:SupportedImageFormats -contains $PSItem.Extension } | Copy-Item -Destination $rawSourceDir -Force
-                    $copiedCount = (Get-ChildItem -Path $rawSourceDir -File | Where-Object { $Global:SupportedImageFormats -contains $PSItem.Extension }).Count
+                    # 使用 -LiteralPath 处理包含特殊字符的路径
+                    Get-ChildItem -LiteralPath $SourceDir -File | Where-Object { $Global:SupportedImageFormats -contains $PSItem.Extension } | Copy-Item -Destination $rawSourceDir -Force
+                    # 统计已复制的图片文件数量
+                    $copiedCount = (Get-ChildItem -LiteralPath $rawSourceDir -File | Where-Object { $Global:SupportedImageFormats -contains $PSItem.Extension }).Count
+                    # 记录日志，输出已复制的图片数量
                     Write-InfoLog "Copied $copiedCount images to raw_source directory"
                 }
                 catch
                 {
                     Write-ErrorLog "Failed to copy images: $($PSItem.Exception.Message)"
                 }
-                
+            
                 # Check if upscaling is needed
                 $needUpscale = Test-NeedUpscale -AverageSize $imageInfo.AverageSize
                 Write-InfoLog "Upscaling needed: $needUpscale"
 
                 # Create project documentation files
-                New-ReadmeFile -ProjectDir $projectDir -ProjectName $projectNameFormatted -ImageCount $imageInfo.Count -NeedUpscale $needUpscale -UpscaleRatio 2
+                New-ReadmeFile -ProjectDir $projectDir -ProjectName $ProjectName -ImageCount $imageInfo.Count -NeedUpscale $needUpscale -UpscaleRatio 2
                 New-TranslationFiles -ProjectDir $projectDir -BriefText $briefText
 
                 # Perform upscaling if needed
@@ -309,12 +147,15 @@ function Start-IPAPWorkflow
                     }
                 }
             }
+            else
+            {
+                Write-ErrorLog 'Project initialization failed'
+            }
         }
         else
         {
-            Write-ErrorLog 'Project initialization failed'
+            Write-WarningLog 'No images found in source directory, workflow terminated'
         }
-
     }
     catch
     {
@@ -325,6 +166,5 @@ function Start-IPAPWorkflow
 
 # Export module members
 Export-ModuleMember -Function @(
-    'Start-IPAPWorkflow',
-    'Initialize-Environment'
+    'Start-IPAPWorkflow'
 )

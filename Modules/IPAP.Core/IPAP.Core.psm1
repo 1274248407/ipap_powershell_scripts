@@ -5,10 +5,17 @@
     提供日志系统、配置解析和通用工具函数。
 #>
 
-$ScriptRoot = $PSScriptRoot
+# 项目根目录：使用模块自身路径向上两级（Modules/IPAP.Core -> 项目根目录）
+$ProjectRoot = Join-Path $PSScriptRoot '..\..'
 
-$Global:BinPath = Join-Path $ScriptRoot '..\..\bin'
-$Global:ConfigPath = Join-Path $ScriptRoot '..\..\config.toml'
+$PoShLogPath = Join-Path $ProjectRoot 'vendor\PoShLog'
+if (Test-Path -LiteralPath $PoShLogPath)
+{
+    Import-Module -Name $PoShLogPath -Force -Scope Global
+}
+
+$Global:BinPath = Join-Path $ProjectRoot 'bin'
+$Global:ConfigPath = Join-Path $ProjectRoot 'config.toml'
 $Global:TomlJsonExePath = Join-Path $Global:BinPath 'tomljson.exe'
 $Global:Settings = $null
 
@@ -31,6 +38,7 @@ Import-Module -Name $PoShLogPath -Force -Scope Global
 
 
 
+
 <#
 .SYNOPSIS
     读取配置文件
@@ -38,7 +46,7 @@ Import-Module -Name $PoShLogPath -Force -Scope Global
     从指定路径读取 config.toml 配置文件，使用 tomljson.exe 解析并返回配置哈希表。
     若配置文件不存在、tomljson.exe 不存在或解析失败，返回默认配置。
 .PARAMETER ConfigPath
-    (string) 配置文件路径，默认为全局变量 ConfigPath。
+    (string) 配置文件路径，默认为脚本目录下的 config.toml。
     （适用于所有参数集）
 .EXAMPLE
     Get-Config
@@ -63,21 +71,34 @@ function Get-Config
 
     Write-InfoLog "Reading configuration file: $ConfigPath"
 
-    if (-not (Test-Path $ConfigPath))
-    {
-        Write-WarningLog 'Configuration file not found, using default settings'
-        return $Global:DefaultSettings
+    $TomlJsonExePath = $Global:TomlJsonExePath
+    $DefaultSettings = @{
+        paths        = @{
+            base_project_dir   = ''
+            project_dir_prefix = ''
+        }
+        app_settings = @{
+            model_select        = 'models-se'
+            max_workers         = 8
+            upscale_timeout_sec = 600
+        }
     }
 
-    if (-not (Test-Path $Global:TomlJsonExePath))
+    if (-not (Test-Path -LiteralPath $ConfigPath))
+    {
+        Write-WarningLog 'Configuration file not found, using default settings'
+        return $DefaultSettings
+    }
+
+    if (-not (Test-Path -LiteralPath $TomlJsonExePath))
     {
         Write-WarningLog 'tomljson.exe not found, using default settings'
-        return $Global:DefaultSettings
+        return $DefaultSettings
     }
 
     try
     {
-        $jsonOutput = & $Global:TomlJsonExePath $ConfigPath
+        $jsonOutput = Invoke-TomlJsonExe -ExePath $TomlJsonExePath -ConfigPath $ConfigPath
         $config = $jsonOutput | ConvertFrom-Json
 
         $configHash = @{}
@@ -97,7 +118,7 @@ function Get-Config
     catch
     {
         Write-ErrorLog "Configuration file parsing failed: $($PSItem.Exception.Message), using default settings"
-        return $Global:DefaultSettings
+        return $DefaultSettings
     }
 }
 
@@ -181,7 +202,7 @@ function Get-RealCuganExePath
 
     Write-InfoLog 'Searching for realcugan-ncnn-vulkan.exe...'
 
-    $exePath = Get-ChildItem -Path $SearchPath -Name 'realcugan-ncnn-vulkan.exe' -Recurse -ErrorAction SilentlyContinue
+    $exePath = Get-ChildItem -LiteralPath $SearchPath -Name 'realcugan-ncnn-vulkan.exe' -Recurse -ErrorAction SilentlyContinue
 
     if ($exePath)
     {
@@ -195,7 +216,35 @@ function Get-RealCuganExePath
         return $null
     }
 }
-
+<#
+.SYNOPSIS
+    调用 tomljson.exe 解析配置文件
+.DESCRIPTION
+    调用 tomljson.exe 外部程序来解析 TOML 配置文件并返回 JSON 输出。
+.PARAMETER ExePath
+    tomljson.exe 的路径
+.PARAMETER ConfigPath
+    要解析的 TOML 配置文件路径
+.EXAMPLE
+    $json = Invoke-TomlJsonExe -ExePath 'C:\bin\tomljson.exe' -ConfigPath 'config.toml'
+.INPUTS
+    无
+.OUTPUTS
+    string
+.NOTES
+    Author:  lucas_gold
+    Website: `https://github.com/1274248407`
+#>
+function Invoke-TomlJsonExe
+{
+    [CmdletBinding()]
+    param (
+        [string]$ExePath,
+        [string]$ConfigPath
+    )
+    
+    & $ExePath $ConfigPath
+}
 <#
 .SYNOPSIS
     初始化运行环境
@@ -245,5 +294,6 @@ Export-ModuleMember -Function @(
     'Get-Config',
     'Get-NaturalSortKey',
     'Get-RealCuganExePath',
+    'Invoke-TomlJsonExe',
     'Initialize-Environment'
 )

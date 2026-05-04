@@ -77,20 +77,28 @@ Describe 'New-ReadmeFile Unit Tests' -Tag 'New-ReadmeFile', 'IPAP.ProjectManager
     }
 
     Context '必填参数测试 - Mandatory Parameters' {
-        It 'ProjectDir 缺失时应报错' {
-            { New-ReadmeFile -ProjectName 'Test' -ImageCount 50 -NeedUpscale $false } | Should -Throw
+        It '函数应有 Mandatory 参数 ProjectDir' {
+            $cmd = Get-Command New-ReadmeFile
+            $param = $cmd.Parameters['ProjectDir']
+            $param.Attributes.Mandatory | Should -Be $true
         }
 
-        It 'ProjectName 缺失时应报错' {
-            { New-ReadmeFile -ProjectDir 'C:\Test' -ImageCount 50 -NeedUpscale $false } | Should -Throw
+        It '函数应有 Mandatory 参数 ProjectName' {
+            $cmd = Get-Command New-ReadmeFile
+            $param = $cmd.Parameters['ProjectName']
+            $param.Attributes.Mandatory | Should -Be $true
         }
 
-        It 'ImageCount 缺失时应报错' {
-            { New-ReadmeFile -ProjectDir 'C:\Test' -ProjectName 'Test' -NeedUpscale $false } | Should -Throw
+        It '函数应有 Mandatory 参数 ImageCount' {
+            $cmd = Get-Command New-ReadmeFile
+            $param = $cmd.Parameters['ImageCount']
+            $param.Attributes.Mandatory | Should -Be $true
         }
 
-        It 'NeedUpscale 缺失时应报错' {
-            { New-ReadmeFile -ProjectDir 'C:\Test' -ProjectName 'Test' -ImageCount 50 } | Should -Throw
+        It '函数应有 Mandatory 参数 NeedUpscale' {
+            $cmd = Get-Command New-ReadmeFile
+            $param = $cmd.Parameters['NeedUpscale']
+            $param.Attributes.Mandatory | Should -Be $true
         }
     }
 

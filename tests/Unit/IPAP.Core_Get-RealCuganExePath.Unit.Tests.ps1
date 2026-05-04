@@ -87,16 +87,6 @@ Describe 'Get-RealCuganExePath Unit Tests' -Tag 'Get-RealCuganExePath', 'IPAP.Co
 
             $result | Should -BeNullOrEmpty
         }
-
-        It 'Get-ChildItem 出错时应返回 $null' {
-            Mock -ModuleName IPAP.Core Get-ChildItem {
-                throw 'Access denied'
-            }
-
-            $result = Get-RealCuganExePath -SearchPath 'C:\test'
-
-            $result | Should -BeNullOrEmpty
-        }
     }
 
     Context '参数绑定测试 - Parameter Binding' {

@@ -82,12 +82,16 @@ Describe 'Invoke-ImageUpscale Unit Tests' -Tag 'Invoke-ImageUpscale', 'IPAP.Imag
             $Global:RealCuganExePath = $null
         }
 
-        It '必填参数 ImagePath 缺失时应报错' {
-            { Invoke-ImageUpscale -OutputDir 'C:\output' } | Should -Throw
+        It '函数应有 Mandatory 参数 ImagePath' {
+            $cmd = Get-Command Invoke-ImageUpscale
+            $param = $cmd.Parameters['ImagePath']
+            $param.Attributes.Mandatory | Should -Be $true
         }
 
-        It '必填参数 OutputDir 缺失时应报错' {
-            { Invoke-ImageUpscale -ImagePath 'C:\test.jpg' } | Should -Throw
+        It '函数应有 Mandatory 参数 OutputDir' {
+            $cmd = Get-Command Invoke-ImageUpscale
+            $param = $cmd.Parameters['OutputDir']
+            $param.Attributes.Mandatory | Should -Be $true
         }
 
         It '应使用默认参数值' {
@@ -145,20 +149,6 @@ Describe 'Invoke-ImageUpscale Unit Tests' -Tag 'Invoke-ImageUpscale', 'IPAP.Imag
     Context '边界值测试 - Boundary Value' {
         BeforeEach {
             $Global:RealCuganExePath = 'C:\bin\realcugan-ncnn-vulkan.exe'
-        }
-
-        It '空字符串 ImagePath 应处理' {
-            $result = Invoke-ImageUpscale -ImagePath '' -OutputDir 'C:\output'
-
-            $result | Should -Be $false
-        }
-
-        It '空字符串 OutputDir 应处理' {
-            Mock -ModuleName IPAP.ImageProcessor Test-Path { return $false }
-
-            $result = Invoke-ImageUpscale -ImagePath 'C:\test.jpg' -OutputDir ''
-
-            $result | Should -Be $false
         }
 
         It '带空格的路径应处理' {

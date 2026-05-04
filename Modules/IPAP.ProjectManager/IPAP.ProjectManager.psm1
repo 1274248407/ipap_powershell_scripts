@@ -5,15 +5,8 @@
     提供项目目录结构创建、README 文件生成和翻译文件管理功能。
 #>
 
-$ScriptRoot = $PSScriptRoot
-
-$PoShLogPath = Join-Path $ScriptRoot '..\..\vendor\PoShLog'
-if (Test-Path $PoShLogPath)
-{
-    Import-Module -Name $PoShLogPath -Force
-}
-
-Import-Module "$PSScriptRoot\..\IPAP.Core\IPAP.Core.psm1" -Force
+# ProjectManager 模块依赖 IPAP.Core，IPAP.Core 由 Main.ps1 统一导入
+# 不需要重复导入 PoShLog 和 IPAP.Core
 
 <#
 .SYNOPSIS
@@ -52,7 +45,8 @@ function New-ProjectStructure
     $projectDirName = "${today}_${ProjectName}"
     $projectDir = Join-Path $BaseDir $projectDirName
 
-    if (Test-Path $projectDir)
+    # 使用 -LiteralPath 处理包含特殊字符的路径
+    if (Test-Path -LiteralPath $projectDir)
     {
         $response = Read-Host "Directory $projectDir already exists, overwrite? (Y/N)"
         if ($response -ne 'Y' -and $response -ne 'y')
@@ -176,17 +170,25 @@ function New-ReadmeFile
 
     try
     {
-
         $readmePath = Join-Path $ProjectDir 'README.md'
         Write-InfoLog "Writing README.md file to $readmePath"
-        $content | Out-File -FilePath $readmePath -Encoding UTF8
-        if (Test-Path $readmePath)
+        
+        # 确保项目目录存在（使用 -LiteralPath 处理特殊字符）
+        if (-not (Test-Path -LiteralPath $ProjectDir))
         {
-            Write-InfoLog 'README.md file overwritten successfully'
+            Write-ErrorLog "Project directory does not exist: $ProjectDir"
+            return
+        }
+        
+        $content | Out-File -FilePath $readmePath -Encoding UTF8
+        
+        if (Test-Path -LiteralPath $readmePath)
+        {
+            Write-InfoLog 'README.md file created/overwritten successfully'
         }
         else
         {
-            Write-InfoLog 'README.md file created successfully'
+            Write-ErrorLog 'Failed to verify README.md file creation'
         }
     }
     catch
@@ -234,25 +236,32 @@ function New-TranslationFiles
     {
         $translationDir = Join-Path $ProjectDir '03_Translation'
 
-        if (-not (Test-Path $translationDir))
+        # 使用 -LiteralPath 处理特殊字符
+        if (-not (Test-Path -LiteralPath $translationDir))
         {
             New-Item -ItemType Directory -Path $translationDir -Force | Out-Null
         }
 
         $briefFile = Join-Path $translationDir 'project_brief.md'
+        Write-InfoLog "Writing project brief file to $briefFile"
+        
         if ($BriefText)
         {
             $BriefText | Out-File -FilePath $briefFile -Encoding UTF8
-            
-            Write-InfoLog "Writing project brief file to $briefFile"
+        }
+        else
+        {
+            # 创建空文件或默认内容
+            '## 项目简介' | Out-File -FilePath $briefFile -Encoding UTF8
         }
 
         $glossaryFile = Join-Path $translationDir 'glossary.json'
         '{}' | Out-File -FilePath $glossaryFile -Encoding UTF8
         Write-InfoLog "Writing glossary file to $glossaryFile"
 
-        $briefStatus = if (Test-Path $briefFile) { 'overwritten' } else { 'created' }
-        $glossaryStatus = if (Test-Path $glossaryFile) { 'overwritten' } else { 'created' }
+        # 使用 -LiteralPath 检查文件是否创建成功
+        $briefStatus = if (Test-Path -LiteralPath $briefFile) { 'overwritten' } else { 'created' }
+        $glossaryStatus = if (Test-Path -LiteralPath $glossaryFile) { 'overwritten' } else { 'created' }
         Write-InfoLog "Translation files $briefStatus successfully"
         Write-InfoLog "Glossary file $glossaryStatus successfully"
     }
@@ -287,14 +296,25 @@ function Get-ProjectBriefInfo
 
     Write-InfoLog '=== 项目信息输入 ==='
 
-    $projectName = Read-Host '项目名称（格式：[作者] 原作品名）'
-    $projectName = $projectName.Trim()
+    # 输入作者名
+    $author = Read-Host '作者名'
+    $author = $author.Trim()
 
-    $authorChinese = Read-Host '作品中文译名（格式：[作者] 作品中文译名）'
-    $authorChinese = $authorChinese.Trim()
+    # 输入原作品名（原文名称）
+    $originalTitle = Read-Host '原作品名（原文）'
+    $originalTitle = $originalTitle.Trim()
 
-    Write-InfoLog '请输入【项目简介】（多行，空行结束）：'
-    $overviewLines = @()
+    # 输入作品中文译名
+    $chineseTitle = Read-Host '作品中文译名'
+    $chineseTitle = $chineseTitle.Trim()
+
+    # 自动组合 projectName 和 authorChinese
+    $projectName = "[${author}] ${originalTitle}"
+    $authorChinese = "[${author}] ${chineseTitle}"
+
+    # 输入原文简介
+    Write-InfoLog '请输入【原文简介】（多行，空行结束）：'
+    $originalOverviewLines = @()
     while ($true)
     {
         $line = Read-Host
@@ -302,22 +322,49 @@ function Get-ProjectBriefInfo
         {
             break
         }
-        $overviewLines += $line
+        $originalOverviewLines += $line
     }
+    $originalOverview = $originalOverviewLines -join "`n"
 
+    # 输入中文简介
+    Write-InfoLog '请输入【中文简介】（多行，空行结束）：'
+    $chineseOverviewLines = @()
+    while ($true)
+    {
+        $line = Read-Host
+        if (-not $line.Trim())
+        {
+            break
+        }
+        $chineseOverviewLines += $line
+    }
+    $chineseOverview = $chineseOverviewLines -join "`n"
+
+    # 构建格式化的 tpl
     $tpl = @(
-        "项目名称 ：$projectName | $authorChinese",
-        '；',
-        '项目简介 ：{世界观概述：',
-        $overviewLines,
-        '；本地化目标（如文化适配方向或语言风格定位），总字数≤200字}',
-        '；',
-        '角色译名表 ：原名|中文译名|{身份标签}（按需增行）',
-        '；',
-        '名词对照表 ：标签:原文:译名|补充说明（支持新增标签）'
+        '╔═══════════════════════════════════════════════╗',
+        '                   项目信息',
+        '╚═══════════════════════════════════════════════╝',
+        '',
+        '【项目名称】',
+        "  原文：$projectName",
+        "  中文：$authorChinese",
+        '',
+        '【项目简介】',
+        '  ┌───────────────────────────────────────────┐',
+        '  │ 原文简介：',
+        "  │ $originalOverview",
+        '  └───────────────────────────────────────────┘',
+        '',
+        '  ┌───────────────────────────────────────────┐',
+        '  │ 中文简介：',
+        "  │ $chineseOverview",
+        '  └───────────────────────────────────────────┘',
+        '',
+        '╔═══════════════════════════════════════════════╗'
     )
 
-    $formatted = $tpl -join "`n" + "`n"
+    $formatted = $tpl -join "`n"
 
     return $formatted, $projectName
 }

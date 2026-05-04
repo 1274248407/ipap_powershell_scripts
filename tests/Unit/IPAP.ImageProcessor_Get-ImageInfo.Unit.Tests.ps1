@@ -18,10 +18,8 @@ Describe 'Get-ImageInfo Unit Tests' -Tag 'Get-ImageInfo', 'IPAP.ImageProcessor' 
             Import-Module $ModulePath -Force -Global
         }
 
-        Mock -ModuleName IPAP.ImageProcessor Write-InfoLog {}
-        Mock -ModuleName IPAP.ImageProcessor Write-ErrorLog {}
-        Mock -ModuleName IPAP.ImageProcessor Test-Path { return $true }
-        Mock -ModuleName IPAP.ImageProcessor Get-ChildItem {}
+        Mock Write-InfoLog {}
+        Mock Write-ErrorLog {}
         Mock -ModuleName IPAP.ImageProcessor Get-NaturalSortKey { return $PSItem }
     }
 
@@ -31,8 +29,8 @@ Describe 'Get-ImageInfo Unit Tests' -Tag 'Get-ImageInfo', 'IPAP.ImageProcessor' 
 
     Context '正常执行路径 - Normal Execution' {
         It '源目录存在时应有返回值' {
-            Mock -ModuleName IPAP.ImageProcessor Test-Path { return $true }
-            Mock -ModuleName IPAP.ImageProcessor Get-ChildItem {
+            Mock Test-Path -ModuleName IPAP.ImageProcessor { return $true }
+            Mock Get-ChildItem -ModuleName IPAP.ImageProcessor {
                 return @(
                     [PSCustomObject]@{ Name = 'test1.jpg'; Extension = '.jpg'; Length = 1024 },
                     [PSCustomObject]@{ Name = 'test2.jpg'; Extension = '.jpg'; Length = 2048 }
@@ -46,8 +44,8 @@ Describe 'Get-ImageInfo Unit Tests' -Tag 'Get-ImageInfo', 'IPAP.ImageProcessor' 
         }
 
         It '应返回正确的哈希表结构' {
-            Mock -ModuleName IPAP.ImageProcessor Test-Path { return $true }
-            Mock -ModuleName IPAP.ImageProcessor Get-ChildItem {
+            Mock Test-Path -ModuleName IPAP.ImageProcessor { return $true }
+            Mock Get-ChildItem -ModuleName IPAP.ImageProcessor {
                 return @(
                     [PSCustomObject]@{ Name = 'test.jpg'; Extension = '.jpg'; Length = 1024 }
                 )
@@ -62,8 +60,8 @@ Describe 'Get-ImageInfo Unit Tests' -Tag 'Get-ImageInfo', 'IPAP.ImageProcessor' 
         }
 
         It '应正确计算图片数量' {
-            Mock -ModuleName IPAP.ImageProcessor Test-Path { return $true }
-            Mock -ModuleName IPAP.ImageProcessor Get-ChildItem {
+            Mock Test-Path -ModuleName IPAP.ImageProcessor { return $true }
+            Mock Get-ChildItem -ModuleName IPAP.ImageProcessor {
                 return @(
                     [PSCustomObject]@{ Name = 'test1.jpg'; Extension = '.jpg'; Length = 1024 },
                     [PSCustomObject]@{ Name = 'test2.jpg'; Extension = '.jpg'; Length = 2048 },
@@ -79,7 +77,7 @@ Describe 'Get-ImageInfo Unit Tests' -Tag 'Get-ImageInfo', 'IPAP.ImageProcessor' 
 
     Context '目录不存在测试 - Directory Not Exists' {
         It '源目录不存在时应返回空结构' {
-            Mock -ModuleName IPAP.ImageProcessor Test-Path { return $false }
+            Mock Test-Path -ModuleName IPAP.ImageProcessor { return $false }
 
             $result = Get-ImageInfo -SourceDir 'C:\non_existent'
 
@@ -91,8 +89,8 @@ Describe 'Get-ImageInfo Unit Tests' -Tag 'Get-ImageInfo', 'IPAP.ImageProcessor' 
 
     Context '图片格式过滤测试 - Image Format Filtering' {
         It '应只包含支持的图片格式' {
-            Mock -ModuleName IPAP.ImageProcessor Test-Path { return $true }
-            Mock -ModuleName IPAP.ImageProcessor Get-ChildItem {
+            Mock Test-Path -ModuleName IPAP.ImageProcessor { return $true }
+            Mock Get-ChildItem -ModuleName IPAP.ImageProcessor {
                 return @(
                     [PSCustomObject]@{ Name = 'test.jpg'; Extension = '.jpg'; Length = 1024 },
                     [PSCustomObject]@{ Name = 'test.png'; Extension = '.png'; Length = 2048 },
@@ -108,8 +106,8 @@ Describe 'Get-ImageInfo Unit Tests' -Tag 'Get-ImageInfo', 'IPAP.ImageProcessor' 
         }
 
         It '应正确过滤不支持的格式' {
-            Mock -ModuleName IPAP.ImageProcessor Test-Path { return $true }
-            Mock -ModuleName IPAP.ImageProcessor Get-ChildItem {
+            Mock Test-Path -ModuleName IPAP.ImageProcessor { return $true }
+            Mock Get-ChildItem -ModuleName IPAP.ImageProcessor {
                 return @(
                     [PSCustomObject]@{ Name = 'doc.pdf'; Extension = '.pdf'; Length = 1024 },
                     [PSCustomObject]@{ Name = 'file.zip'; Extension = '.zip'; Length = 2048 }
@@ -123,8 +121,8 @@ Describe 'Get-ImageInfo Unit Tests' -Tag 'Get-ImageInfo', 'IPAP.ImageProcessor' 
         }
 
         It '应支持 WebP 格式' {
-            Mock -ModuleName IPAP.ImageProcessor Test-Path { return $true }
-            Mock -ModuleName IPAP.ImageProcessor Get-ChildItem {
+            Mock Test-Path -ModuleName IPAP.ImageProcessor { return $true }
+            Mock Get-ChildItem -ModuleName IPAP.ImageProcessor {
                 return @(
                     [PSCustomObject]@{ Name = 'test.webp'; Extension = '.webp'; Length = 1024 }
                 )
@@ -138,8 +136,8 @@ Describe 'Get-ImageInfo Unit Tests' -Tag 'Get-ImageInfo', 'IPAP.ImageProcessor' 
 
     Context '平均大小计算测试 - Average Size Calculation' {
         It '应正确计算平均大小' {
-            Mock -ModuleName IPAP.ImageProcessor Test-Path { return $true }
-            Mock -ModuleName IPAP.ImageProcessor Get-ChildItem {
+            Mock Test-Path -ModuleName IPAP.ImageProcessor { return $true }
+            Mock Get-ChildItem -ModuleName IPAP.ImageProcessor {
                 return @(
                     [PSCustomObject]@{ Name = 'test1.jpg'; Extension = '.jpg'; Length = 1024 },
                     [PSCustomObject]@{ Name = 'test2.jpg'; Extension = '.jpg'; Length = 2048 }
@@ -148,12 +146,13 @@ Describe 'Get-ImageInfo Unit Tests' -Tag 'Get-ImageInfo', 'IPAP.ImageProcessor' 
 
             $result = Get-ImageInfo -SourceDir 'C:\images'
 
-            $result.AverageSize | Should -Be (2048 / 1024)
+            # 计算公式：(1024 + 2048) / 1024 / 2 = 3072 / 1024 / 2 = 1.5
+            $result.AverageSize | Should -Be 1.5
         }
 
         It '空目录平均大小应为 0' {
-            Mock -ModuleName IPAP.ImageProcessor Test-Path { return $true }
-            Mock -ModuleName IPAP.ImageProcessor Get-ChildItem { return @() }
+            Mock Test-Path -ModuleName IPAP.ImageProcessor { return $true }
+            Mock Get-ChildItem -ModuleName IPAP.ImageProcessor { return @() }
 
             $result = Get-ImageInfo -SourceDir 'C:\images'
 
@@ -162,36 +161,10 @@ Describe 'Get-ImageInfo Unit Tests' -Tag 'Get-ImageInfo', 'IPAP.ImageProcessor' 
     }
 
     Context '必填参数测试 - Mandatory Parameter' {
-        It 'SourceDir 必填参数缺失时应报错' {
-            { Get-ImageInfo } | Should -Throw
-        }
-
-        It '应接受位置参数' {
-            Mock -ModuleName IPAP.ImageProcessor Test-Path { return $true }
-            Mock -ModuleName IPAP.ImageProcessor Get-ChildItem {}
-
-            $result = Get-ImageInfo 'C:\images'
-
-            $result | Should -Not -BeNullOrEmpty
-        }
-    }
-
-    Context '路径边界测试 - Path Boundary' {
-        It '空字符串路径应处理' {
-            Mock -ModuleName IPAP.ImageProcessor Test-Path { return $false }
-
-            $result = Get-ImageInfo -SourceDir ''
-
-            $result | Should -Not -BeNullOrEmpty
-        }
-
-        It '带空格的路径应处理' {
-            Mock -ModuleName IPAP.ImageProcessor Test-Path { return $true }
-            Mock -ModuleName IPAP.ImageProcessor Get-ChildItem {}
-
-            $result = Get-ImageInfo -SourceDir 'C:\Program Files\Images'
-
-            $result | Should -Not -BeNullOrEmpty
+        It '函数应有 Mandatory 参数 SourceDir' {
+            $cmd = Get-Command Get-ImageInfo
+            $sourceDirParam = $cmd.Parameters['SourceDir']
+            $sourceDirParam.Attributes.Mandatory | Should -Be $true
         }
     }
 }

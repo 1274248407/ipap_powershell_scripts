@@ -5,19 +5,10 @@
     提供图片分析、高清化处理和并行处理功能。
 #>
 
-$ScriptRoot = $PSScriptRoot
+# ImageProcessor 模块依赖 IPAP.Core，IPAP.Core 由 Main.ps1 统一导入
+# 不需要重复导入 PoShLog 和 IPAP.Core
 
-$PoShLogPath = Join-Path $ScriptRoot '..\..\vendor\PoShLog'
-if (Test-Path $PoShLogPath)
-{
-    Import-Module -Name $PoShLogPath -Force
-}
-
-Import-Module "$PSScriptRoot\..\IPAP.Core\IPAP.Core.psm1" -Force
-
-$Global:RealCuganExePath = $null
-
-Export-ModuleMember -Variable @('RealCuganExePath')
+Export-ModuleMember
 
 <#
 .SYNOPSIS
@@ -49,7 +40,7 @@ function Get-ImageInfo
 
     Write-InfoLog "Analyzing image directory: $SourceDir"
 
-    if (-not (Test-Path $SourceDir))
+    if (-not (Test-Path -LiteralPath $SourceDir))
     {
         Write-ErrorLog "Source directory not found: $SourceDir"
         return @{ Images = @(); TotalSize = 0; AverageSize = 0; Count = 0 }
@@ -59,7 +50,7 @@ function Get-ImageInfo
     $totalSize = 0
     $count = 0
 
-    Get-ChildItem -Path $SourceDir -File | ForEach-Object {
+    Get-ChildItem -LiteralPath $SourceDir -File | ForEach-Object {
         if ($Global:SupportedImageFormats -contains $PSItem.Extension.ToLower())
         {
             $images += $PSItem
@@ -185,13 +176,13 @@ function Invoke-ImageUpscale
         return $false
     }
 
-    if (-not (Test-Path $ImagePath))
+    if (-not (Test-Path -LiteralPath $ImagePath))
     {
         Write-ErrorLog "Input file not found: $ImagePath"
         return $false
     }
 
-    if (-not (Test-Path $OutputDir))
+    if (-not (Test-Path -LiteralPath $OutputDir))
     {
         New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
     }
@@ -213,7 +204,7 @@ function Invoke-ImageUpscale
 
         & $Global:RealCuganExePath @realCuganArgs
 
-        if (Test-Path $outputPath)
+        if (Test-Path -LiteralPath $outputPath)
         {
             return $true
         }
@@ -279,7 +270,7 @@ function Invoke-ParallelUpscale
 
     Write-InfoLog "Starting parallel image processing, concurrency: $MaxWorkers"
 
-    if (-not (Test-Path $OutputDir))
+    if (-not (Test-Path -LiteralPath $OutputDir))
     {
         New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
     }
@@ -312,7 +303,7 @@ function Invoke-ParallelUpscale
 
             & $realCuganExePath @realCuganArgs
 
-            if (Test-Path $outputPath)
+            if (Test-Path -LiteralPath $outputPath)
             {
                 return @{ Success = $true; Image = $image.Name }
             }
