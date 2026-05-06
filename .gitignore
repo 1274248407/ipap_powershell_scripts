@@ -37,9 +37,11 @@ config.toml
 # 原因：运行脚本时可能生成的临时文件，用于存储中间数据
 # 处理建议：这些文件是临时的，不应提交到版本库
 *.tmp
-# 测试脚本
-# 原因：测试脚本是本地开发环境特有的，不应提交到版本库
-*test*.ps1
+# PowerShell 脚本备份文件（编辑器生成）
+# 原因：某些编辑器（如 vim、PowerShell ISE）会生成备份文件
+# 处理建议：这些文件是临时的，不应提交到版本库
+*.ps1~
+*.ps1.bak
 # 二进制依赖目录
 /bin/
 # 项目生成的文档
@@ -88,6 +90,11 @@ System Volume Information/
 # 处理建议：建议在 README 中说明如何下载和安装此工具，而不是将其提交到版本库
 realcugan-ncnn-vulkan-20220728-windows/
 
+# PoShLog 第三方模块
+# 原因：PoShLog 是通过 PowerShell Gallery 安装的第三方日志模块
+# 处理建议：建议在 README 中说明如何安装此模块，而不是将其提交到版本库
+Modules/PoShLog/
+
 
 ################################################################################
 # PowerShell 模块相关 - 排除模块安装和缓存文件
@@ -98,10 +105,7 @@ realcugan-ncnn-vulkan-20220728-windows/
 # 处理建议：这些文件是运行时生成的，不应提交到版本库
 *.psd1.cache
 
-# 模块安装目录
-# 原因：PowerShell 模块安装到用户目录时生成的文件
-# 处理建议：这些文件是本地安装的，不应提交到版本库
-$HOME\Documents\PowerShell\Modules/
+
 
 ################################################################################
 # 其他临时文件 - 排除可能的临时文件
@@ -118,9 +122,10 @@ $HOME\Documents\PowerShell\Modules/
 # 处理建议：这些文件夹是临时的，不应提交到版本库
 temp/
 tmp/
-# 忽略 .gitignore 文件
-# 原因：.gitignore 是版本控制系统的配置文件，不应提交到版本库
-.gitignore
+# macOS 系统文件
+# 原因：macOS 系统生成的文件夹配置文件
+# 处理建议：这些文件是系统生成的，不应提交到版本库
+.DS_Store
 # 打包目录
 IPAP_Package/
 *.zip

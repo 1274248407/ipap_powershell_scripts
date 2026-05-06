@@ -23,7 +23,7 @@ if ($PSVersionTable.PSVersion.Major -lt 7)
 $Global:ProjectRoot = $PSScriptRoot
 
 # Import PoShLog module
-$PoShLogPath = Join-Path $Global:ProjectRoot 'vendor\PoShLog'
+$PoShLogPath = Join-Path $Global:ProjectRoot 'Modules\PoShLog'
 Import-Module -Name $PoShLogPath -Force -Scope Global
 
 # Initialize Logger in the Global scope so all modules can see it

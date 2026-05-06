@@ -8,7 +8,7 @@
 # 项目根目录：使用模块自身路径向上两级（Modules/IPAP.Core -> 项目根目录）
 $ProjectRoot = Join-Path $PSScriptRoot '..\..'
 
-$PoShLogPath = Join-Path $ProjectRoot 'vendor\PoShLog'
+$PoShLogPath = Join-Path $ProjectRoot 'Modules\PoShLog'
 if (Test-Path -LiteralPath $PoShLogPath)
 {
     Import-Module -Name $PoShLogPath -Force -Scope Global
