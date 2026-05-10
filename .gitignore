@@ -95,6 +95,11 @@ realcugan-ncnn-vulkan-20220728-windows/
 # 处理建议：建议在 README 中说明如何安装此模块，而不是将其提交到版本库
 Modules/PoShLog/
 
+# PSToml 第三方模块
+# 原因：PSToml 是通过 PowerShell Gallery 安装的第三方 TOML 解析模块
+# 处理建议：建议在 README 中说明如何安装此模块，而不是将其提交到版本库
+Modules/PSToml/
+
 
 ################################################################################
 # PowerShell 模块相关 - 排除模块安装和缓存文件

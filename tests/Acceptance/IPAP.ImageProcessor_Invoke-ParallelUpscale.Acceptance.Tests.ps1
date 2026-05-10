@@ -28,7 +28,7 @@ Describe 'Invoke-ParallelUpscale Acceptance Tests' -Tag 'Invoke-ParallelUpscale'
         if ($Script:ImageDirExists)
         {
             $Script:TestImages = Get-ChildItem -Path $ImageDir -File | Where-Object {
-                $_.Extension.ToLower() -in @('.jpg', '.png', '.webp')
+                $PSItem.Extension.ToLower() -in @('.jpg', '.png', '.webp')
             } | Select-Object -First 3
         }
     }

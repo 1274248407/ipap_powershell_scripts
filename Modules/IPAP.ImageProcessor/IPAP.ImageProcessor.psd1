@@ -11,8 +11,7 @@
         'Get-ImageInfo',
         'Test-NeedUpscale',
         'Invoke-ImageUpscale',
-        'Invoke-ParallelUpscale',
-        'Initialize-ImageProcessor'
+        'Invoke-ParallelUpscale'
     )
     VariablesToExport = @()
     PrivateData = @{

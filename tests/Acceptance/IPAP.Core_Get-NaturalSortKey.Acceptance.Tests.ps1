@@ -35,12 +35,12 @@ Describe 'Get-NaturalSortKey Acceptance Tests' -Tag 'Get-NaturalSortKey', 'IPAP.
             if (Test-Path $ImageDir)
             {
                 $imageFiles = Get-ChildItem -Path $ImageDir -File | Where-Object {
-                    $_.Extension.ToLower() -in @('.jpg', '.png', '.webp', '.gif', '.bmp')
+                    $PSItem.Extension.ToLower() -in @('.jpg', '.png', '.webp', '.gif', '.bmp')
                 }
 
                 if ($imageFiles.Count -gt 0)
                 {
-                    $sortedFiles = $imageFiles | Sort-Object -Property { $_.Name -split '([0-9]+)' | ForEach-Object { if ($_ -match '^[0-9]+$') { [int]$_ } else { $_ } } }
+                    $sortedFiles = $imageFiles | Sort-Object -Property { $PSItem.Name -split '([0-9]+)' | ForEach-Object { if ($PSItem -match '^[0-9]+$') { [int]$PSItem } else { $PSItem } } }
 
                     $sortedFiles | Should -Not -BeNullOrEmpty
                 }

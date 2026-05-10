@@ -12,7 +12,7 @@ Describe 'Get-Config Acceptance Tests' -Tag 'Get-Config', 'IPAP.Core', 'Acceptan
         $ProjectRoot = Split-Path -Parent $PSScriptRoot | Split-Path -Parent
         $ModulePath = Join-Path $ProjectRoot 'Modules\IPAP.Core\IPAP.Core.psm1'
         $ConfigPath = Join-Path $ProjectRoot 'config.toml'
-        $TomlJsonPath = Join-Path $ProjectRoot 'bin\tomljson.exe'
+        $PSTomlPath = Join-Path $ProjectRoot 'Modules\PSToml'
 
         if (Test-Path $ModulePath)
         {
@@ -23,7 +23,7 @@ Describe 'Get-Config Acceptance Tests' -Tag 'Get-Config', 'IPAP.Core', 'Acceptan
             Write-Host "IPAP.Core module not found at: $ModulePath" -ForegroundColor Red
         }
 
-        $Script:TomlJsonExists = Test-Path $TomlJsonPath
+        $Script:PSTomlExists = Test-Path $PSTomlPath
         $Script:ConfigExists = Test-Path $ConfigPath
     }
 
@@ -39,9 +39,9 @@ Describe 'Get-Config Acceptance Tests' -Tag 'Get-Config', 'IPAP.Core', 'Acceptan
                 return
             }
 
-            if (-not $Script:TomlJsonExists)
+            if (-not $Script:PSTomlExists)
             {
-                Set-ItResult -Skipped -Because 'tomljson.exe not found'
+                Set-ItResult -Skipped -Because 'PSToml module not found'
                 return
             }
 
@@ -53,7 +53,7 @@ Describe 'Get-Config Acceptance Tests' -Tag 'Get-Config', 'IPAP.Core', 'Acceptan
         }
 
         It '应返回正确的 app_settings 结构' {
-            if (-not $Script:ConfigExists -or -not $Script:TomlJsonExists)
+            if (-not $Script:ConfigExists -or -not $Script:PSTomlExists)
             {
                 Set-ItResult -Skipped
                 return
@@ -77,7 +77,7 @@ Describe 'Get-Config Acceptance Tests' -Tag 'Get-Config', 'IPAP.Core', 'Acceptan
             $result.app_settings.max_workers | Should -Be 8
         }
 
-        It 'tomljson.exe 不存在时应返回默认设置' {
+        It 'PSToml 模块不存在时应返回默认设置' {
             $tempConfig = New-Item -Path (Join-Path $env:TEMP "test_config_$(Get-Random).toml") -ItemType File -Force
             $result = Get-Config -ConfigPath $tempConfig.FullName
 

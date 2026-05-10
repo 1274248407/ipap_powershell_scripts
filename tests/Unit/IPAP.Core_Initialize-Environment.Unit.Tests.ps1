@@ -10,7 +10,7 @@
 Describe 'Initialize-Environment Unit Tests' -Tag 'Initialize-Environment', 'IPAP.Core' {
     BeforeAll {
         $ProjectRoot = Split-Path -Parent $PSScriptRoot | Split-Path -Parent
-        $ModulePath = Join-Path $ProjectRoot 'Modules\IPAP.Core\IPAP.Core.psm1'
+        $ModulePath = Join-Path $ProjectRoot 'Modules\IPAP.Core\IPAP.Core.psd1'
 
         if (Test-Path $ModulePath)
         {
@@ -59,7 +59,6 @@ Describe 'Initialize-Environment Unit Tests' -Tag 'Initialize-Environment', 'IPA
     Context 'exe 缺失处理 - Exe Missing Handling' {
         It 'exe 不存在时应记录警告' {
             Mock -ModuleName IPAP.Core Get-RealCuganExePath { return $null }
-            Mock -ModuleName IPAP.Core Write-WarningLog {}
 
             Initialize-Environment
 
@@ -81,7 +80,9 @@ Describe 'Initialize-Environment Unit Tests' -Tag 'Initialize-Environment', 'IPA
             { Initialize-Environment } | Should -Not -Throw
         }
 
-        It '重复初始化应覆盖之前的值' {
+        #- Get-RealCuganExePath 的返回值是 稳定的 （只要文件位置不变）
+        #- 所以两次初始化后， $Global:RealCuganExePath 的值应该 保持相同
+        It '重复初始化应保持相同的值' {
             Initialize-Environment
 
             $firstValue = $Global:RealCuganExePath

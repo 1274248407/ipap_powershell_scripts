@@ -6,8 +6,15 @@
 #>
 
 # 项目根目录：使用模块自身路径向上两级（Modules/IPAP.Core -> 项目根目录）
-$ProjectRoot = Join-Path $PSScriptRoot '..\..'
+# 使用 $MyInvocation.MyCommand.Definition 获取当前脚本路径，确保兼容性
+if (-not $PSScriptRoot)
+{
+    $PSScriptRoot = Split-Path -Path $MyInvocation.MyCommand.Definition -Parent
+}
 
+$ProjectRoot = Join-Path $PSScriptRoot '..\..' | Resolve-Path | Select-Object -ExpandProperty Path
+
+# 导入 PoShLog 模块
 $PoShLogPath = Join-Path $ProjectRoot 'Modules\PoShLog'
 if (Test-Path -LiteralPath $PoShLogPath)
 {
@@ -16,7 +23,6 @@ if (Test-Path -LiteralPath $PoShLogPath)
 
 $Global:BinPath = Join-Path $ProjectRoot 'bin'
 $Global:ConfigPath = Join-Path $ProjectRoot 'config.toml'
-$Global:TomlJsonExePath = Join-Path $Global:BinPath 'tomljson.exe'
 $Global:Settings = $null
 
 $Global:SupportedImageFormats = @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
@@ -33,9 +39,6 @@ $Global:DefaultSettings = @{
     }
 }
 
-$PoShLogPath = Join-Path $ScriptRoot '..\..\vendor\PoShLog'
-Import-Module -Name $PoShLogPath -Force -Scope Global
-
 
 
 
@@ -43,8 +46,8 @@ Import-Module -Name $PoShLogPath -Force -Scope Global
 .SYNOPSIS
     读取配置文件
 .DESCRIPTION
-    从指定路径读取 config.toml 配置文件，使用 tomljson.exe 解析并返回配置哈希表。
-    若配置文件不存在、tomljson.exe 不存在或解析失败，返回默认配置。
+    从指定路径读取 config.toml 配置文件，使用 PSToml 模块解析。
+    若配置文件不存在、PSToml 不可用或解析失败，返回默认配置。
 .PARAMETER ConfigPath
     (string) 配置文件路径，默认为脚本目录下的 config.toml。
     （适用于所有参数集）
@@ -71,7 +74,6 @@ function Get-Config
 
     Write-InfoLog "Reading configuration file: $ConfigPath"
 
-    $TomlJsonExePath = $Global:TomlJsonExePath
     $DefaultSettings = @{
         paths        = @{
             base_project_dir   = ''
@@ -90,16 +92,39 @@ function Get-Config
         return $DefaultSettings
     }
 
-    if (-not (Test-Path -LiteralPath $TomlJsonExePath))
+    # 尝试使用 PSToml 解析
+    $pstomlAvailable = $false
+    try
     {
-        Write-WarningLog 'tomljson.exe not found, using default settings'
-        return $DefaultSettings
+        $pstomlModulePath = Join-Path $Global:ProjectRoot 'Modules\PSToml'
+        if (Test-Path -LiteralPath $pstomlModulePath)
+        {
+            Import-Module -Name $pstomlModulePath -Force -Scope Global -ErrorAction Stop
+            $pstomlAvailable = $true
+            Write-InfoLog 'PSToml module imported successfully'
+        }
+    }
+    catch
+    {
+        Write-WarningLog "Failed to import PSToml module: $($PSItem.Exception.Message)"
     }
 
     try
     {
-        $jsonOutput = Invoke-TomlJsonExe -ExePath $TomlJsonExePath -ConfigPath $ConfigPath
-        $config = $jsonOutput | ConvertFrom-Json
+        $config = $null
+        
+        if ($pstomlAvailable)
+        {
+            # 使用 PSToml 解析
+            Write-InfoLog 'Using PSToml to parse configuration'
+            $tomlContent = Get-Content -LiteralPath $ConfigPath -Raw
+            $config = ConvertFrom-Toml -InputObject $tomlContent
+        }
+        else
+        {
+            Write-WarningLog 'PSToml module not available, using default settings'
+            return $DefaultSettings
+        }
 
         $configHash = @{}
         $configHash.paths = @{
@@ -202,6 +227,12 @@ function Get-RealCuganExePath
 
     Write-InfoLog 'Searching for realcugan-ncnn-vulkan.exe...'
 
+    if (-not $SearchPath)
+    {
+        Write-ErrorLog 'Search path is empty'
+        return $null
+    }
+
     $exePath = Get-ChildItem -LiteralPath $SearchPath -Name 'realcugan-ncnn-vulkan.exe' -Recurse -ErrorAction SilentlyContinue
 
     if ($exePath)
@@ -215,35 +246,6 @@ function Get-RealCuganExePath
         Write-ErrorLog 'realcugan-ncnn-vulkan.exe not found'
         return $null
     }
-}
-<#
-.SYNOPSIS
-    调用 tomljson.exe 解析配置文件
-.DESCRIPTION
-    调用 tomljson.exe 外部程序来解析 TOML 配置文件并返回 JSON 输出。
-.PARAMETER ExePath
-    tomljson.exe 的路径
-.PARAMETER ConfigPath
-    要解析的 TOML 配置文件路径
-.EXAMPLE
-    $json = Invoke-TomlJsonExe -ExePath 'C:\bin\tomljson.exe' -ConfigPath 'config.toml'
-.INPUTS
-    无
-.OUTPUTS
-    string
-.NOTES
-    Author:  lucas_gold
-    Website: `https://github.com/1274248407`
-#>
-function Invoke-TomlJsonExe
-{
-    [CmdletBinding()]
-    param (
-        [string]$ExePath,
-        [string]$ConfigPath
-    )
-    
-    & $ExePath $ConfigPath
 }
 <#
 .SYNOPSIS
@@ -283,7 +285,6 @@ function Initialize-Environment
 Export-ModuleMember -Variable @(
     'BinPath',
     'ConfigPath',
-    'TomlJsonExePath',
     'Settings',
     'SupportedImageFormats',
     'DefaultSettings',
@@ -294,6 +295,5 @@ Export-ModuleMember -Function @(
     'Get-Config',
     'Get-NaturalSortKey',
     'Get-RealCuganExePath',
-    'Invoke-TomlJsonExe',
     'Initialize-Environment'
 )

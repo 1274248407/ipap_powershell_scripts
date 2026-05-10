@@ -10,7 +10,7 @@
 Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP.Workflow' {
     BeforeAll {
         $ProjectRoot = Split-Path -Parent $PSScriptRoot | Split-Path -Parent
-        $ModulePath = Join-Path $ProjectRoot 'Modules\IPAP.Workflow\IPAP.Workflow.psm1'
+        $ModulePath = Join-Path $ProjectRoot 'Modules\IPAP.Workflow\IPAP.Workflow.psd1'
 
         if (Test-Path $ModulePath)
         {
@@ -37,6 +37,7 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP.Workfl
         Mock -ModuleName IPAP.Workflow New-ReadmeFile {}
         Mock -ModuleName IPAP.Workflow New-TranslationFiles {}
         Mock -ModuleName IPAP.Workflow Invoke-ParallelUpscale { return @{ SuccessCount = 0; FailedCount = 0 } }
+        Mock -ModuleName IPAP.Workflow Test-UpscaleResult { return $true }
         Mock -ModuleName IPAP.Workflow Get-Config {
             return @{ paths = @{ base_project_dir = 'C:\Projects'; project_dir_prefix = '' }; app_settings = @{ max_workers = 8; upscale_timeout_sec = 600; model_select = 'models-se' } }
         }

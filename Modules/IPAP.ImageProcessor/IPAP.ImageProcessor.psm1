@@ -351,22 +351,11 @@ function Invoke-ParallelUpscale
     Author:  lucas_gold
     Website: `https://github.com/1274248407`
 #>
-function Initialize-ImageProcessor
-{
-    [CmdletBinding()]
-    param ()
 
-    $Global:RealCuganExePath = Get-RealCuganExePath
-    if (-not $Global:RealCuganExePath)
-    {
-        Write-WarningLog 'Cannot locate realcugan-ncnn-vulkan.exe, upscaling functionality will be unavailable'
-    }
-}
 
 Export-ModuleMember -Function @(
     'Get-ImageInfo',
     'Test-NeedUpscale',
     'Invoke-ImageUpscale',
-    'Invoke-ParallelUpscale',
-    'Initialize-ImageProcessor'
+    'Invoke-ParallelUpscale'
 )

@@ -11,7 +11,7 @@
 Describe 'Invoke-ImageUpscale Unit Tests' -Tag 'Invoke-ImageUpscale', 'IPAP.ImageProcessor' {
     BeforeAll {
         $ProjectRoot = Split-Path -Parent $PSScriptRoot | Split-Path -Parent
-        $ModulePath = Join-Path $ProjectRoot 'Modules\IPAP.ImageProcessor\IPAP.ImageProcessor.psm1'
+        $ModulePath = Join-Path $ProjectRoot 'Modules\IPAP.ImageProcessor\IPAP.ImageProcessor.psd1'
 
         if (Test-Path $ModulePath)
         {
@@ -67,11 +67,11 @@ Describe 'Invoke-ImageUpscale Unit Tests' -Tag 'Invoke-ImageUpscale', 'IPAP.Imag
         }
 
         It '输出目录不存在时应创建' {
-            Mock -ModuleName IPAP.ImageProcessor Test-Path -ParameterFilter { $Path -match 'test\.jpg' } { return $true }
-            Mock -ModuleName IPAP.ImageProcessor Test-Path -ParameterFilter { $Path -match 'output' } { return $false }
+            Mock -ModuleName IPAP.ImageProcessor Test-Path -ParameterFilter { $LiteralPath -match 'test\.jpg' } { return $true }
+            Mock -ModuleName IPAP.ImageProcessor Test-Path -ParameterFilter { $LiteralPath -match 'output' } { return $false }
             Mock -ModuleName IPAP.ImageProcessor New-Item {}
 
-            $result = Invoke-ImageUpscale -ImagePath 'C:\test.jpg' -OutputDir 'C:\output'
+            Invoke-ImageUpscale -ImagePath 'C:\test.jpg' -OutputDir 'C:\output'
 
             Should -Invoke -ModuleName IPAP.ImageProcessor New-Item -Times 1
         }

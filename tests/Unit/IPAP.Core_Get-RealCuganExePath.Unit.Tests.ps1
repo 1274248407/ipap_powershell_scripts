@@ -10,7 +10,7 @@
 Describe 'Get-RealCuganExePath Unit Tests' -Tag 'Get-RealCuganExePath', 'IPAP.Core' {
     BeforeAll {
         $ProjectRoot = Split-Path -Parent $PSScriptRoot | Split-Path -Parent
-        $ModulePath = Join-Path $ProjectRoot 'Modules\IPAP.Core\IPAP.Core.psm1'
+        $ModulePath = Join-Path $ProjectRoot 'Modules\IPAP.Core\IPAP.Core.psd1'
 
         if (Test-Path $ModulePath)
         {
@@ -80,12 +80,12 @@ Describe 'Get-RealCuganExePath Unit Tests' -Tag 'Get-RealCuganExePath', 'IPAP.Co
     }
 
     Context '错误处理测试 - Error Handling' {
-        It '搜索路径不存在时应处理' {
+        It '搜索路径不存在时应返回 $null' {
             Mock -ModuleName IPAP.Core Get-ChildItem {}
 
             $result = Get-RealCuganExePath -SearchPath 'C:\NonExistent'
 
-            $result | Should -BeNullOrEmpty
+            $result | Should -Be $null
         }
     }
 
@@ -100,12 +100,10 @@ Describe 'Get-RealCuganExePath Unit Tests' -Tag 'Get-RealCuganExePath', 'IPAP.Co
             $result | Should -Not -BeNullOrEmpty
         }
 
-        It 'SearchPath 为空字符串时应处理' {
-            Mock -ModuleName IPAP.Core Get-ChildItem {}
-
+        It 'SearchPath 为空字符串时应返回 $null' {
             $result = Get-RealCuganExePath -SearchPath ''
 
-            $result | Should -BeNullOrEmpty
+            $result | Should -Be $null
         }
     }
 }

@@ -32,7 +32,7 @@ Describe 'Invoke-ImageUpscale Acceptance Tests' -Tag 'Invoke-ImageUpscale', 'IPA
 
         if ($Script:ExeExists)
         {
-            Initialize-ImageProcessor
+            Initialize-Environment
         }
     }
 

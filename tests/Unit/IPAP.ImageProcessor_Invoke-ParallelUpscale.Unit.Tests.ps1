@@ -11,7 +11,7 @@
 Describe 'Invoke-ParallelUpscale Unit Tests' -Tag 'Invoke-ParallelUpscale', 'IPAP.ImageProcessor' {
     BeforeAll {
         $ProjectRoot = Split-Path -Parent $PSScriptRoot | Split-Path -Parent
-        $ModulePath = Join-Path $ProjectRoot 'Modules\IPAP.ImageProcessor\IPAP.ImageProcessor.psm1'
+        $ModulePath = Join-Path $ProjectRoot 'Modules\IPAP.ImageProcessor\IPAP.ImageProcessor.psd1'
 
         if (Test-Path $ModulePath)
         {

@@ -10,7 +10,7 @@
 Describe 'IPAP.Workflow Initialize-Environment Unit Tests' -Tag 'Initialize-Environment', 'IPAP.Workflow' {
     BeforeAll {
         $ProjectRoot = Split-Path -Parent $PSScriptRoot | Split-Path -Parent
-        $ModulePath = Join-Path $ProjectRoot 'Modules\IPAP.Workflow\IPAP.Workflow.psm1'
+        $ModulePath = Join-Path $ProjectRoot 'Modules\IPAP.Workflow\IPAP.Workflow.psd1'
 
         if (Test-Path $ModulePath)
         {

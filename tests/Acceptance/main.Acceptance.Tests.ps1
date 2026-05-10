@@ -12,12 +12,11 @@ Describe 'Main.ps1 Acceptance Tests' -Tag 'Main', 'Acceptance' {
     BeforeAll {
         $ProjectRoot = $PSScriptRoot | Split-Path -Parent | Split-Path -Parent
         $ScriptPath = Join-Path $ProjectRoot 'Main.ps1'
-        $PoShLogPath = Join-Path $ProjectRoot 'vendor\PoShLog'
+        $PoShLogPath = Join-Path $ProjectRoot 'Modules\PoShLog'
         $BinPath = Join-Path $ProjectRoot 'bin'
 
         $Script:PoShLogExists = Test-Path $PoShLogPath
         $Script:ExeExists = Test-Path (Join-Path $BinPath 'realcugan-ncnn-vulkan.exe')
-        $Script:TomlJsonExists = Test-Path (Join-Path $BinPath 'tomljson.exe')
         $Script:ImageDir = Join-Path $ProjectRoot 'tests\data\images'
         $Script:ImageDirExists = Test-Path $Script:ImageDir
     }
@@ -59,15 +58,6 @@ Describe 'Main.ps1 Acceptance Tests' -Tag 'Main', 'Acceptance' {
 
             $Script:ExeExists | Should -Be $true
         }
-
-        It 'tomljson.exe 应存在（验收测试可选）' {
-            if (-not $Script:TomlJsonExists)
-            {
-                Write-Host 'Warning: tomljson.exe not found, config parsing tests will be skipped'
-            }
-
-            $Script:TomlJsonExists | Should -Be $true
-        }
     }
 
     Context '测试图片准备检查' {
@@ -89,7 +79,7 @@ Describe 'Main.ps1 Acceptance Tests' -Tag 'Main', 'Acceptance' {
             }
 
             $imageCount = (Get-ChildItem -Path $Script:ImageDir -File | Where-Object {
-                    $_.Extension.ToLower() -in @('.jpg', '.png', '.webp', '.gif', '.bmp')
+                    $PSItem.Extension.ToLower() -in @('.jpg', '.png', '.webp', '.gif', '.bmp')
                 }).Count
 
             $imageCount | Should -BeGreaterThan 0

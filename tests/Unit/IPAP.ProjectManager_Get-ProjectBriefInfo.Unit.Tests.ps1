@@ -10,7 +10,7 @@
 Describe 'Get-ProjectBriefInfo Unit Tests' -Tag 'Get-ProjectBriefInfo', 'IPAP.ProjectManager' {
     BeforeAll {
         $ProjectRoot = Split-Path -Parent $PSScriptRoot | Split-Path -Parent
-        $ModulePath = Join-Path $ProjectRoot 'Modules\IPAP.ProjectManager\IPAP.ProjectManager.psm1'
+        $ModulePath = Join-Path $ProjectRoot 'Modules\IPAP.ProjectManager\IPAP.ProjectManager.psd1'
 
         if (Test-Path $ModulePath)
         {
