@@ -7,10 +7,7 @@
 
 # 项目根目录：使用模块自身路径向上两级（Modules/IPAP.Core -> 项目根目录）
 # 使用 $MyInvocation.MyCommand.Definition 获取当前脚本路径，确保兼容性
-if (-not $PSScriptRoot)
-{
-    $PSScriptRoot = Split-Path -Path $MyInvocation.MyCommand.Definition -Parent
-}
+
 
 $ProjectRoot = Join-Path $PSScriptRoot '..\..' | Resolve-Path | Select-Object -ExpandProperty Path
 
