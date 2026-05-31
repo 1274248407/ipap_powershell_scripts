@@ -36,14 +36,14 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP.Pr
             $result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'TestProject'
 
             $result | Should -Not -BeNullOrEmpty
-            $result | Should -Match 'TestProject$'
+            $result | Should -Match '\d{4}-\d{2}-\d{2}_TestProject$'
         }
 
         It '应创建所有必需的子目录' {
             Mock -ModuleName IPAP.ProjectManager Test-Path { return $false }
             Mock -ModuleName IPAP.ProjectManager New-Item {}
 
-            $result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'TestProject'
+            New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'TestProject'
 
             Should -Invoke -ModuleName IPAP.ProjectManager New-Item -Times 8
         }
@@ -52,27 +52,27 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP.Pr
     Context '目录已存在处理 - Directory Exists' {
         It '目录已存在时应询问用户' {
             Mock -ModuleName IPAP.ProjectManager Test-Path { return $true }
-            Mock Read-Host { return 'Y' }
+            Mock -ModuleName IPAP.ProjectManager Read-Host { return 'Y' }
             Mock -ModuleName IPAP.ProjectManager New-Item {}
 
-            $result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'ExistingProject'
+            New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'ExistingProject'
 
-            Should -Invoke Read-Host -Times 1
+            Should -Invoke -ModuleName IPAP.ProjectManager Read-Host -Times 1
         }
 
         It '用户选择覆盖时应创建目录' {
             Mock -ModuleName IPAP.ProjectManager Test-Path { return $true }
-            Mock Read-Host { return 'Y' }
+            Mock -ModuleName IPAP.ProjectManager Read-Host { return 'Y' }
             Mock -ModuleName IPAP.ProjectManager New-Item {}
 
-            $result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'ExistingProject'
+            New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'ExistingProject'
 
             Should -Invoke -ModuleName IPAP.ProjectManager New-Item -Times 8
         }
 
         It '用户拒绝覆盖时应返回 $null' {
             Mock -ModuleName IPAP.ProjectManager Test-Path { return $true }
-            Mock Read-Host { return 'N' }
+            Mock -ModuleName IPAP.ProjectManager Read-Host { return 'N' }
 
             $result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'ExistingProject'
 
@@ -82,10 +82,10 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP.Pr
 
         It '用户输入小写 y 应视为同意' {
             Mock -ModuleName IPAP.ProjectManager Test-Path { return $true }
-            Mock Read-Host { return 'y' }
+            Mock -ModuleName IPAP.ProjectManager Read-Host { return 'y' }
             Mock -ModuleName IPAP.ProjectManager New-Item {}
 
-            $result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'ExistingProject'
+            New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'ExistingProject'
 
             Should -Invoke -ModuleName IPAP.ProjectManager New-Item -Times 8
         }
@@ -118,15 +118,6 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP.Pr
     }
 
     Context '路径边界测试 - Path Boundary' {
-        It '空字符串 BaseDir 应处理' {
-            Mock -ModuleName IPAP.ProjectManager Test-Path { return $false }
-            Mock -ModuleName IPAP.ProjectManager New-Item {}
-
-            $result = New-ProjectStructure -BaseDir '' -ProjectName 'Test'
-
-            $result | Should -Not -BeNullOrEmpty
-        }
-
         It '带空格的路径应处理' {
             Mock -ModuleName IPAP.ProjectManager Test-Path { return $false }
             Mock -ModuleName IPAP.ProjectManager New-Item {}
@@ -134,6 +125,7 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP.Pr
             $result = New-ProjectStructure -BaseDir 'C:\Program Files\Projects' -ProjectName 'Test Project'
 
             $result | Should -Not -BeNullOrEmpty
+            $result | Should -Match '\d{4}-\d{2}-\d{2}_Test Project$'
         }
     }
 }

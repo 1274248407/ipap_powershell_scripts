@@ -14,6 +14,14 @@
 .DESCRIPTION
     创建符合 IPAP 工作流标准的项目目录结构，包括预处理、翻译和排版目录。
     若目录已存在则询问用户是否覆盖，创建失败时记录错误日志。
+    在项目目录下创建子目录：
+    '02_Preprocessing\raw_source',
+    '02_Preprocessing\original_non_text_raw',
+    '02_Preprocessing\inpainted',
+    '02_Preprocessing\mask',
+    '03_Translation',
+    '04_Typesetting\workfiles',
+    '04_Typesetting\final_pages'
 .PARAMETER BaseDir
     (string, Mandatory) 项目基础目录。
     （适用于所有参数集）
@@ -26,7 +34,7 @@
 .INPUTS
     无
 .OUTPUTS
-    string 或 $null
+    string 或 $null (创建成功时返回项目目录路径)
 .NOTES
     Author:  lucas_gold
     Website: `https://github.com/1274248407`
@@ -180,8 +188,8 @@ function New-ReadmeFile
             return
         }
         
-        # 使用 .NET 方法写入文件，避免 PowerShell 通配符问题
-        [System.IO.File]::WriteAllText($readmePath, $content, [System.Text.Encoding]::UTF8)
+        # 使用 Out-File -LiteralPath 写入文件，避免 PowerShell 通配符问题
+        $content | Out-File -LiteralPath $readmePath -Encoding utf8
         
         if (Test-Path -LiteralPath $readmePath)
         {
@@ -292,56 +300,187 @@ function New-TranslationFiles
     Author:  lucas_gold
     Website: `https://github.com/1274248407`
 #>
+function Read-MultiLineInput
+{
+    param (
+        [string]$Prompt
+    )
+
+    $lines = @()
+    # 创建一个“字符串构建器”。在循环中频繁修改字符串时，使用 StringBuilder 比直接用 += 拼接字符串性能更高。
+    $currentLine = [System.Text.StringBuilder]::new()
+
+    if ($Prompt)
+    {
+        Write-Host $Prompt
+    }
+
+    while ($true)
+    {
+        $key = [Console]::ReadKey($true)
+
+        # 检查是否按下了 Ctrl 修饰键
+        if ($key.Modifiers -band [ConsoleModifiers]::Control)
+        {
+            # 且同时按下了 D（[char]4 是终端中 Ctrl+D 的控制字符），则退出循环
+            if ($key.KeyChar -eq [char]4 -or $key.KeyChar -eq [char]'d')
+            {
+                if ($currentLine.Length -gt 0)
+                {
+                    $lines += $currentLine.ToString()
+                }
+                break
+            }
+        }
+
+        switch ($key.Key)
+        {
+            # 将当前行存入 $lines 数组，清空 $currentLine 准备接收下一行，并换行显示。
+            { $PSItem -eq [ConsoleKey]::Enter }
+            {
+                $lines += $currentLine.ToString()
+                $currentLine.Clear()
+                Write-Host
+            }
+            # 如果当前行有字符，将长度减 1（删除最后一个字符）。 `b `b 是在控制台把光标往回退一格并覆盖原字符，实现视觉上的删除。
+            { $PSItem -eq [ConsoleKey]::Backspace }
+            {
+                if ($currentLine.Length -gt 0)
+                {
+                    $currentLine.Length = $currentLine.Length - 1
+                    Write-Host "`b `b" -NoNewline
+                }
+            }
+            # 直接清空当前行所有内容。通过打印 80 个空格覆盖原内容，再重新打印提示语和清空后的当前行。
+            { $PSItem -eq [ConsoleKey]::Delete }
+            {
+                if ($currentLine.Length -gt 0)
+                {
+                    # 保存当前长度用于清除屏幕
+                    $clearLength = $currentLine.Length + $Prompt.Length
+                    $currentLine.Clear()
+                    # 动态生成所需数量的空格
+                    $spaces = ' ' * $clearLength
+                    Write-Host "`r$spaces`r" -NoNewline
+                    Write-Host $Prompt -NoNewline
+                    Write-Host $currentLine.ToString() -NoNewline
+                }
+            }
+            # 如果是可打印字符（ASCII 码大于空格），追加到 $currentLine，
+            # 并用 Write-Host 显示在屏幕上。[void] 用于忽略 Append 方法的返回值
+            default
+            {
+                if ($key.KeyChar -and $key.KeyChar -ge ' ')
+                {
+                    [void]$currentLine.Append($key.KeyChar)
+                    Write-Host $key.KeyChar -NoNewline
+                }
+            }
+        }
+    }
+
+    return $lines
+}
+<#
+.SYNOPSIS
+    获取项目信息并生成格式化的项目简介模板。
+.DESCRIPTION
+    通过交互式输入或直接传参获取作者名、原作品名、中文译名、原文简介和中文简介，
+    然后生成格式化的项目信息字符串。此函数支持混合使用两种方式：
+    已提供值的参数将跳过交互式输入，仅对未提供的参数进行提示。
+.PARAMETER Author
+    作者名，用于构建项目标识。
+.PARAMETER OriginalTitle
+    原作品名（原文），用于构建项目标识。
+.PARAMETER ChineseTitle
+    作品的中文译名，用于构建中文项目标识。
+.PARAMETER OriginalOverview
+    作品的原文简介内容。如为多行，请使用换行符分隔。
+.PARAMETER ChineseOverview
+    作品的中文简介内容。如为多行，请使用换行符分隔。
+.EXAMPLE
+    Get-ProjectBriefInfo
+    纯交互式调用，函数将通过提示依次询问各参数值。
+.EXAMPLE
+    Get-ProjectBriefInfo -Author "鲁迅" -OriginalTitle "呐喊" -ChineseTitle "呐喊"
+    仅传部分参数，未传参数将通过交互式输入获取。
+.EXAMPLE
+    Get-ProjectBriefInfo -Author "Author" -OriginalTitle "Title" -ChineseTitle "标题" -OriginalOverview "Original`nOverview" -ChineseOverview "中文`n简介"
+    全部参数直接传入，函数直接生成格式化输出，不触发任何交互式输入。
+.INPUTS
+    System.String
+.OUTPUTS
+    System.String, System.String（返回一个包含格式化文本和项目名的元组）
+.NOTES
+    Author:  lucas_gold
+    Website: https://github.com/1274248407
+#>
 function Get-ProjectBriefInfo
 {
+
     [CmdletBinding()]
-    param ()
+    param(
+        [Parameter(ValueFromPipeline = $true)]
+        [System.String]
+        $Author,
+
+        [Parameter(ValueFromPipeline = $true)]
+        [System.String]
+        $OriginalTitle,
+
+        [Parameter(ValueFromPipeline = $true)]
+        [System.String]
+        $ChineseTitle,
+
+        [Parameter(ValueFromPipeline = $true)]
+        [System.String]
+        $OriginalOverview,
+
+        [Parameter(ValueFromPipeline = $true)]
+        [System.String]
+        $ChineseOverview
+    )
 
     Write-InfoLog '=== 项目信息输入 ==='
 
-    # 输入作者名
-    $author = Read-Host '作者名'
-    $author = $author.Trim()
+    # 输入作者名（参数为空时交互式获取）
+    if ([System.String]::IsNullOrWhiteSpace($Author))
+    {
+        $Author = Read-Host '作者名'
+        $Author = $Author.Trim()
+    }
 
-    # 输入原作品名（原文名称）
-    $originalTitle = Read-Host '原作品名（原文）'
-    $originalTitle = $originalTitle.Trim()
+    # 输入原作品名（原文）（参数为空时交互式获取）
+    if ([System.String]::IsNullOrWhiteSpace($OriginalTitle))
+    {
+        $OriginalTitle = Read-Host '原作品名（原文）'
+        $OriginalTitle = $OriginalTitle.Trim()
+    }
 
-    # 输入作品中文译名
-    $chineseTitle = Read-Host '作品中文译名'
-    $chineseTitle = $chineseTitle.Trim()
+    # 输入作品中文译名（参数为空时交互式获取）
+    if ([System.String]::IsNullOrWhiteSpace($ChineseTitle))
+    {
+        $ChineseTitle = Read-Host '作品中文译名'
+        $ChineseTitle = $ChineseTitle.Trim()
+    }
 
     # 自动组合 projectName 和 authorChinese
-    $projectName = "[${author}] ${originalTitle}"
-    $authorChinese = "[${author}] ${chineseTitle}"
+    $projectName = "[${Author}] ${OriginalTitle}"
+    $authorChinese = "[${Author}] ${ChineseTitle}"
 
-    # 输入原文简介
-    Write-InfoLog '请输入【原文简介】（多行，空行结束）：'
-    $originalOverviewLines = @()
-    while ($true)
+    # 输入原文简介（参数为空时交互式获取）
+    if ([System.String]::IsNullOrWhiteSpace($OriginalOverview))
     {
-        $line = Read-Host
-        if (-not $line.Trim())
-        {
-            break
-        }
-        $originalOverviewLines += $line
+        $originalOverviewLines = Read-MultiLineInput -Prompt '请输入【原文简介】（按 Ctrl+D 结束）：'
+        $OriginalOverview = $originalOverviewLines -join "`n"
     }
-    $originalOverview = $originalOverviewLines -join "`n"
 
-    # 输入中文简介
-    Write-InfoLog '请输入【中文简介】（多行，空行结束）：'
-    $chineseOverviewLines = @()
-    while ($true)
+    # 输入中文简介（参数为空时交互式获取）
+    if ([System.String]::IsNullOrWhiteSpace($ChineseOverview))
     {
-        $line = Read-Host
-        if (-not $line.Trim())
-        {
-            break
-        }
-        $chineseOverviewLines += $line
+        $chineseOverviewLines = Read-MultiLineInput -Prompt '请输入【中文简介】（按 Ctrl+D 结束）：'
+        $ChineseOverview = $chineseOverviewLines -join "`n"
     }
-    $chineseOverview = $chineseOverviewLines -join "`n"
 
     # 构建格式化的 tpl
     $tpl = @(
@@ -354,15 +493,13 @@ function Get-ProjectBriefInfo
         "  中文：$authorChinese",
         '',
         '【项目简介】',
-        '  ┌───────────────────────────────────────────┐',
-        '  │ 原文简介：',
-        "  │ $originalOverview",
-        '  └───────────────────────────────────────────┘',
-        '',
-        '  ┌───────────────────────────────────────────┐',
-        '  │ 中文简介：',
-        "  │ $chineseOverview",
-        '  └───────────────────────────────────────────┘',
+        '───────────────────────────────────────────────',
+        '【原文简介】',
+        $OriginalOverview,
+        '───────────────────────────────────────────────',
+        '【中文简介】',
+        $ChineseOverview,
+        '───────────────────────────────────────────────',
         '',
         '╔═══════════════════════════════════════════════╗'
     )
@@ -377,4 +514,5 @@ Export-ModuleMember -Function @(
     'New-ReadmeFile',
     'New-TranslationFiles',
     'Get-ProjectBriefInfo'
+    'Read-MultiLineInput'
 )

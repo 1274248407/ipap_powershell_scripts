@@ -104,9 +104,8 @@ Describe 'Test-NeedUpscale Unit Tests' -Tag 'Test-NeedUpscale', 'IPAP.ImageProce
             $result | Should -Be $true
         }
 
-        It '$null 输入应有明确定义的行为' {
-            $result = Test-NeedUpscale -AverageSize $null
-            $result | Should -Be $true
+        It '$null 输入应抛出异常' {
+            { Test-NeedUpscale -AverageSize $null } | Should -Throw -ExpectedMessage '*平均文件大小不能为 null*'
         }
     }
 }

@@ -10,7 +10,6 @@
     FunctionsToExport = @(
         'Get-ImageInfo',
         'Test-NeedUpscale',
-        'Invoke-ImageUpscale',
         'Invoke-ParallelUpscale'
     )
     VariablesToExport = @()

@@ -104,8 +104,15 @@ function Test-NeedUpscale
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true)]
-        [double]$AverageSize
+        # 在 PowerShell 中，当参数类型为 [double] 时， $null 会被自动转换为 0， 需要使用 [AllowNull()] 属性或者将参数类型改为可空类型
+        [AllowNull()]
+        [Nullable[double]]$AverageSize
     )
+
+    if ($null -eq $AverageSize)
+    {
+        throw [System.ArgumentNullException]::new('AverageSize', '平均文件大小不能为 null')
+    }
 
     $threshold = 1000
 
@@ -126,7 +133,7 @@ function Test-NeedUpscale
     对单张图片进行高清化处理
 .DESCRIPTION
     使用 realcugan-ncnn-vulkan 对单张图片进行高清化处理，支持指定缩放比例、噪声级别和输出格式。
-    若可执行文件不存在或输入文件不存在则记录错误日志并返回 $false。
+    若可执行文件不存在、输入文件不存在或模型目录不存在则记录错误日志并返回 $false。
 .PARAMETER ImagePath
     (string, Mandatory) 源图片路径。
     （适用于所有参数集）
@@ -134,16 +141,20 @@ function Test-NeedUpscale
     (string, Mandatory) 输出目录。
     （适用于所有参数集）
 .PARAMETER Scale
-    (int) 缩放比例，默认为 2。
+    (int, 范围: 1-4) 缩放比例，默认为 2。
     （适用于所有参数集）
 .PARAMETER NoiseLevel
-    (int) 噪声级别，默认为 0。
+    (int, 范围: -1-3) 噪声级别，-1 表示关闭降噪，默认为 0。
     （适用于所有参数集）
 .PARAMETER ModelPath
-    (string) 模型路径，默认为 "models-se"。
+    (string, 有效值: models-se, models-pro, models-nose) 模型目录路径（相对于 realcugan-ncnn-vulkan.exe 所在目录），默认为 "models-se"。
+    models-se: 标准模型（默认），models-pro: 专业模型，models-nose: 无降噪模型。
     （适用于所有参数集）
 .PARAMETER OutputFormat
-    (string) 输出格式，默认为 "webp"。
+    (string, 有效值: jpg, png, webp) 输出格式，默认为 "webp"。
+    （适用于所有参数集）
+.PARAMETER TileSize
+    (int, 范围: 32-1024) 分块大小（tile size），影响内存使用和处理速度，默认为 128。
     （适用于所有参数集）
 .EXAMPLE
     Invoke-ImageUpscale -ImagePath "input.jpg" -OutputDir "output"
@@ -156,69 +167,6 @@ function Test-NeedUpscale
     Author:  lucas_gold
     Website: `https://github.com/1274248407`
 #>
-function Invoke-ImageUpscale
-{
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory = $true)]
-        [string]$ImagePath,
-        [Parameter(Mandatory = $true)]
-        [string]$OutputDir,
-        [int]$Scale = 2,
-        [int]$NoiseLevel = 0,
-        [string]$ModelPath = 'models-se',
-        [string]$OutputFormat = 'webp'
-    )
-
-    if (-not $Global:RealCuganExePath)
-    {
-        Write-ErrorLog 'realcugan-ncnn-vulkan.exe not found, cannot perform upscaling'
-        return $false
-    }
-
-    if (-not (Test-Path -LiteralPath $ImagePath))
-    {
-        Write-ErrorLog "Input file not found: $ImagePath"
-        return $false
-    }
-
-    if (-not (Test-Path -LiteralPath $OutputDir))
-    {
-        New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
-    }
-
-    try
-    {
-        $fileName = [System.IO.Path]::GetFileNameWithoutExtension($ImagePath)
-        $outputPath = Join-Path $OutputDir "${fileName}.${OutputFormat}"
-
-        $realCuganArgs = @(
-            '-i', $ImagePath,
-            '-o', $outputPath,
-            '-n', $NoiseLevel,
-            '-s', $Scale,
-            '-t', '128',
-            '-m', $ModelPath,
-            '-f', $OutputFormat
-        )
-
-        & $Global:RealCuganExePath @realCuganArgs
-
-        if (Test-Path -LiteralPath $outputPath)
-        {
-            return $true
-        }
-        else
-        {
-            return $false
-        }
-    }
-    catch
-    {
-        return $false
-    }
-}
-
 <#
 .SYNOPSIS
     并行使用 realcugan-ncnn-vulkan 高清化处理图片
@@ -262,11 +210,25 @@ function Invoke-ParallelUpscale
         [array]$Images,
         [Parameter(Mandatory = $true)]
         [string]$OutputDir,
+        [ValidateRange(1, 32)]
         [int]$MaxWorkers = 8,
+        [ValidateRange(1, 4)]
         [int]$Scale = 2,
+        [ValidateRange(-1, 3)]
+        [int]$NoiseLevel = 0,
+        [ValidateSet('models-se', 'models-pro', 'models-nose')]
         [string]$ModelPath = 'models-se',
-        [string]$OutputFormat = 'webp'
+        [ValidateSet('jpg', 'png', 'webp')]
+        [string]$OutputFormat = 'webp',
+        [ValidateRange(32, 1024)]
+        [int]$TileSize = 128
     )
+
+    if (-not $Global:RealCuganExePath)
+    {
+        Write-ErrorLog 'realcugan-ncnn-vulkan.exe not found, cannot perform upscaling'
+        return @{ SuccessCount = 0; FailedCount = $Images.Count }
+    }
 
     Write-InfoLog "Starting parallel image processing, concurrency: $MaxWorkers"
 
@@ -282,8 +244,10 @@ function Invoke-ParallelUpscale
         $image = $PSItem
         $outputDir = $using:OutputDir
         $scale = $using:Scale
+        $noiseLevel = $using:NoiseLevel
         $modelPath = $using:ModelPath
         $outputFormat = $using:OutputFormat
+        $tileSize = $using:TileSize
         $realCuganExePath = $using:Global:RealCuganExePath
 
         $fileName = [System.IO.Path]::GetFileNameWithoutExtension($image.FullName)
@@ -294,9 +258,9 @@ function Invoke-ParallelUpscale
             $realCuganArgs = @(
                 '-i', $image.FullName,
                 '-o', $outputPath,
-                '-n', 0,
+                '-n', $noiseLevel,
                 '-s', $scale,
-                '-t', '128',
+                '-t', $tileSize,
                 '-m', $modelPath,
                 '-f', $outputFormat
             )
@@ -356,6 +320,5 @@ function Invoke-ParallelUpscale
 Export-ModuleMember -Function @(
     'Get-ImageInfo',
     'Test-NeedUpscale',
-    'Invoke-ImageUpscale',
     'Invoke-ParallelUpscale'
 )
