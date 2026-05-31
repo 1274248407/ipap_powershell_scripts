@@ -306,9 +306,9 @@ function Read-MultiLineInput
         [string]$Prompt
     )
 
-    $lines = @()
-    # 创建一个“字符串构建器”。在循环中频繁修改字符串时，使用 StringBuilder 比直接用 += 拼接字符串性能更高。
-    $currentLine = [System.Text.StringBuilder]::new()
+    [array]$lines = @()
+    # 创建一个"字符串构建器"。在循环中频繁修改字符串时，使用 StringBuilder 比直接用 += 拼接字符串性能更高。
+    [System.Text.StringBuilder]$currentLine = [System.Text.StringBuilder]::new()
 
     if ($Prompt)
     {
