@@ -11,7 +11,7 @@
         'New-ProjectStructure',
         'New-ReadmeFile',
         'New-TranslationFiles',
-        'Get-ProjectBriefInfo'
+        'Get-ProjectBriefInfo',
         'Read-MultiLineInput'
     )
     VariablesToExport = @()
