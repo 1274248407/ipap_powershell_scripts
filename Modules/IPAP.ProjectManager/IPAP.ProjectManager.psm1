@@ -302,6 +302,7 @@ function New-TranslationFiles
 #>
 function Read-MultiLineInput
 {
+    [CmdletBinding()]
     param (
         [string]$Prompt
     )

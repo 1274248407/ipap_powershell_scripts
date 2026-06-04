@@ -24,7 +24,7 @@ Describe 'New-ReadmeFile Unit Tests' -Tag 'New-ReadmeFile', 'IPAP.ProjectManager
 
     BeforeEach {
         # 创建测试目录
-        $Script:TestProjectDir = New-Item -ItemType Directory -Path 'TestDrive:\test_project' | Select-Object -ExpandProperty FullName
+        [string]$Script:TestProjectDir = New-Item -ItemType Directory -Path 'TestDrive:\test_project' | Select-Object -ExpandProperty FullName
         
         # Mock 模块内的自定义函数
         Mock -ModuleName IPAP.ProjectManager Write-InfoLog {}
