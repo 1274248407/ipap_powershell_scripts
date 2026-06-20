@@ -85,9 +85,13 @@ alwaysApply: true
 - **文件路径结构**：测试文件应放置在项目根目录下的 `tests` 目录中：
   - 单元测试：`tests/Unit/*.Unit.Tests.ps1`
   - 集成测试：`tests/Integration/*.Integration.Tests.ps1`
+  - 系统测试：`tests/System/*.System.Tests.ps1`
   - 验收测试：`tests/Acceptance/*.Acceptance.Tests.ps1`
-- **命名模式**：`{ModuleName}_{FunctionName}.{TestType}.Tests.ps1`
-  - 示例：`IPAP.ProjectManager_New-ReadmeFile.Unit.Tests.ps1`
+- **命名模式**：
+  - 单元测试/集成测试/验收测试：`{ModuleName}_{FunctionName}.{TestType}.Tests.ps1`
+    - 示例：`IPAP.ProjectManager_New-ReadmeFile.Unit.Tests.ps1`
+  - 系统测试：`{SystemName}.{TestType}.Tests.ps1`
+    - 示例：`IPAP.Workflow.System.Tests.ps1`、`IPAP.FullPipeline.System.Tests.ps1`
 
 ### 6.2 测试结构规范
 - **Describe 块**：用于组织相关测试，描述被测功能模块。
@@ -109,7 +113,7 @@ alwaysApply: true
 - **目的**：验证模块集成后的协同工作是否正常。
 
 #### 6.3.3 系统测试（System Testing）
-- **当前状态**：本项目暂未创建系统测试目录。
+- **当前状态**：已创建系统测试目录 `tests/System/`。
 - **测试范围**：测试整个系统的端到端流程。
 - **环境要求**：使用真实的测试环境和数据。
 - **目的**：验证系统整体功能符合需求规格。

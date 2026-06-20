@@ -56,17 +56,17 @@ function New-ProjectStructure
     # 使用 -LiteralPath 处理包含特殊字符的路径
     if (Test-Path -LiteralPath $projectDir)
     {
-        $response = Read-Host "Directory $projectDir already exists, overwrite? (Y/N)"
+        $response = Read-Host "目录 $projectDir 已存在，是否覆盖？(Y/N)"
         if ($response -ne 'Y' -and $response -ne 'y')
         {
-            Write-InfoLog 'User cancelled overwrite operation'
+            Write-InfoLog '用户取消覆盖操作'
             return $null
         }
     }
 
     try
     {
-        Write-InfoLog "Creating project directory: $projectDir"
+        Write-InfoLog "正在创建项目目录: $projectDir"
 
         New-Item -ItemType Directory -Path $projectDir -Force | Out-Null
 
@@ -84,15 +84,15 @@ function New-ProjectStructure
         {
             $fullPath = Join-Path $projectDir $subDir
             New-Item -ItemType Directory -Path $fullPath -Force | Out-Null
-            Write-InfoLog "Created subdirectory: $fullPath"
+            Write-InfoLog "已创建子目录: $fullPath"
         }
 
-        Write-InfoLog 'Project directory structure created successfully'
+        Write-InfoLog '项目目录结构创建成功'
         return $projectDir
     }
     catch
     {
-        Write-ErrorLog "Failed to create project directory: $($PSItem.Exception.Message)"
+        Write-ErrorLog "创建项目目录失败: $($PSItem.Exception.Message)"
         return $null
     }
 }
@@ -179,12 +179,12 @@ function New-ReadmeFile
     try
     {
         $readmePath = Join-Path $ProjectDir 'README.md'
-        Write-InfoLog "Writing README.md file to $readmePath"
+        Write-InfoLog "正在写入 README.md 文件到 $readmePath"
         
         # 确保项目目录存在（使用 -LiteralPath 处理特殊字符）
         if (-not (Test-Path -LiteralPath $ProjectDir))
         {
-            Write-ErrorLog "Project directory does not exist: $ProjectDir"
+            Write-ErrorLog "项目目录不存在: $ProjectDir"
             return
         }
         
@@ -193,16 +193,16 @@ function New-ReadmeFile
         
         if (Test-Path -LiteralPath $readmePath)
         {
-            Write-InfoLog 'README.md file created/overwritten successfully'
+            Write-InfoLog 'README.md 文件创建/覆盖成功'
         }
         else
         {
-            Write-ErrorLog 'Failed to verify README.md file creation'
+            Write-ErrorLog '无法验证 README.md 文件创建'
         }
     }
     catch
     {
-        Write-ErrorLog "Failed to create/overwrite README.md file: $($PSItem.Exception.Message)"
+        Write-ErrorLog "创建/覆盖 README.md 文件失败: $($PSItem.Exception.Message)"
     }
 }
 
@@ -252,7 +252,7 @@ function New-TranslationFiles
         }
 
         $briefFile = Join-Path $translationDir 'project_brief.md'
-        Write-InfoLog "Writing project brief file to $briefFile"
+        Write-InfoLog "正在写入项目简介文件到 $briefFile"
         
         # 使用 .NET 方法写入文件，避免 PowerShell 通配符问题
         if ($BriefText)
@@ -268,17 +268,17 @@ function New-TranslationFiles
         $glossaryFile = Join-Path $translationDir 'glossary.json'
         # 使用 .NET 方法写入文件，避免 PowerShell 通配符问题
         [System.IO.File]::WriteAllText($glossaryFile, '{}', [System.Text.Encoding]::UTF8)
-        Write-InfoLog "Writing glossary file to $glossaryFile"
+        Write-InfoLog "正在写入词汇表文件到 $glossaryFile"
 
         # 使用 -LiteralPath 检查文件是否创建成功
-        $briefStatus = if (Test-Path -LiteralPath $briefFile) { 'overwritten' } else { 'created' }
-        $glossaryStatus = if (Test-Path -LiteralPath $glossaryFile) { 'overwritten' } else { 'created' }
-        Write-InfoLog "Translation files $briefStatus successfully"
-        Write-InfoLog "Glossary file $glossaryStatus successfully"
+        $briefStatus = if (Test-Path -LiteralPath $briefFile) { '覆盖' } else { '创建' }
+        $glossaryStatus = if (Test-Path -LiteralPath $glossaryFile) { '覆盖' } else { '创建' }
+        Write-InfoLog "翻译文件 $briefStatus 成功"
+        Write-InfoLog "词汇表文件 $glossaryStatus 成功"
     }
     catch
     {
-        Write-ErrorLog "Failed to create/overwrite translation files: $($PSItem.Exception.Message)"
+        Write-ErrorLog "创建/覆盖翻译文件失败: $($PSItem.Exception.Message)"
     }
 }
 
