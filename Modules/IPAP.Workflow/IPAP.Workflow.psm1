@@ -47,18 +47,19 @@ function Start-IPAPWorkflow
     try
     {
         Write-InfoLog '正在初始化 IPAP 工作流...'
-        Initialize-Environment
+
+        # 检查配置是否已初始化
+        if (-not (Test-ConfigurationInitialized))
+        {
+            throw [System.InvalidOperationException]::new('配置未初始化，请先调用 Get-Configuration')
+        }
+
+        # 获取配置实例
+        $Config = Get-Configuration
 
         if (-not $BaseDir)
         {
-            if ($Global:Settings.paths.base_project_dir)
-            {
-                $BaseDir = $Global:Settings.paths.base_project_dir
-            }
-            else
-            {
-                $BaseDir = Read-Host '请输入项目基础目录'
-            }
+            $BaseDir = Read-Host '请输入项目基础目录'
         }
 
         if (-not $SourceDir)
@@ -103,7 +104,7 @@ function Start-IPAPWorkflow
                 New-TranslationFiles -ProjectDir $projectDir -BriefText $briefText
 
                 $preprocessingDir = Join-Path $projectDir '02_Preprocessing'
-                $maxWorkers = $Global:Settings.app_settings.max_workers
+                $maxWorkers = $Config.App.MaxWorkers
 
                 if ($level1Images.Count -gt 0)
                 {
@@ -114,10 +115,10 @@ function Start-IPAPWorkflow
 
                 if ($level2Images.Count -gt 0)
                 {
-                    if ($Global:RealCuganExePath)
+                    if ($Config.Tools.RealCuganExePath)
                     {
                         Write-InfoLog "Level 2: 处理 $($level2Images.Count) 张重度模糊图片 (Real-CUGAN)"
-                        $modelPath = $Global:Settings.app_settings.model_select
+                        $modelPath = $Config.App.ModelSelect
                         $result2 = Invoke-ParallelUpscale -Images $level2Images -OutputDir $preprocessingDir -Engine 'RealCugan' -MaxWorkers $maxWorkers -ModelPath $modelPath
                         Write-InfoLog "Level 2 完成: 成功=$($result2.SuccessCount), 失败=$($result2.FailedCount)"
                     }
@@ -134,7 +135,7 @@ function Start-IPAPWorkflow
                 }
                 else
                 {
-                    Write-InfoLog "所有图片均为高清 (Level 0)，跳过预处理"
+                    Write-InfoLog '所有图片均为高清 (Level 0)，跳过预处理'
                 }
             }
             else
@@ -189,8 +190,11 @@ function Test-UpscaleResult
         return $false
     }
 
+    # 从配置获取支持的图片格式
+    $SupportedImageFormats = $Global:IPAPConfigInstance.App.SupportedImageFormats
+
     $outputFiles = Get-ChildItem -LiteralPath $OutputDir -File | Where-Object {
-        $Global:SupportedImageFormats -contains $PSItem.Extension.ToLower()
+        $SupportedImageFormats -contains $PSItem.Extension.ToLower()
     }
 
     $actualCount = $outputFiles.Count

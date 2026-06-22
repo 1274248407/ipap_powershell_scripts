@@ -44,6 +44,81 @@ alwaysApply: true
 #>
 ```
 
+### 4.1 PowerShell 类 Help-Based Help 规范
+PowerShell 类及其成员也需要完整的 Help-Based Help 文档。
+
+#### 4.1.1 类定义 Help
+每个类定义上方必须包含以下格式的注释块：
+
+```powershell
+<#
+.SYNOPSIS
+    [简要描述类的功能]
+.DESCRIPTION
+    [详细解释类的作用、职责及设计意图]
+.EXAMPLE
+    [类的使用示例]
+.NOTES
+    Author:  lucas_gold
+    Website: https://github.com/1274248407
+#>
+class ClassName
+{
+    # 属性定义...
+}
+```
+
+#### 4.1.2 类属性 Help
+每个类属性上方必须添加单行注释说明其用途：
+
+```powershell
+<#
+.SYNOPSIS
+    [简要描述类的功能]
+.DESCRIPTION
+    [详细解释类的作用]
+.NOTES
+    Author:  lucas_gold
+    Website: https://github.com/1274248407
+#>
+class ClassName
+{
+    # 属性的简要说明
+    [string]$PropertyName
+
+    # 另一个属性的简要说明
+    [int]$AnotherProperty
+}
+```
+
+#### 4.1.3 类方法 Help
+每个类方法（包括构造函数、静态方法、实例方法）上方必须包含以下格式的注释块：
+
+```powershell
+class ClassName
+{
+    <#
+    .SYNOPSIS
+        [简要描述方法功能]
+    .DESCRIPTION
+        [详细解释方法的工作原理、参数及返回值]
+    .PARAMETER [参数名]
+        [该参数的作用及说明]
+    .EXAMPLE
+        [具体的方法调用示例]
+    .OUTPUTS
+        [输出对象类型]
+    .NOTES
+        Author:  lucas_gold
+        Website: https://github.com/1274248407
+    #>
+    [ReturnType] MethodName([Type]$ParamName)
+    {
+        # 方法实现...
+    }
+}
+```
+
 ## 5. 代码注释规范
 - **简体中文强制**：所有代码注释（包括单行注释 `#` 和多行注释 `<#...#>`）必须使用简体中文。
   - 函数帮助块的所有内容（.SYNOPSIS、.DESCRIPTION、.PARAMETER 等）必须使用简体中文。

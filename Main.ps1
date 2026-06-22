@@ -20,10 +20,8 @@ if ($PSVersionTable.PSVersion.Major -lt 7)
 # 设置控制台输出编码为 UTF-8，以支持特殊字符（如 ✓）
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-$Global:ProjectRoot = $PSScriptRoot
-
-# Import PoShLog module
-$PoShLogPath = Join-Path $Global:ProjectRoot 'Modules\PoShLog'
+# 导入 PoShLog 模块
+$PoShLogPath = Join-Path $PSScriptRoot 'Modules\PoShLog'
 Import-Module -Name $PoShLogPath -Force -Scope Global
 
 # Initialize Logger in the Global scope so all modules can see it
@@ -37,26 +35,39 @@ Import-Module -Name $PoShLogPath -Force -Scope Global
 Write-InfoLog '✓ PoShLog 模块已导入'
 
 
+# 导入 IPAP.Configuration 模块
+$configModulePath = Join-Path $PSScriptRoot 'Modules\IPAP.Configuration\IPAP.Configuration.psd1'
+Import-Module $configModulePath -Force -Scope Global
+Write-InfoLog '✓ IPAP.Configuration 模块已导入'
+
+# 初始化配置
+Get-Configuration -ProjectRoot $PSScriptRoot | Out-Null
+Write-InfoLog '✓ IPAP 配置已初始化'
+
+# 获取项目根目录（后续模块路径使用）
+$ProjectRoot = $Global:IPAPConfigInstance.Paths.ProjectRoot
+
+
 # Import modules
 Write-InfoLog '正在导入 IPAP 模块...'
 
 # Import IPAP.Core module
-$coreModulePath = Join-Path $Global:ProjectRoot 'Modules\IPAP.Core\IPAP.Core.psd1'
+$coreModulePath = Join-Path $ProjectRoot 'Modules\IPAP.Core\IPAP.Core.psd1'
 Import-Module $coreModulePath -Force -Scope Global
 Write-InfoLog '✓ IPAP.Core 模块已导入'
 
 # Import IPAP.ImageProcessor module
-$imageProcessorModulePath = Join-Path $Global:ProjectRoot 'Modules\IPAP.ImageProcessor\IPAP.ImageProcessor.psd1'
+$imageProcessorModulePath = Join-Path $ProjectRoot 'Modules\IPAP.ImageProcessor\IPAP.ImageProcessor.psd1'
 Import-Module $imageProcessorModulePath -Force -Scope Global
 Write-InfoLog '✓ IPAP.ImageProcessor 模块已导入'
 
 # Import IPAP.ProjectManager module
-$projectManagerModulePath = Join-Path $Global:ProjectRoot 'Modules\IPAP.ProjectManager\IPAP.ProjectManager.psd1'
+$projectManagerModulePath = Join-Path $ProjectRoot 'Modules\IPAP.ProjectManager\IPAP.ProjectManager.psd1'
 Import-Module $projectManagerModulePath -Force -Scope Global
 Write-InfoLog '✓ IPAP.ProjectManager 模块已导入'
 
 # Import IPAP.Workflow module
-$workflowModulePath = Join-Path $Global:ProjectRoot 'Modules\IPAP.Workflow\IPAP.Workflow.psd1'
+$workflowModulePath = Join-Path $ProjectRoot 'Modules\IPAP.Workflow\IPAP.Workflow.psd1'
 
 Import-Module $workflowModulePath -Force -Scope Global
 Write-InfoLog '✓ IPAP.Workflow 模块已导入'

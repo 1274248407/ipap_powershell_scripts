@@ -55,7 +55,7 @@ Describe 'Get-NaturalSortKey Acceptance Tests' -Tag 'Get-NaturalSortKey', 'IPAP.
                 [PSCustomObject]@{ Name = 'image20.jpg' }
             )
 
-            $sorted = $testFiles | Sort-Object -Property { Get-NaturalSortKey -String $PSItem.Name }
+            $sorted = $testFiles | Sort-Object -Property { Get-NaturalSortKey -InputString $PSItem.Name }
 
             $sorted[0].Name | Should -Be 'image1.jpg'
             $sorted[1].Name | Should -Be 'image2.jpg'
@@ -65,12 +65,12 @@ Describe 'Get-NaturalSortKey Acceptance Tests' -Tag 'Get-NaturalSortKey', 'IPAP.
 
         It '应处理长文件名图片' {
             $longName = 'long_filename_image_1234567890_abcdefghijklmnopqrstuvwxyz.jpg'
-            $result = Get-NaturalSortKey -String $longName
+            $result = Get-NaturalSortKey -InputString $longName
             $result | Should -Not -BeNullOrEmpty
         }
 
         It '应处理带括号特殊字符的文件名' {
-            $result = Get-NaturalSortKey -String 'image (1).jpg'
+            $result = Get-NaturalSortKey -InputString 'image (1).jpg'
             $result | Should -Not -BeNullOrEmpty
             $result.Count | Should -BeGreaterThan 1
         }
@@ -97,9 +97,9 @@ Describe 'Get-NaturalSortKey Acceptance Tests' -Tag 'Get-NaturalSortKey', 'IPAP.
         It '排序结果应保持一致性' {
             $testStrings = @('test10', 'test2', 'test1', 'test20', 'test3')
 
-            $result1 = Get-NaturalSortKey -String $testStrings[0]
-            $result2 = Get-NaturalSortKey -String $testStrings[1]
-            $result3 = Get-NaturalSortKey -String $testStrings[2]
+            $result1 = Get-NaturalSortKey -InputString $testStrings[0]
+            $result2 = Get-NaturalSortKey -InputString $testStrings[1]
+            $result3 = Get-NaturalSortKey -InputString $testStrings[2]
 
             $result1 | Should -Not -BeNullOrEmpty
             $result2 | Should -Not -BeNullOrEmpty

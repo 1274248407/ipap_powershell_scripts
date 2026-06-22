@@ -13,12 +13,14 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP.Workfl
     BeforeAll {
         $ProjectRoot = Split-Path -Parent $PSScriptRoot | Split-Path -Parent
 
-        # 导入所有依赖模块（按顺序：Core → ImageProcessor → ProjectManager → Workflow）
+        # 导入所有依赖模块（按顺序：Configuration → Core → ImageProcessor → ProjectManager → Workflow）
+        $ConfigurationModulePath = Join-Path $ProjectRoot 'Modules\IPAP.Configuration\IPAP.Configuration.psd1'
         $CoreModulePath = Join-Path $ProjectRoot 'Modules\IPAP.Core\IPAP.Core.psd1'
         $ImageProcessorModulePath = Join-Path $ProjectRoot 'Modules\IPAP.ImageProcessor\IPAP.ImageProcessor.psd1'
         $ProjectManagerModulePath = Join-Path $ProjectRoot 'Modules\IPAP.ProjectManager\IPAP.ProjectManager.psd1'
         $WorkflowModulePath = Join-Path $ProjectRoot 'Modules\IPAP.Workflow\IPAP.Workflow.psd1'
 
+        if (Test-Path $ConfigurationModulePath) { Import-Module $ConfigurationModulePath -Force -Global }
         if (Test-Path $CoreModulePath) { Import-Module $CoreModulePath -Force -Global }
         if (Test-Path $ImageProcessorModulePath) { Import-Module $ImageProcessorModulePath -Force -Global }
         if (Test-Path $ProjectManagerModulePath) { Import-Module $ProjectManagerModulePath -Force -Global }
@@ -27,21 +29,45 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP.Workfl
 
     BeforeEach {
         # 重置全局状态
-        $Global:RealCuganExePath = $null
-        $Global:Settings = $null
+        $Global:IPAPConfigInstance = $null
 
         # Mock 日志函数（全局作用域，拦截所有模块的日志调用）
         Mock Write-InfoLog {}
         Mock Write-WarningLog {}
         Mock Write-ErrorLog {}
 
+        # 创建模拟的配置对象
+        $MockPathsConfig = [PSCustomObject]@{
+            ProjectRoot = 'C:\Projects'
+            BinPath     = 'C:\Projects\bin'
+            ConfigPath  = 'C:\Projects\config.toml'
+        }
+        $MockToolsConfig = [PSCustomObject]@{
+            RealCuganExePath = 'C:\bin\realcugan-ncnn-vulkan.exe'
+            FfmpegExePath    = 'C:\bin\ffmpeg.exe'
+            FfprobeExePath   = 'C:\bin\ffprobe.exe'
+        }
+        $MockAppConfig = [PSCustomObject]@{
+            SupportedImageFormats = @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
+            MaxWorkers            = 8
+            UpscaleTimeoutSec     = 600
+            ModelSelect           = 'models-se'
+            UpscaleRatio          = 2
+            NoiseLevel            = 0
+        }
+        $MockConfig = [PSCustomObject]@{
+            Paths = $MockPathsConfig
+            Tools = $MockToolsConfig
+            App   = $MockAppConfig
+        }
+
+        # Mock Get-Configuration 来初始化配置实例
+        Mock -ModuleName IPAP.Configuration Get-Configuration {
+            $Global:IPAPConfigInstance = $MockConfig
+            return $MockConfig
+        }
+
         # Mock 各模块的函数（在各自模块的内部作用域中替换）
-        Mock -ModuleName IPAP.Core Initialize-Environment {
-            $Global:Settings = @{ paths = @{ base_project_dir = 'C:\Projects' }; app_settings = @{ max_workers = 8; model_select = 'models-se' } }
-        }
-        Mock -ModuleName IPAP.Core Get-Config {
-            return @{ paths = @{ base_project_dir = 'C:\Projects'; project_dir_prefix = '' }; app_settings = @{ max_workers = 8; upscale_timeout_sec = 600; model_select = 'models-se' } }
-        }
         Mock -ModuleName IPAP.ProjectManager Get-ProjectBriefInfo { return 'Brief text', 'TestProject' }
         Mock -ModuleName IPAP.ProjectManager New-ProjectStructure { return 'C:\Projects\2026-01-01_TestProject' }
         Mock -ModuleName IPAP.ProjectManager New-ReadmeFile {}
@@ -104,13 +130,13 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP.Workfl
     }
 
     Context '项目初始化测试' {
-        It '应初始化并设置全局 Settings' {
+        It '应初始化并设置全局配置实例' {
             Start-IPAPWorkflow -BaseDir 'C:\Projects' -ProjectName 'TestProject' -SourceDir 'C:\Images'
 
-            # 验证 Initialize-Environment 的副作用：Settings 被设置
-            $Global:Settings | Should -Not -Be $null
-            $Global:Settings.paths.base_project_dir | Should -Be 'C:\Projects'
-            $Global:Settings.app_settings.max_workers | Should -Be 8
+            # 验证 Get-Configuration 的副作用：配置实例被设置
+            $Global:IPAPConfigInstance | Should -Not -Be $null
+            $Global:IPAPConfigInstance.Paths.ProjectRoot | Should -Be 'C:\Projects'
+            $Global:IPAPConfigInstance.App.MaxWorkers | Should -Be 8
         }
     }
 
@@ -143,7 +169,7 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP.Workfl
         }
 
         It 'Level 2 图片且 RealCuganExePath 为空时应正常跳过不抛出异常' {
-            $Global:RealCuganExePath = $null
+            $Global:IPAPConfigInstance.Tools.RealCuganExePath = $null
             Mock -ModuleName IPAP.ImageProcessor Get-ImageLevel {
                 param([array]$Images)
                 return $Images | ForEach-Object {
@@ -166,7 +192,7 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP.Workfl
         }
 
         It '混合级别图片应正常处理不抛出异常' {
-            $Global:RealCuganExePath = 'C:\bin\realcugan.exe'
+            $Global:IPAPConfigInstance.Tools.RealCuganExePath = 'C:\bin\realcugan.exe'
             $image1 = [PSCustomObject]@{ Name = 'L1.jpg'; FullName = 'C:\L1.jpg' }
             $image2 = [PSCustomObject]@{ Name = 'L2.jpg'; FullName = 'C:\L2.jpg' }
 

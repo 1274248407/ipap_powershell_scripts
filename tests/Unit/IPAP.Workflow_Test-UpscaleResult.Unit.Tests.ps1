@@ -10,11 +10,37 @@
 Describe 'Test-UpscaleResult Unit Tests' -Tag 'Test-UpscaleResult', 'IPAP.Workflow' {
     BeforeAll {
         $ProjectRoot = Split-Path -Parent $PSScriptRoot | Split-Path -Parent
-        $ModulePath = Join-Path $ProjectRoot 'Modules\IPAP.Workflow\IPAP.Workflow.psd1'
 
-        if (Test-Path $ModulePath)
-        {
-            Import-Module $ModulePath -Force -Global
+        # 导入依赖模块
+        $ConfigurationModulePath = Join-Path $ProjectRoot 'Modules\IPAP.Configuration\IPAP.Configuration.psd1'
+        $WorkflowModulePath = Join-Path $ProjectRoot 'Modules\IPAP.Workflow\IPAP.Workflow.psd1'
+
+        if (Test-Path $ConfigurationModulePath) { Import-Module $ConfigurationModulePath -Force -Global }
+        if (Test-Path $WorkflowModulePath) { Import-Module $WorkflowModulePath -Force -Global }
+
+        # 初始化配置实例
+        $MockPathsConfig = [PSCustomObject]@{
+            ProjectRoot = 'C:\Projects'
+            BinPath     = 'C:\Projects\bin'
+            ConfigPath  = 'C:\Projects\config.toml'
+        }
+        $MockToolsConfig = [PSCustomObject]@{
+            RealCuganExePath = 'C:\bin\realcugan-ncnn-vulkan.exe'
+            FfmpegExePath    = 'C:\bin\ffmpeg.exe'
+            FfprobeExePath   = 'C:\bin\ffprobe.exe'
+        }
+        $MockAppConfig = [PSCustomObject]@{
+            SupportedImageFormats = @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
+            MaxWorkers            = 8
+            UpscaleTimeoutSec     = 600
+            ModelSelect           = 'models-se'
+            UpscaleRatio          = 2
+            NoiseLevel            = 0
+        }
+        $Global:IPAPConfigInstance = [PSCustomObject]@{
+            Paths = $MockPathsConfig
+            Tools = $MockToolsConfig
+            App   = $MockAppConfig
         }
 
         Mock -ModuleName IPAP.Workflow Write-InfoLog {}
@@ -93,48 +119,6 @@ Describe 'Test-UpscaleResult Unit Tests' -Tag 'Test-UpscaleResult', 'IPAP.Workfl
 
         It 'OutputDir 为 $null 时应处理' {
             { Test-UpscaleResult -ExpectedCount 3 -OutputDir $null } | Should -Throw
-        }
-    }
-
-    Context 'ProcessResult 参数测试 - ProcessResult Parameter' {
-        It '提供 ProcessResult 时应记录对比信息' {
-            Mock -ModuleName IPAP.Workflow Get-ChildItem {
-                return @(
-                    [PSCustomObject]@{ Name = 'image1.jpg'; Extension = '.jpg' }
-                )
-            }
-
-            $processResult = @{ SuccessCount = 1; FailedCount = 0 }
-            $result = Test-UpscaleResult -ExpectedCount 1 -OutputDir 'C:\output' -ProcessResult $processResult
-
-            $result | Should -Be $true
-            Assert-MockCalled -ModuleName IPAP.Workflow Write-InfoLog -Exactly 2
-        }
-
-        It 'ProcessResult 与实际文件数不一致时应记录警告' {
-            Mock -ModuleName IPAP.Workflow Get-ChildItem {
-                return @(
-                    [PSCustomObject]@{ Name = 'image1.jpg'; Extension = '.jpg' }
-                )
-            }
-
-            $processResult = @{ SuccessCount = 3; FailedCount = 0 }
-            $result = Test-UpscaleResult -ExpectedCount 3 -OutputDir 'C:\output' -ProcessResult $processResult
-
-            $result | Should -Be $false
-            Assert-MockCalled -ModuleName IPAP.Workflow Write-WarningLog -Exactly 1
-        }
-
-        It 'ProcessResult 为 $null 时不应报错' {
-            Mock -ModuleName IPAP.Workflow Get-ChildItem {
-                return @(
-                    [PSCustomObject]@{ Name = 'image1.jpg'; Extension = '.jpg' }
-                )
-            }
-
-            $result = Test-UpscaleResult -ExpectedCount 1 -OutputDir 'C:\output' -ProcessResult $null
-
-            $result | Should -Be $true
         }
     }
 
