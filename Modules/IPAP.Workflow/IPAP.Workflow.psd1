@@ -7,6 +7,7 @@
     Copyright         = '(c) 2026 IPAP Team. All rights reserved.'
     Description       = '提供完整的 IPAP 工作流执行逻辑，包括环境初始化、项目创建、图片分析和处理。'
     PowerShellVersion = '7.0'
+    RequiredModules   = @('IPAP.Configuration', 'IPAP.Core', 'IPAP.ImageProcessor', 'IPAP.ProjectManager')
     FunctionsToExport = @(
         'Start-IPAPWorkflow',
         'Test-UpscaleResult'

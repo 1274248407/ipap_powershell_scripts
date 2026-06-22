@@ -7,6 +7,7 @@
     Copyright         = '(c) 2026 IPAP Team. All rights reserved.'
     Description       = '提供日志系统和通用工具函数。配置管理已迁移至 IPAP.Configuration 模块。'
     PowerShellVersion = '7.0'
+    RequiredModules   = @('IPAP.Configuration')
     FunctionsToExport = @(
         'Get-NaturalSortKey',
         'Get-FfmpegPath',

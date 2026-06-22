@@ -15,7 +15,7 @@
 .SYNOPSIS
     路径配置类
 .DESCRIPTION
-    管理和验证项目相关的路径信息，包括项目根目录、二进制文件目录和配置文件路径。
+    管理和验证项目相关的路径信息，包括项目根目录、二进制文件目录、配置文件路径和源图片目录。
     在构造时自动验证路径有效性。
 .EXAMPLE
     $pathConfig = [PathConfiguration]::new('D:\Projects\MyProject')
@@ -34,6 +34,9 @@ class PathConfiguration
     # 配置文件路径（config.toml）
     [string]$ConfigPath
 
+    # 源图片目录（待处理的漫画图片所在目录）
+    [string]$SourceDir
+
     <#
     .SYNOPSIS
         创建路径配置实例
@@ -42,6 +45,8 @@ class PathConfiguration
         验证 ProjectRoot 不为空且目录存在。
     .PARAMETER ProjectRoot
         项目根目录路径
+    .PARAMETER SourceDir
+        源图片目录路径（可选）
     .EXAMPLE
         $config = [PathConfiguration]::new('D:\Projects\MyProject')
     .OUTPUTS
@@ -50,7 +55,7 @@ class PathConfiguration
         Author:  lucas_gold
         Website: https://github.com/1274248407
     #>
-    PathConfiguration([string]$ProjectRoot)
+    PathConfiguration([string]$ProjectRoot, [string]$SourceDir = $null)
     {
         if ([string]::IsNullOrWhiteSpace($ProjectRoot))
         {
@@ -63,6 +68,7 @@ class PathConfiguration
         $this.ProjectRoot = $ProjectRoot
         $this.BinPath = Join-Path $ProjectRoot 'bin'
         $this.ConfigPath = Join-Path $ProjectRoot 'config.toml'
+        $this.SourceDir = $SourceDir
     }
 
     <#
@@ -72,6 +78,8 @@ class PathConfiguration
         静态方法，创建并返回新的 PathConfiguration 实例。
     .PARAMETER ProjectRoot
         项目根目录路径
+    .PARAMETER SourceDir
+        源图片目录路径（可选）
     .EXAMPLE
         $pathConfig = [PathConfiguration]::Load('D:\Projects\MyProject')
     .OUTPUTS
@@ -80,9 +88,9 @@ class PathConfiguration
         Author:  lucas_gold
         Website: https://github.com/1274248407
     #>
-    static [PathConfiguration] Load([string]$ProjectRoot)
+    static [PathConfiguration] Load([string]$ProjectRoot, [string]$SourceDir = $null)
     {
-        return [PathConfiguration]::new($ProjectRoot)
+        return [PathConfiguration]::new($ProjectRoot, $SourceDir)
     }
 }
 #endregion
@@ -231,6 +239,118 @@ class ToolConfiguration
 }
 #endregion
 
+#region ProjectConfiguration 类
+<#
+.SYNOPSIS
+    项目配置类
+.DESCRIPTION
+    管理项目的元数据信息，包括作者、原作品名、中文译名和简介等。
+    这些信息用于生成项目目录名和 README 文件。
+.EXAMPLE
+    $projectConfig = [ProjectConfiguration]::new($settings)
+.NOTES
+    Author:  lucas_gold
+    Website: https://github.com/1274248407
+#>
+class ProjectConfiguration
+{
+    # 作者名
+    [string]$Author
+
+    # 原作品名（原文）
+    [string]$OriginalTitle
+
+    # 作品中文译名
+    [string]$ChineseTitle
+
+    # 原文简介
+    [string]$OriginalOverview
+
+    # 中文简介
+    [string]$ChineseOverview
+
+    <#
+    .SYNOPSIS
+        创建项目配置实例
+    .DESCRIPTION
+        构造函数使用配置设置初始化项目元数据。
+        如果配置中没有提供值，则使用空字符串作为默认值。
+    .PARAMETER Settings
+        包含项目配置的哈希表
+    .EXAMPLE
+        $projectConfig = [ProjectConfiguration]::new($settings)
+    .OUTPUTS
+        ProjectConfiguration
+    .NOTES
+        Author:  lucas_gold
+        Website: https://github.com/1274248407
+    #>
+    ProjectConfiguration([hashtable]$Settings)
+    {
+        # 先初始化所有属性为空字符串
+        $this.Author = ''
+        $this.OriginalTitle = ''
+        $this.ChineseTitle = ''
+        $this.OriginalOverview = ''
+        $this.ChineseOverview = ''
+
+        # 然后从配置读取值
+        if ($Settings -and $Settings.ContainsKey('project'))
+        {
+            $projectSettings = $Settings.project
+            if ($projectSettings.ContainsKey('author')) { $this.Author = $projectSettings.author }
+            if ($projectSettings.ContainsKey('original_title')) { $this.OriginalTitle = $projectSettings.original_title }
+            if ($projectSettings.ContainsKey('chinese_title')) { $this.ChineseTitle = $projectSettings.chinese_title }
+            if ($projectSettings.ContainsKey('original_overview')) { $this.OriginalOverview = $projectSettings.original_overview }
+            if ($projectSettings.ContainsKey('chinese_overview')) { $this.ChineseOverview = $projectSettings.chinese_overview }
+        }
+    }
+
+    <#
+    .SYNOPSIS
+        生成项目名称
+    .DESCRIPTION
+        根据作者和原作品名生成项目名称，格式为 [作者] 原作品名。
+    .OUTPUTS
+        string
+    .EXAMPLE
+        $projectName = $projectConfig.GetProjectName()
+    .NOTES
+        Author:  lucas_gold
+        Website: https://github.com/1274248407
+    #>
+    [string] GetProjectName()
+    {
+        if (-not [string]::IsNullOrWhiteSpace($this.Author) -and -not [string]::IsNullOrWhiteSpace($this.OriginalTitle))
+        {
+            $result = '[{0}] {1}' -f $this.Author, $this.OriginalTitle
+            return $result
+        }
+        return $this.OriginalTitle
+    }
+
+    <#
+    .SYNOPSIS
+        加载项目配置
+    .DESCRIPTION
+        静态方法，创建并返回新的 ProjectConfiguration 实例。
+    .PARAMETER Settings
+        包含项目配置的哈希表
+    .EXAMPLE
+        $projectConfig = [ProjectConfiguration]::Load($settings)
+    .OUTPUTS
+        ProjectConfiguration
+    .NOTES
+        Author:  lucas_gold
+        Website: https://github.com/1274248407
+    #>
+    static [ProjectConfiguration] Load([hashtable]$Settings)
+    {
+        return [ProjectConfiguration]::new($Settings)
+    }
+}
+#endregion
+
 #region ApplicationConfiguration 类
 <#
 .SYNOPSIS
@@ -280,8 +400,8 @@ class ApplicationConfiguration
     .SYNOPSIS
         创建应用配置实例
     .DESCRIPTION
-        构造函数使用默认值初始化应用配置。
-        所有参数都有合理的默认值，可以后续修改。
+        构造函数从配置哈希表读取值初始化应用配置。
+        如果配置中没有提供值，则使用合理的默认值。
     .PARAMETER Settings
         包含应用配置的哈希表（可选）
     .EXAMPLE
@@ -295,15 +415,49 @@ class ApplicationConfiguration
     ApplicationConfiguration([hashtable]$Settings)
     {
         $this.Settings = $Settings
-        $this.SupportedImageFormats = @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
-        $this.MaxWorkers = 8
-        $this.UpscaleTimeoutSec = 3600
-        $this.ModelSelect = 'models-se'
-        $this.UpscaleRatio = 2
-        $this.NoiseLevel = 0
-        $this.WebpEnabled = $true
-        $this.WebpLossless = $true
-        $this.WebpQuality = 100
+
+        # 从配置读取值，使用默认值作为回退
+        if ($Settings.ContainsKey('app_settings'))
+        {
+            $appSettings = $Settings.app_settings
+            $this.SupportedImageFormats = if ($appSettings.ContainsKey('supported_image_formats') -and $appSettings.supported_image_formats) { $appSettings.supported_image_formats } else { @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp') }
+            $this.MaxWorkers = if ($appSettings.ContainsKey('max_workers')) { [int]$appSettings.max_workers } else { 8 }
+            $this.UpscaleTimeoutSec = if ($appSettings.ContainsKey('upscale_timeout_sec')) { [int]$appSettings.upscale_timeout_sec } else { 3600 }
+            $this.ModelSelect = if ($appSettings.ContainsKey('model_select')) { $appSettings.model_select } else { 'models-se' }
+        }
+        else
+        {
+            $this.SupportedImageFormats = @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
+            $this.MaxWorkers = 8
+            $this.UpscaleTimeoutSec = 3600
+            $this.ModelSelect = 'models-se'
+        }
+
+        if ($Settings.ContainsKey('upscale'))
+        {
+            $upscaleSettings = $Settings.upscale
+            $this.UpscaleRatio = if ($upscaleSettings.ContainsKey('upscale_ratio')) { [int]$upscaleSettings.upscale_ratio } else { 2 }
+            $this.NoiseLevel = if ($upscaleSettings.ContainsKey('noise_level')) { [int]$upscaleSettings.noise_level } else { 0 }
+        }
+        else
+        {
+            $this.UpscaleRatio = 2
+            $this.NoiseLevel = 0
+        }
+
+        if ($Settings.ContainsKey('webp'))
+        {
+            $webpSettings = $Settings.webp
+            $this.WebpEnabled = if ($webpSettings.ContainsKey('enabled')) { [bool]$webpSettings.enabled } else { $true }
+            $this.WebpLossless = if ($webpSettings.ContainsKey('lossless')) { [bool]$webpSettings.lossless } else { $true }
+            $this.WebpQuality = if ($webpSettings.ContainsKey('quality')) { [int]$webpSettings.quality } else { 100 }
+        }
+        else
+        {
+            $this.WebpEnabled = $true
+            $this.WebpLossless = $true
+            $this.WebpQuality = 100
+        }
     }
 
     <#
@@ -352,6 +506,9 @@ class IPAPConfiguration
     # 应用配置
     [ApplicationConfiguration]$App
 
+    # 项目配置
+    [ProjectConfiguration]$Project
+
     <#
     .SYNOPSIS
         创建 IPAP 配置实例
@@ -363,8 +520,10 @@ class IPAPConfiguration
         工具配置实例
     .PARAMETER App
         应用配置实例
+    .PARAMETER Project
+        项目配置实例
     .EXAMPLE
-        $config = [IPAPConfiguration]::new($paths, $tools, $app)
+        $config = [IPAPConfiguration]::new($paths, $tools, $app, $project)
     .OUTPUTS
         IPAPConfiguration
     .NOTES
@@ -374,12 +533,14 @@ class IPAPConfiguration
     IPAPConfiguration(
         [PathConfiguration]$Paths,
         [ToolConfiguration]$Tools,
-        [ApplicationConfiguration]$App
+        [ApplicationConfiguration]$App,
+        [ProjectConfiguration]$Project
     )
     {
         $this.Paths = $Paths
         $this.Tools = $Tools
         $this.App = $App
+        $this.Project = $Project
     }
 
     <#
@@ -387,7 +548,8 @@ class IPAPConfiguration
         加载完整配置
     .DESCRIPTION
         静态方法，加载并返回完整的 IPAP 配置实例。
-        依次加载路径配置、工具配置和应用配置。
+        依次加载路径配置、工具配置、应用配置和项目配置。
+        首先尝试从 config.toml 文件读取配置，失败则使用默认值。
     .PARAMETER ProjectRoot
         项目根目录路径
     .EXAMPLE
@@ -400,16 +562,135 @@ class IPAPConfiguration
     #>
     static [IPAPConfiguration] Load([string]$ProjectRoot)
     {
-        $loadedPaths = [PathConfiguration]::Load($ProjectRoot)
-        $loadedSettings = @{
-            paths        = @{ base_project_dir = ''; project_dir_prefix = '' }
+        $loadedSettings = [IPAPConfiguration]::ReadConfigFile($ProjectRoot)
+        $sourceDir = if ($loadedSettings.ContainsKey('paths') -and $loadedSettings.paths.ContainsKey('source_dir')) { $loadedSettings.paths.source_dir } else { $null }
+        $loadedPaths = [PathConfiguration]::Load($ProjectRoot, $sourceDir)
+        $loadedTools = [ToolConfiguration]::Load($loadedPaths, $loadedSettings)
+        $loadedApp = [ApplicationConfiguration]::Load($loadedSettings)
+        $loadedProject = [ProjectConfiguration]::Load($loadedSettings)
+        return [IPAPConfiguration]::new($loadedPaths, $loadedTools, $loadedApp, $loadedProject)
+    }
+
+    <#
+    .SYNOPSIS
+        读取 TOML 配置文件
+    .DESCRIPTION
+        内部方法，尝试从 config.toml 文件读取配置。
+        如果文件不存在或解析失败，返回默认配置。
+    .PARAMETER ProjectRoot
+        项目根目录路径
+    .OUTPUTS
+        hashtable
+    .NOTES
+        Author:  lucas_gold
+        Website: https://github.com/1274248407
+    #>
+    hidden static [hashtable] ReadConfigFile([string]$ProjectRoot)
+    {
+        $configPath = Join-Path $ProjectRoot 'config.toml'
+        $defaultSettings = @{
+            paths        = @{ base_project_dir = ''; project_dir_prefix = ''; archive_dir = ''; source_dir = ''; ffmpeg_exe = ''; ffprobe_exe = ''; realcugan_exe = '' }
+            project      = @{ author = ''; original_title = ''; chinese_title = ''; original_overview = ''; chinese_overview = '' }
             app_settings = @{ supported_image_formats = @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'); max_workers = 8; upscale_timeout_sec = 3600; model_select = 'models-se' }
             upscale      = @{ upscale_ratio = 2; noise_level = 0 }
             webp         = @{ enabled = $true; lossless = $true; quality = 100 }
         }
-        $loadedTools = [ToolConfiguration]::Load($loadedPaths, $loadedSettings)
-        $loadedApp = [ApplicationConfiguration]::Load($loadedSettings)
-        return [IPAPConfiguration]::new($loadedPaths, $loadedTools, $loadedApp)
+
+        if (-not (Test-Path -LiteralPath $configPath))
+        {
+            Write-Verbose "配置文件不存在: $configPath，使用默认配置"
+            return $defaultSettings
+        }
+
+        try
+        {
+            $PSTomlPath = Join-Path $ProjectRoot 'Modules\PSToml'
+            if (Test-Path -LiteralPath $PSTomlPath)
+            {
+                Import-Module $PSTomlPath -Force -Scope Local
+            }
+
+            if (Get-Command 'ConvertFrom-Toml' -ErrorAction SilentlyContinue)
+            {
+                $content = Get-Content -LiteralPath $configPath -Raw -Encoding UTF8
+                $parsedSettings = ConvertFrom-Toml -InputObject $content
+                $parsedHashtable = [hashtable]$parsedSettings
+                #  为什么转换？ ConvertFrom-Toml 解析出来的子配置块默认是 OrderedDictionary（记住了顺序，但查找慢且不可修改），
+                # 而本项目的其他代码（如 MergeSettings）习惯用 Hashtable（不记顺序，但查找极快且可随意修改）。
+                # 循环在干嘛？ 遍历配置的每一个顶级分类（如 paths、project），如果发现它还是个有序字典，
+                # 就把它“脱壳”换成哈希表，确保数据格式统一。
+                foreach ($key in $parsedHashtable.Keys)
+                {
+                    if ($parsedHashtable[$key] -is [System.Collections.Specialized.OrderedDictionary])
+                    {
+                        $parsedHashtable[$key] = [hashtable]$parsedHashtable[$key]
+                    }
+                }
+                return [IPAPConfiguration]::MergeSettings($parsedHashtable, $defaultSettings)
+            }
+            else
+            {
+                Write-Verbose 'PSToml 模块未找到，使用默认配置'
+                return $defaultSettings
+            }
+        }
+        catch
+        {
+            Write-Verbose "读取配置文件失败: $($PSItem.Exception.Message)，使用默认配置"
+            return $defaultSettings
+        }
+    }
+
+    <#
+    .SYNOPSIS
+        合并配置设置
+    .DESCRIPTION
+        内部方法，将解析的配置与默认配置合并，确保所有必要的键都存在。
+    .PARAMETER ParsedSettings
+        从 TOML 文件解析的配置
+    .PARAMETER DefaultSettings
+        默认配置
+    .OUTPUTS
+        hashtable
+    .NOTES
+        Author:  lucas_gold
+        Website: https://github.com/1274248407
+    #>
+    hidden static [hashtable] MergeSettings([hashtable]$ParsedSettings, [hashtable]$DefaultSettings)
+    {
+        $merged = $DefaultSettings.Clone()
+
+        # 如果用户配置和默认配置都有这个分类（比如 paths），且它们里面都嵌套着小配置项（哈希表），就进入第二层循环，逐个对比小项。
+        # 这叫浅合并。比如默认配置里 paths 有 A、B、C 三个路径，用户只配了 A。这段代码会只把 A 替换成用户的，保留默认的 B 和 C。
+        foreach ($key in $ParsedSettings.Keys)
+        {
+            if ($merged.ContainsKey($key))
+            {
+                if ($merged[$key] -is [hashtable] -and $ParsedSettings[$key] -is [hashtable])
+                {
+                    $parsedSubTable = [hashtable]$ParsedSettings[$key]
+                    foreach ($subKey in $parsedSubTable.Keys)
+                    {
+                        if ($merged[$key].ContainsKey($subKey))
+                        {
+                            $merged[$key][$subKey] = $parsedSubTable[$subKey]
+                        }
+                    }
+                }
+                # 如果当前键在默认配置里存在，但它不是嵌套的哈希表（比如只是一个数字或字符串），直接用用户的值覆盖默认值
+                else
+                {
+                    $merged[$key] = $ParsedSettings[$key]
+                }
+            }
+            # 如果用户写了一个默认配置里根本没有的键，直接把它加进合并表
+            else
+            {
+                $merged[$key] = $ParsedSettings[$key]
+            }
+        }
+
+        return $merged
     }
 }
 #endregion
@@ -519,8 +800,172 @@ function Test-ConfigurationInitialized
 }
 #endregion
 
+#region Confirm-ProjectConfiguration 函数
+<#
+.SYNOPSIS
+    确认项目配置
+.DESCRIPTION
+    显示当前配置信息，询问用户是否应用配置。
+    如果用户选择不应用，提供两种方式修改配置：使用文本编辑器或控制台直接输入。
+.PARAMETER Config
+    IPAPConfiguration 实例（可选），如果未指定则使用全局配置实例。
+.EXAMPLE
+    $config = Confirm-ProjectConfiguration
+    显示配置并获取用户确认后的配置。
+.INPUTS
+    IPAPConfiguration
+.OUTPUTS
+    IPAPConfiguration
+.NOTES
+    Author:  lucas_gold
+    Website: https://github.com/1274248407
+#>
+function Confirm-ProjectConfiguration
+{
+    [CmdletBinding()]
+    param(
+        [IPAPConfiguration]$Config = $null
+    )
+
+    if (-not $Config)
+    {
+        $Config = Get-Configuration
+    }
+
+    Write-Host "`n"
+    Write-Host '╔═══════════════════════════════════════════════╗' -ForegroundColor Cyan
+    Write-Host '              当前配置信息预览' -ForegroundColor Cyan
+    Write-Host '╚═══════════════════════════════════════════════╝' -ForegroundColor Cyan
+    Write-Host "`n"
+
+    Write-Host '【路径配置】' -ForegroundColor Yellow
+    Write-Host "  项目根目录: $($Config.Paths.ProjectRoot)"
+    Write-Host "  源图片目录: $(if ($Config.Paths.SourceDir) { $Config.Paths.SourceDir } else { '[未配置]' })"
+    Write-Host "`n"
+
+    Write-Host '【项目信息】' -ForegroundColor Yellow
+    Write-Host "  作者: $(if ($Config.Project.Author) { $Config.Project.Author } else { '[未配置]' })"
+    Write-Host "  原作品名: $(if ($Config.Project.OriginalTitle) { $Config.Project.OriginalTitle } else { '[未配置]' })"
+    Write-Host "  中文译名: $(if ($Config.Project.ChineseTitle) { $Config.Project.ChineseTitle } else { '[未配置]' })"
+    Write-Host "  原文简介: $(if ($Config.Project.OriginalOverview) { '已配置' } else { '[未配置]' })"
+    Write-Host "  中文简介: $(if ($Config.Project.ChineseOverview) { '已配置' } else { '[未配置]' })"
+    Write-Host "`n"
+
+    Write-Host '【应用配置】' -ForegroundColor Yellow
+    Write-Host "  最大工作线程数: $($Config.App.MaxWorkers)"
+    Write-Host "  放大倍数: $($Config.App.UpscaleRatio)"
+    Write-Host "  模型选择: $($Config.App.ModelSelect)"
+    Write-Host "`n"
+
+    do
+    {
+        $response = Read-Host '是否应用当前配置？(Y/N)'
+    } while ($response -ne 'Y' -and $response -ne 'y' -and $response -ne 'N' -and $response -ne 'n')
+
+    if ($response -eq 'Y' -or $response -eq 'y')
+    {
+        Write-Host "`n✓ 应用当前配置" -ForegroundColor Green
+        return $Config
+    }
+
+    Write-Host "`n您选择不应用当前配置，请选择修改方式：" -ForegroundColor Yellow
+    Write-Host '  1) 使用文本编辑器修改 config.toml（推荐）'
+    Write-Host '  2) 在控制台直接输入'
+
+    do
+    {
+        $choice = Read-Host '请选择 (1/2)'
+    } while ($choice -ne '1' -and $choice -ne '2')
+
+    if ($choice -eq '1')
+    {
+        Write-Host "`n正在打开配置文件...`n" -ForegroundColor Cyan
+        try
+        {
+            Start-Process -FilePath $Config.Paths.ConfigPath
+            Write-Host '配置文件已打开，请修改后保存。' -ForegroundColor Green
+            Read-Host '按 Enter 键继续...'
+        }
+        catch
+        {
+            Write-Host "无法自动打开配置文件，请手动打开: $($Config.Paths.ConfigPath)" -ForegroundColor Red
+            Read-Host '按 Enter 键继续...'
+        }
+
+        Reset-Configuration
+        $Config = Get-Configuration
+        return Confirm-ProjectConfiguration -Config $Config
+    }
+    else
+    {
+        Write-Host "`n请在控制台输入配置信息：`n" -ForegroundColor Cyan
+
+        Write-Host '【路径配置】' -ForegroundColor Yellow
+        $newSourceDir = Read-Host "源图片目录 [当前: $($Config.Paths.SourceDir)]"
+        if ($newSourceDir)
+        {
+            $Config.Paths.SourceDir = $newSourceDir
+        }
+
+        Write-Host "`n【项目信息】" -ForegroundColor Yellow
+        $newAuthor = Read-Host "作者 [当前: $($Config.Project.Author)]"
+        if ($newAuthor)
+        {
+            $Config.Project.Author = $newAuthor
+        }
+
+        $newOriginalTitle = Read-Host "原作品名 [当前: $($Config.Project.OriginalTitle)]"
+        if ($newOriginalTitle)
+        {
+            $Config.Project.OriginalTitle = $newOriginalTitle
+        }
+
+        $newChineseTitle = Read-Host "中文译名 [当前: $($Config.Project.ChineseTitle)]"
+        if ($newChineseTitle)
+        {
+            $Config.Project.ChineseTitle = $newChineseTitle
+        }
+
+        Write-Host "`n原文简介（按 Ctrl+D 结束输入）：" -ForegroundColor Yellow
+        $newOriginalOverviewLines = @()
+        while ($true)
+        {
+            $line = $host.ui.ReadLine()
+            if (-not $line -or $line -eq [char]0x04)
+            {
+                break
+            }
+            $newOriginalOverviewLines += $line
+        }
+        if ($newOriginalOverviewLines.Count -gt 0)
+        {
+            $Config.Project.OriginalOverview = $newOriginalOverviewLines -join "`n"
+        }
+
+        Write-Host "`n中文简介（按 Ctrl+D 结束输入）：" -ForegroundColor Yellow
+        $newChineseOverviewLines = @()
+        while ($true)
+        {
+            $line = $host.ui.ReadLine()
+            if (-not $line -or $line -eq [char]0x04)
+            {
+                break
+            }
+            $newChineseOverviewLines += $line
+        }
+        if ($newChineseOverviewLines.Count -gt 0)
+        {
+            $Config.Project.ChineseOverview = $newChineseOverviewLines -join "`n"
+        }
+
+        return Confirm-ProjectConfiguration -Config $Config
+    }
+}
+#endregion
+
 Export-ModuleMember -Function @(
     'Get-Configuration',
     'Reset-Configuration',
-    'Test-ConfigurationInitialized'
+    'Test-ConfigurationInitialized',
+    'Confirm-ProjectConfiguration'
 )

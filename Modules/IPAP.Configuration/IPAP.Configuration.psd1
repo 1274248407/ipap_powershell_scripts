@@ -5,5 +5,5 @@
     Author = 'lucas_gold'
     Description = 'IPAP 配置管理模块'
     PowerShellVersion = '7.0'
-    FunctionsToExport = @('Get-Configuration', 'Reset-Configuration', 'Test-ConfigurationInitialized')
+    FunctionsToExport = @('Get-Configuration', 'Reset-Configuration', 'Test-ConfigurationInitialized', 'Confirm-ProjectConfiguration')
 }

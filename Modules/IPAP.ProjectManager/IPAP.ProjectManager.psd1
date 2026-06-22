@@ -7,6 +7,7 @@
     Copyright         = '(c) 2026 IPAP Team. All rights reserved.'
     Description       = '提供项目目录结构创建、README 文件生成和翻译文件管理功能。'
     PowerShellVersion = '7.0'
+    RequiredModules   = @('IPAP.Core')
     FunctionsToExport = @(
         'New-ProjectStructure',
         'New-ReadmeFile',

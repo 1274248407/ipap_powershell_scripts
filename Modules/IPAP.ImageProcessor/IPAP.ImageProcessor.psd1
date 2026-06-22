@@ -7,6 +7,7 @@
     Copyright = '(c) 2026 IPAP Team. All rights reserved.'
     Description = '提供图片分析、高清化处理和并行处理功能。'
     PowerShellVersion = '7.0'
+    RequiredModules = @('IPAP.Core')
     FunctionsToExport = @(
         'Get-ImageInfo',
         'Test-NeedUpscale',

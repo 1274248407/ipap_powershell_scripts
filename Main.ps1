@@ -73,4 +73,6 @@ Import-Module $workflowModulePath -Force -Scope Global
 Write-InfoLog '✓ IPAP.Workflow 模块已导入'
 
 # Execute main workflow
-Start-IPAPWorkflow
+# 确认项目配置，获取用户确认后的配置实例
+$Config = Confirm-ProjectConfiguration
+Start-IPAPWorkflow -Config $Config

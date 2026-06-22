@@ -9,6 +9,35 @@ base_project_dir = "D:/documents/translation/01_Projects_Active"
 project_dir_prefix = ""
 # 原始文件归档目录
 archive_dir = "D:/documents/translation/02_Archive_Completed"
+# 源图片目录（待处理的漫画图片所在目录）
+source_dir = ""
+# FFmpeg/FFprobe 可执行文件路径（相对于项目根目录）
+ffmpeg_exe = "bin/ffmpeg-xxx/bin/ffmpeg.exe"
+ffprobe_exe = "bin/ffmpeg-xxx/bin/ffprobe.exe"
+# Real-CUGAN 可执行文件路径（相对于项目根目录）
+realcugan_exe = "bin/realcugan-ncnn-vulkan-xxx/realcugan-ncnn-vulkan.exe"
+
+
+# --- [project] - 项目信息配置 ---
+[project]
+# 作者名（用于生成项目目录名和 README）
+author = "作者名"
+# 原作品名（原文）
+original_title = "原作品名"
+# 作品中文译名
+chinese_title = "中文译名"
+# 原文简介（使用多行字符串，按需求修改）
+# 多行字符串使用三个双引号包裹，支持换行
+original_overview = """
+这是原文简介的第一行。
+这是原文简介的第二行。
+"""
+# 中文简介（使用多行字符串，按需求修改）
+chinese_overview = """
+这是中文简介的第一行。
+这是中文简介的第二行。
+"""
+
 
 # --- [logging] - 日志配置 ---
 [logging]
@@ -17,8 +46,11 @@ level = "INFO"
 format = "<green>{time:HH:mm:ss}</green> <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
 colorize = true
 
+
 # --- [app_settings] - 业务参数 ---
 [app_settings]
+# 支持的图片格式
+supported_image_formats = [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"]
 # 高清化后单张图片大小的上限目标（MB）
 # max_output_image_size_mb = 5 （暂时不要）
 # 并行处理高清化任务的最大进程数 (0 或负数表示由程序决定)
