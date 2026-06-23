@@ -10,7 +10,11 @@ project_dir_prefix = ""
 # 原始文件归档目录
 archive_dir = "D:/documents/translation/02_Archive_Completed"
 # 源图片目录（待处理的漫画图片所在目录）
-source_dir = ""
+# 提示：Windows 路径建议用单引号字面量字符串，例如：
+# source_dir = 'C:\Users\Name\Pictures\Manga'
+# 若使用双引号，必须将反斜杠转义为双反斜杠，例如：
+# source_dir = "C:\\Users\\Name\\Pictures\\Manga"
+source_dir = ''
 # FFmpeg/FFprobe 可执行文件路径（相对于项目根目录）
 ffmpeg_exe = "bin/ffmpeg-xxx/bin/ffmpeg.exe"
 ffprobe_exe = "bin/ffmpeg-xxx/bin/ffprobe.exe"

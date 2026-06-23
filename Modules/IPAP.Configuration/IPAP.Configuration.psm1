@@ -613,13 +613,69 @@ class IPAPConfiguration
             if (Get-Command 'ConvertFrom-Toml' -ErrorAction SilentlyContinue)
             {
                 $content = Get-Content -LiteralPath $configPath -Raw -Encoding UTF8
-                $parsedSettings = ConvertFrom-Toml -InputObject $content
+                $parsedSettings = $null
+                $parseError = $null
+                try
+                {
+                    $parsedSettings = ConvertFrom-Toml -InputObject $content -ErrorAction Stop
+                }
+                catch
+                {
+                    $parseError = $PSItem
+                }
+
+                # 如果解析失败且错误与字符串转义有关，尝试自动修复 Windows 路径转义
+                if (-not $parsedSettings -and $parseError -and $parseError.Exception.Message -match 'Unexpected escape character')
+                {
+                    Write-Warning 'TOML 解析失败，检测到可能是 Windows 路径反斜杠转义问题，正在尝试自动修复...'
+                    try
+                    {
+                        # 将双引号字符串中的单个反斜杠替换为双反斜杠（排除已正确转义的 \\\\、\\"、\\n 等）
+                        # 自动修复双引号字符串中的 Windows 路径反斜杠：
+                        # 1) 临时保护已正确转义的序列（\\、\"、\n、\t 等）
+                        # 2) 将剩余的单个反斜杠替换为双反斜杠
+                        # 3) 恢复被保护的合法转义序列
+                        $protectedContent = $content
+                        $escapeMap = @{
+                            '\\'  = "`u{E0000}"
+                            '\"'  = "`u{E0001}"
+                            '\\n' = "`u{E0002}"
+                            '\\t' = "`u{E0003}"
+                            '\\r' = "`u{E0004}"
+                            '\\b' = "`u{E0005}"
+                            '\\f' = "`u{E0006}"
+                        }
+                        foreach ($escape in $escapeMap.Keys)
+                        {
+                            $protectedContent = $protectedContent.Replace($escape, $escapeMap[$escape])
+                        }
+
+                        $fixedContent = $protectedContent.Replace('\', '\\')
+                        foreach ($escape in $escapeMap.Keys)
+                        {
+                            $fixedContent = $fixedContent.Replace($escapeMap[$escape], $escape)
+                        }
+                        $parsedSettings = ConvertFrom-Toml -InputObject $fixedContent -ErrorAction Stop
+                        Write-Warning "自动修复成功。建议将 config.toml 中的 Windows 路径改为单引号字面量字符串，例如 source_dir = 'C:\\path\\to\\dir'"
+                    }
+                    catch
+                    {
+                        throw [System.InvalidOperationException]::new("无法解析 config.toml: $($parseError.Exception.Message)。常见原因：Windows 路径使用了双引号但未正确转义反斜杠。请将路径改为单引号字面量字符串，例如 source_dir = 'C:\\path\\to\\dir'")
+                    }
+                }
+                elseif ($parseError)
+                {
+                    throw [System.InvalidOperationException]::new("无法解析 config.toml: $($parseError.Exception.Message)")
+                }
+
                 $parsedHashtable = [hashtable]$parsedSettings
                 #  为什么转换？ ConvertFrom-Toml 解析出来的子配置块默认是 OrderedDictionary（记住了顺序，但查找慢且不可修改），
                 # 而本项目的其他代码（如 MergeSettings）习惯用 Hashtable（不记顺序，但查找极快且可随意修改）。
                 # 循环在干嘛？ 遍历配置的每一个顶级分类（如 paths、project），如果发现它还是个有序字典，
                 # 就把它“脱壳”换成哈希表，确保数据格式统一。
-                foreach ($key in $parsedHashtable.Keys)
+                # 注意：必须先复制 Keys 再循环，避免在枚举过程中修改集合。
+                $topLevelKeys = @($parsedHashtable.Keys)
+                foreach ($key in $topLevelKeys)
                 {
                     if ($parsedHashtable[$key] -is [System.Collections.Specialized.OrderedDictionary])
                     {
@@ -636,8 +692,7 @@ class IPAPConfiguration
         }
         catch
         {
-            Write-Verbose "读取配置文件失败: $($PSItem.Exception.Message)，使用默认配置"
-            return $defaultSettings
+            throw $PSItem
         }
     }
 
