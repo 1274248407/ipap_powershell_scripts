@@ -892,8 +892,10 @@ function Confirm-ProjectConfiguration
             Read-Host '按 Enter 键继续...'
         }
 
+        # 重置前保存 ProjectRoot，避免重置后无法恢复
+        $projectRoot = $Config.Paths.ProjectRoot
         Reset-Configuration
-        $Config = Get-Configuration
+        $Config = Get-Configuration -ProjectRoot $projectRoot
         return Confirm-ProjectConfiguration -Config $Config
     }
     else
