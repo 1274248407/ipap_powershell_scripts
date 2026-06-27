@@ -71,7 +71,6 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP.Workfl
         Mock -ModuleName IPAP.ProjectManager Get-ProjectBriefInfo { return 'Brief text', 'TestProject' }
         Mock -ModuleName IPAP.ProjectManager New-ProjectStructure { return 'C:\Projects\2026-01-01_TestProject' }
         Mock -ModuleName IPAP.ProjectManager New-ReadmeFile {}
-        Mock -ModuleName IPAP.ProjectManager New-TranslationFiles {}
         Mock -ModuleName IPAP.ImageProcessor Get-ImageInfo {
             return @{ Images = @([PSCustomObject]@{ Name = 'test.jpg'; FullName = 'C:\test.jpg' }); Count = 1; AverageSize = 500; TotalSize = 500 }
         }

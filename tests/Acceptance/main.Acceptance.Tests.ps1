@@ -11,7 +11,7 @@
 Describe 'Main.ps1 Acceptance Tests' -Tag 'Main', 'Acceptance' {
     BeforeAll {
         $ProjectRoot = $PSScriptRoot | Split-Path -Parent | Split-Path -Parent
-        $ScriptPath = Join-Path $ProjectRoot 'Main.ps1'
+        # $ScriptPath = Join-Path $ProjectRoot 'Main.ps1'
         $PoShLogPath = Join-Path $ProjectRoot 'Modules\PoShLog'
         $BinPath = Join-Path $ProjectRoot 'bin'
 
@@ -175,10 +175,6 @@ Describe 'Main.ps1 Acceptance Tests' -Tag 'Main', 'Acceptance' {
 
         It 'New-ReadmeFile 函数应可用' {
             Get-Command New-ReadmeFile -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
-        }
-
-        It 'New-TranslationFiles 函数应可用' {
-            Get-Command New-TranslationFiles -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
         }
 
         It 'Get-ProjectBriefInfo 函数应可用' {

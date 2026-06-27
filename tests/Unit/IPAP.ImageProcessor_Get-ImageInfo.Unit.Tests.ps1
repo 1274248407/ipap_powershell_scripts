@@ -26,8 +26,12 @@ Describe 'Get-ImageInfo Unit Tests' -Tag 'Get-ImageInfo', 'IPAP.ImageProcessor' 
             Import-Module $ModulePath -Force -Global
         }
 
-        # 初始化全局变量
-        $Global:SupportedImageFormats = @('.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff')
+        # 初始化全局配置实例（Get-ImageInfo 从此读取支持的图片格式）
+        $Global:IPAPConfigInstance = @{
+            App = @{
+                SupportedImageFormats = @('.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff')
+            }
+        }
 
         # 使用全局 Mock
         Mock Write-InfoLog -ModuleName IPAP.ImageProcessor {}

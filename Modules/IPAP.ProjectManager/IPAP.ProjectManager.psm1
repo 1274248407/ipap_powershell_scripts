@@ -12,16 +12,15 @@
 .SYNOPSIS
     创建项目目录结构
 .DESCRIPTION
-    创建符合 IPAP 工作流标准的项目目录结构，包括预处理、翻译和排版目录。
+    创建符合 IPAP 工作流标准的项目目录结构，包括预处理和排版目录。
     若目录已存在则询问用户是否覆盖，创建失败时记录错误日志。
     在项目目录下创建子目录：
     '02_Preprocessing\raw_source',
     '02_Preprocessing\original_non_text_raw',
     '02_Preprocessing\inpainted',
     '02_Preprocessing\mask',
-    '03_Translation',
-    '04_Typesetting\workfiles',
-    '04_Typesetting\final_pages'
+    '03_Typesetting\workfiles',
+    '03_Typesetting\final_pages'
 .PARAMETER BaseDir
     (string, Mandatory) 项目基础目录。
     （适用于所有参数集）
@@ -75,9 +74,8 @@ function New-ProjectStructure
             '02_Preprocessing\original_non_text_raw',
             '02_Preprocessing\inpainted',
             '02_Preprocessing\mask',
-            '03_Translation',
-            '04_Typesetting\workfiles',
-            '04_Typesetting\final_pages'
+            '03_Typesetting\workfiles',
+            '03_Typesetting\final_pages'
         )
 
         foreach ($subDir in $subDirs)
@@ -118,9 +116,15 @@ function New-ProjectStructure
 .PARAMETER UpscaleRatio
     (int) 高清化倍数，默认为 2。
     （适用于所有参数集）
+.PARAMETER BriefText
+    (string) 项目简介文本（可选），若提供则写入 README.md 的项目简介段落。
+    （适用于所有参数集）
 .EXAMPLE
     New-ReadmeFile -ProjectDir "C:\Projects\Manga1" -ProjectName "Manga1" -ImageCount 50 -NeedUpscale `$true -UpscaleRatio 2
     在项目目录下创建包含高清化状态的 README.md 文件。
+.EXAMPLE
+    New-ReadmeFile -ProjectDir "C:\Projects\Manga1" -ProjectName "Manga1" -ImageCount 50 -NeedUpscale `$true -UpscaleRatio 2 -BriefText "项目简介内容"
+    在 README.md 中同时包含项目简介内容。
 .INPUTS
     无
 .OUTPUTS
@@ -141,12 +145,23 @@ function New-ReadmeFile
         [int]$ImageCount,
         [Parameter(Mandatory = $true)]
         [bool]$NeedUpscale,
-        [int]$UpscaleRatio = 2
+        [int]$UpscaleRatio = 2,
+        [string]$BriefText = $null
     )
 
     $today = Get-Date -Format 'yyyy-MM-dd'
     $upscaleStatus = if ($NeedUpscale) { 'X' } else { ' ' }
     $upscaleRatioText = if ($NeedUpscale) { $UpscaleRatio.ToString() } else { 'N/A' }
+
+    $briefSection = ''
+    if ($BriefText)
+    {
+        $briefSection = @"
+
+## 项目信息
+$BriefText
+"@
+    }
 
     $content = @"
 # 项目记录: ${ProjectName} (${today})
@@ -155,6 +170,7 @@ function New-ReadmeFile
 - 原始文件数量: ${ImageCount} 张
 - 原始文件是否需要高清化: [${upscaleStatus}]
 - 使用高清化倍数: ${upscaleRatioText}
+
 ## 进度跟踪
 - [ ] 文件整理与分离
 - [ ] OCR 处理与校对
@@ -174,6 +190,7 @@ function New-ReadmeFile
 
 ## 其他
 - [任何你想记下的其他信息]
+${briefSection}
 "@
 
     try
@@ -203,82 +220,6 @@ function New-ReadmeFile
     catch
     {
         Write-ErrorLog "创建/覆盖 README.md 文件失败: $($PSItem.Exception.Message)"
-    }
-}
-
-<#
-.SYNOPSIS
-    创建翻译相关文件
-.DESCRIPTION
-    在项目目录下创建 03_Translation 文件夹，并生成项目简介文件和词汇表文件。
-    创建失败时记录错误日志。
-.PARAMETER ProjectDir
-    (string, Mandatory) 项目根目录路径。
-    （适用于所有参数集）
-.PARAMETER BriefText
-    (string) 项目简介文本（可选）。
-    （适用于所有参数集）
-.EXAMPLE
-    New-TranslationFiles -ProjectDir "C:\Projects\Manga1"
-    创建翻译文件夹和空词汇表文件。
-.EXAMPLE
-    New-TranslationFiles -ProjectDir "C:\Projects\Manga1" -BriefText "这是一个漫画翻译项目"
-    创建翻译文件夹并包含项目简介。
-.INPUTS
-    无
-.OUTPUTS
-    无
-.NOTES
-    Author:  lucas_gold
-    Website: `https://github.com/1274248407`
-#>
-function New-TranslationFiles
-{
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory = $true)]
-        [string]$ProjectDir,
-        [string]$BriefText = $null
-    )
-
-    try
-    {
-        $translationDir = Join-Path $ProjectDir '03_Translation'
-
-        # 使用 -LiteralPath 处理特殊字符
-        if (-not (Test-Path -LiteralPath $translationDir))
-        {
-            New-Item -ItemType Directory -Path $translationDir -Force | Out-Null
-        }
-
-        $briefFile = Join-Path $translationDir 'project_brief.md'
-        Write-InfoLog "正在写入项目简介文件到 $briefFile"
-        
-        # 使用 .NET 方法写入文件，避免 PowerShell 通配符问题
-        if ($BriefText)
-        {
-            [System.IO.File]::WriteAllText($briefFile, $BriefText, [System.Text.Encoding]::UTF8)
-        }
-        else
-        {
-            # 创建空文件或默认内容
-            [System.IO.File]::WriteAllText($briefFile, '## 项目简介', [System.Text.Encoding]::UTF8)
-        }
-
-        $glossaryFile = Join-Path $translationDir 'glossary.json'
-        # 使用 .NET 方法写入文件，避免 PowerShell 通配符问题
-        [System.IO.File]::WriteAllText($glossaryFile, '{}', [System.Text.Encoding]::UTF8)
-        Write-InfoLog "正在写入词汇表文件到 $glossaryFile"
-
-        # 使用 -LiteralPath 检查文件是否创建成功
-        $briefStatus = if (Test-Path -LiteralPath $briefFile) { '覆盖' } else { '创建' }
-        $glossaryStatus = if (Test-Path -LiteralPath $glossaryFile) { '覆盖' } else { '创建' }
-        Write-InfoLog "翻译文件 $briefStatus 成功"
-        Write-InfoLog "词汇表文件 $glossaryStatus 成功"
-    }
-    catch
-    {
-        Write-ErrorLog "创建/覆盖翻译文件失败: $($PSItem.Exception.Message)"
     }
 }
 
@@ -485,24 +426,20 @@ function Get-ProjectBriefInfo
 
     # 构建格式化的 tpl
     $tpl = @(
-        '╔═══════════════════════════════════════════════╗',
-        '                   项目信息',
-        '╚═══════════════════════════════════════════════╝',
         '',
         '【项目名称】',
         "  原文：$projectName",
         "  中文：$authorChinese",
         '',
         '【项目简介】',
-        '───────────────────────────────────────────────',
+        '---',
         '【原文简介】',
         $OriginalOverview,
-        '───────────────────────────────────────────────',
+        '---',
         '【中文简介】',
         $ChineseOverview,
-        '───────────────────────────────────────────────',
-        '',
-        '╔═══════════════════════════════════════════════╗'
+        '---',
+        ''
     )
 
     $formatted = $tpl -join "`n"
@@ -513,7 +450,6 @@ function Get-ProjectBriefInfo
 Export-ModuleMember -Function @(
     'New-ProjectStructure',
     'New-ReadmeFile',
-    'New-TranslationFiles',
-    'Get-ProjectBriefInfo'
+    'Get-ProjectBriefInfo',
     'Read-MultiLineInput'
 )

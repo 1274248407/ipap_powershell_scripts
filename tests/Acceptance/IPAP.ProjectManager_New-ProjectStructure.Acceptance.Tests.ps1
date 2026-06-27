@@ -52,7 +52,6 @@ Describe 'New-ProjectStructure Acceptance Tests' -Tag 'New-ProjectStructure', 'I
                 'original_non_text_raw',
                 'inpainted',
                 'mask',
-                '03_Translation',
                 'workfiles',
                 'final_pages'
             )
@@ -60,13 +59,9 @@ Describe 'New-ProjectStructure Acceptance Tests' -Tag 'New-ProjectStructure', 'I
             foreach ($subDir in $expectedSubDirs)
             {
                 $fullPath = Join-Path $result "02_Preprocessing\$subDir"
-                if ($subDir -match '^0[34]')
-                {
-                    $fullPath = Join-Path $result $subDir
-                }
                 if ($subDir -eq 'workfiles' -or $subDir -eq 'final_pages')
                 {
-                    $fullPath = Join-Path $result "04_Typesetting\$subDir"
+                    $fullPath = Join-Path $result "03_Typesetting\$subDir"
                 }
                 Test-Path $fullPath | Should -Be $true
             }

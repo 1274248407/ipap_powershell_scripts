@@ -50,8 +50,11 @@ function Get-ImageInfo
     $totalSize = 0
     $count = 0
 
+    # 从配置实例获取支持的图片格式列表
+    $SupportedImageFormats = $Global:IPAPConfigInstance.App.SupportedImageFormats
+
     Get-ChildItem -LiteralPath $SourceDir -File | ForEach-Object {
-        if ($Global:SupportedImageFormats -contains $PSItem.Extension.ToLower())
+        if ($SupportedImageFormats -contains $PSItem.Extension.ToLower())
         {
             $images += $PSItem
             $totalSize += $PSItem.Length

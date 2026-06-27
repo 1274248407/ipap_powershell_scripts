@@ -11,7 +11,6 @@
     FunctionsToExport = @(
         'New-ProjectStructure',
         'New-ReadmeFile',
-        'New-TranslationFiles',
         'Get-ProjectBriefInfo',
         'Read-MultiLineInput'
     )

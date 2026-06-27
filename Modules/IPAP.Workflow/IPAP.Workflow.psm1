@@ -5,8 +5,9 @@
     提供完整的 IPAP 工作流执行逻辑，包括环境初始化、项目创建、图片分析和处理。
 #>
 
-# Workflow 模块依赖 IPAP.Core、IPAP.ImageProcessor、IPAP.ProjectManager
-# 这些模块由 Main.ps1 统一导入，不需要重复导入
+# 使用 using module 确保 IPAPConfiguration 类型在模块解析阶段即可用
+# 使用相对路径引用，避免依赖 PSModulePath 的注入时机
+using module ..\IPAP.Configuration\IPAP.Configuration.psd1
 
 <#
 .SYNOPSIS
@@ -120,8 +121,7 @@ function Start-IPAPWorkflow
                 $level1Images = @($imageLevels | Where-Object { $_.Level -eq 1 }) | ForEach-Object { $_.Image }
                 $level2Images = @($imageLevels | Where-Object { $_.Level -eq 2 }) | ForEach-Object { $_.Image }
 
-                New-ReadmeFile -ProjectDir $projectDir -ProjectName $ProjectName -ImageCount $imageInfo.Count -NeedUpscale $needUpscale -UpscaleRatio $Config.App.UpscaleRatio
-                New-TranslationFiles -ProjectDir $projectDir -BriefText $briefText
+                New-ReadmeFile -ProjectDir $projectDir -ProjectName $ProjectName -ImageCount $imageInfo.Count -NeedUpscale $needUpscale -UpscaleRatio $Config.App.UpscaleRatio -BriefText $briefText
 
                 $preprocessingDir = Join-Path $projectDir '02_Preprocessing'
                 $maxWorkers = $Config.App.MaxWorkers

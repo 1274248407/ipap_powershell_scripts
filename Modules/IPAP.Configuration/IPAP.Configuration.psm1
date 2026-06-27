@@ -28,6 +28,9 @@ class PathConfiguration
     # 项目根目录
     [string]$ProjectRoot
 
+    # 漫画/翻译项目工作区的基准目录
+    [string]$BaseProjectDir
+
     # 二进制文件目录（bin）
     [string]$BinPath
 
@@ -55,7 +58,7 @@ class PathConfiguration
         Author:  lucas_gold
         Website: https://github.com/1274248407
     #>
-    PathConfiguration([string]$ProjectRoot, [string]$SourceDir = $null)
+    PathConfiguration([string]$ProjectRoot, [string]$BaseProjectDir = $null, [string]$SourceDir = $null)
     {
         if ([string]::IsNullOrWhiteSpace($ProjectRoot))
         {
@@ -66,6 +69,7 @@ class PathConfiguration
             throw [System.IO.DirectoryNotFoundException]::new("ProjectRoot 目录不存在: $ProjectRoot")
         }
         $this.ProjectRoot = $ProjectRoot
+        $this.BaseProjectDir = $BaseProjectDir
         $this.BinPath = Join-Path $ProjectRoot 'bin'
         $this.ConfigPath = Join-Path $ProjectRoot 'config.toml'
         $this.SourceDir = $SourceDir
@@ -88,9 +92,9 @@ class PathConfiguration
         Author:  lucas_gold
         Website: https://github.com/1274248407
     #>
-    static [PathConfiguration] Load([string]$ProjectRoot, [string]$SourceDir = $null)
+    static [PathConfiguration] Load([string]$ProjectRoot, [string]$BaseProjectDir = $null, [string]$SourceDir = $null)
     {
-        return [PathConfiguration]::new($ProjectRoot, $SourceDir)
+        return [PathConfiguration]::new($ProjectRoot, $BaseProjectDir, $SourceDir)
     }
 }
 #endregion
@@ -563,8 +567,9 @@ class IPAPConfiguration
     static [IPAPConfiguration] Load([string]$ProjectRoot)
     {
         $loadedSettings = [IPAPConfiguration]::ReadConfigFile($ProjectRoot)
+        $baseProjectDir = if ($loadedSettings.ContainsKey('paths') -and $loadedSettings.paths.ContainsKey('base_project_dir')) { $loadedSettings.paths.base_project_dir } else { $null }
         $sourceDir = if ($loadedSettings.ContainsKey('paths') -and $loadedSettings.paths.ContainsKey('source_dir')) { $loadedSettings.paths.source_dir } else { $null }
-        $loadedPaths = [PathConfiguration]::Load($ProjectRoot, $sourceDir)
+        $loadedPaths = [PathConfiguration]::Load($ProjectRoot, $baseProjectDir, $sourceDir)
         $loadedTools = [ToolConfiguration]::Load($loadedPaths, $loadedSettings)
         $loadedApp = [ApplicationConfiguration]::Load($loadedSettings)
         $loadedProject = [ProjectConfiguration]::Load($loadedSettings)
@@ -878,6 +883,7 @@ function Test-ConfigurationInitialized
 function Confirm-ProjectConfiguration
 {
     [CmdletBinding()]
+    [OutputType([IPAPConfiguration])]
     param(
         [IPAPConfiguration]$Config = $null
     )
@@ -895,6 +901,7 @@ function Confirm-ProjectConfiguration
 
     Write-Host '【路径配置】' -ForegroundColor Yellow
     Write-Host "  项目根目录: $($Config.Paths.ProjectRoot)"
+    Write-Host "  基准项目目录: $(if ($Config.Paths.BaseProjectDir) { $Config.Paths.BaseProjectDir } else { '[未配置]' })"
     Write-Host "  源图片目录: $(if ($Config.Paths.SourceDir) { $Config.Paths.SourceDir } else { '[未配置]' })"
     Write-Host "`n"
 
@@ -939,12 +946,12 @@ function Confirm-ProjectConfiguration
         {
             Start-Process -FilePath $Config.Paths.ConfigPath
             Write-Host '配置文件已打开，请修改后保存。' -ForegroundColor Green
-            Read-Host '按 Enter 键继续...'
+            $null = Read-Host '按 Enter 键继续...'
         }
         catch
         {
             Write-Host "无法自动打开配置文件，请手动打开: $($Config.Paths.ConfigPath)" -ForegroundColor Red
-            Read-Host '按 Enter 键继续...'
+            $null = Read-Host '按 Enter 键继续...'
         }
 
         # 重置前保存 ProjectRoot，避免重置后无法恢复
