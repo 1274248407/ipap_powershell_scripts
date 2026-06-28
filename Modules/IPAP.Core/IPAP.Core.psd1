@@ -13,7 +13,7 @@
         'Get-FfmpegPath',
         'Get-FfprobePath',
         'Get-RealCuganExePath',
-        'Get-SupportedImageFormats',
+        'Get-SupportedImageFormat',
         'Get-AppConfiguration',
         'Get-PathConfiguration'
     )

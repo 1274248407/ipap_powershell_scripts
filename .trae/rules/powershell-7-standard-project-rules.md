@@ -31,7 +31,7 @@ alwaysApply: true
 .DESCRIPTION
     [详细解释函数的工作原理、逻辑及适用场景]
 .PARAMETER [参数名]
-    [该参数的作用及说明]
+    (类型) [该参数的作用及说明]
 .EXAMPLE
     [具体的用法示例]
 .INPUTS
@@ -103,7 +103,7 @@ class ClassName
     .DESCRIPTION
         [详细解释方法的工作原理、参数及返回值]
     .PARAMETER [参数名]
-        [该参数的作用及说明]
+        (类型) [该参数的作用及说明]
     .EXAMPLE
         [具体的方法调用示例]
     .OUTPUTS
@@ -133,13 +133,13 @@ class ClassName
     ```powershell
     # 构建输出文件路径
     $OutputPath = Join-Path $TmpDir 'output.txt'
-    
+
     # 检查环境是否满足要求
     if (-not (Test-Path $PythonPath))
     {
         throw "Python 环境不存在"
     }
-    
+
     # 遍历所有待处理文件
     foreach ($File in $Files)
     {

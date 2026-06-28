@@ -1,3 +1,6 @@
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidGlobalVars', '')]
+param()
+
 <#
 .SYNOPSIS
     IPAP 配置管理模块
@@ -756,7 +759,7 @@ class IPAPConfiguration
 #endregion
 
 #region 全局配置实例和访问函数
-# 全局配置实例变量
+# 全局配置实例变量 - 作为单例存储配置，供所有模块访问
 $Global:IPAPConfigInstance = $null
 
 <#
@@ -830,10 +833,13 @@ function Get-Configuration
 #>
 function Reset-Configuration
 {
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess = $true)]
     param()
 
-    $Global:IPAPConfigInstance = $null
+    if ($PSCmdlet.ShouldProcess('全局配置实例', '重置'))
+    {
+        $Global:IPAPConfigInstance = $null
+    }
 }
 
 <#
@@ -860,18 +866,16 @@ function Test-ConfigurationInitialized
 }
 #endregion
 
-#region Confirm-ProjectConfiguration 函数
 <#
 .SYNOPSIS
     确认项目配置
 .DESCRIPTION
-    显示当前配置信息，询问用户是否应用配置。
-    如果用户选择不应用，提供两种方式修改配置：使用文本编辑器或控制台直接输入。
+    显示当前配置信息，询问用户是否应用配置。如果用户选择不应用，提供两种方式修改配置：使用文本编辑器或控制台直接输入。
 .PARAMETER Config
     IPAPConfiguration 实例（可选），如果未指定则使用全局配置实例。
 .EXAMPLE
+    # 显示配置并获取用户确认后的配置
     $config = Confirm-ProjectConfiguration
-    显示配置并获取用户确认后的配置。
 .INPUTS
     IPAPConfiguration
 .OUTPUTS
@@ -893,31 +897,24 @@ function Confirm-ProjectConfiguration
         $Config = Get-Configuration
     }
 
-    Write-Host "`n"
-    Write-Host '╔═══════════════════════════════════════════════╗' -ForegroundColor Cyan
-    Write-Host '              当前配置信息预览' -ForegroundColor Cyan
-    Write-Host '╚═══════════════════════════════════════════════╝' -ForegroundColor Cyan
-    Write-Host "`n"
+    Write-InfoLog '--- 当前配置信息预览 ---'
 
-    Write-Host '【路径配置】' -ForegroundColor Yellow
-    Write-Host "  项目根目录: $($Config.Paths.ProjectRoot)"
-    Write-Host "  基准项目目录: $(if ($Config.Paths.BaseProjectDir) { $Config.Paths.BaseProjectDir } else { '[未配置]' })"
-    Write-Host "  源图片目录: $(if ($Config.Paths.SourceDir) { $Config.Paths.SourceDir } else { '[未配置]' })"
-    Write-Host "`n"
+    Write-WarningLog '【路径配置】'
+    Write-InfoLog "  项目根目录: $($Config.Paths.ProjectRoot)"
+    Write-InfoLog "  基准项目目录: $(if ($Config.Paths.BaseProjectDir) { $Config.Paths.BaseProjectDir } else { '[未配置]' })"
+    Write-InfoLog "  源图片目录: $(if ($Config.Paths.SourceDir) { $Config.Paths.SourceDir } else { '[未配置]' })"
 
-    Write-Host '【项目信息】' -ForegroundColor Yellow
-    Write-Host "  作者: $(if ($Config.Project.Author) { $Config.Project.Author } else { '[未配置]' })"
-    Write-Host "  原作品名: $(if ($Config.Project.OriginalTitle) { $Config.Project.OriginalTitle } else { '[未配置]' })"
-    Write-Host "  中文译名: $(if ($Config.Project.ChineseTitle) { $Config.Project.ChineseTitle } else { '[未配置]' })"
-    Write-Host "  原文简介: $(if ($Config.Project.OriginalOverview) { '已配置' } else { '[未配置]' })"
-    Write-Host "  中文简介: $(if ($Config.Project.ChineseOverview) { '已配置' } else { '[未配置]' })"
-    Write-Host "`n"
+    Write-WarningLog '【项目信息】'
+    Write-InfoLog "  作者: $(if ($Config.Project.Author) { $Config.Project.Author } else { '[未配置]' })"
+    Write-InfoLog "  原作品名: $(if ($Config.Project.OriginalTitle) { $Config.Project.OriginalTitle } else { '[未配置]' })"
+    Write-InfoLog "  中文译名: $(if ($Config.Project.ChineseTitle) { $Config.Project.ChineseTitle } else { '[未配置]' })"
+    Write-InfoLog "  原文简介: $(if ($Config.Project.OriginalOverview) { '已配置' } else { '[未配置]' })"
+    Write-InfoLog "  中文简介: $(if ($Config.Project.ChineseOverview) { '已配置' } else { '[未配置]' })"
 
-    Write-Host '【应用配置】' -ForegroundColor Yellow
-    Write-Host "  最大工作线程数: $($Config.App.MaxWorkers)"
-    Write-Host "  放大倍数: $($Config.App.UpscaleRatio)"
-    Write-Host "  模型选择: $($Config.App.ModelSelect)"
-    Write-Host "`n"
+    Write-WarningLog '【应用配置】'
+    Write-InfoLog "  最大工作线程数: $($Config.App.MaxWorkers)"
+    Write-InfoLog "  放大倍数: $($Config.App.UpscaleRatio)"
+    Write-InfoLog "  模型选择: $($Config.App.ModelSelect)"
 
     do
     {
@@ -926,13 +923,13 @@ function Confirm-ProjectConfiguration
 
     if ($response -eq 'Y' -or $response -eq 'y')
     {
-        Write-Host "`n✓ 应用当前配置" -ForegroundColor Green
+        Write-InfoLog '应用当前配置'
         return $Config
     }
 
-    Write-Host "`n您选择不应用当前配置，请选择修改方式：" -ForegroundColor Yellow
-    Write-Host '  1) 使用文本编辑器修改 config.toml（推荐）'
-    Write-Host '  2) 在控制台直接输入'
+    Write-WarningLog '您选择不应用当前配置，请选择修改方式：'
+    Write-InfoLog '  1) 使用文本编辑器修改 config.toml（推荐）'
+    Write-InfoLog '  2) 在控制台直接输入'
 
     do
     {
@@ -941,16 +938,16 @@ function Confirm-ProjectConfiguration
 
     if ($choice -eq '1')
     {
-        Write-Host "`n正在打开配置文件...`n" -ForegroundColor Cyan
+        Write-InfoLog '正在打开配置文件...'
         try
         {
             Start-Process -FilePath $Config.Paths.ConfigPath
-            Write-Host '配置文件已打开，请修改后保存。' -ForegroundColor Green
+            Write-InfoLog '配置文件已打开，请修改后保存。'
             $null = Read-Host '按 Enter 键继续...'
         }
         catch
         {
-            Write-Host "无法自动打开配置文件，请手动打开: $($Config.Paths.ConfigPath)" -ForegroundColor Red
+            Write-ErrorLog "无法自动打开配置文件，请手动打开: $($Config.Paths.ConfigPath)"
             $null = Read-Host '按 Enter 键继续...'
         }
 
@@ -962,16 +959,16 @@ function Confirm-ProjectConfiguration
     }
     else
     {
-        Write-Host "`n请在控制台输入配置信息：`n" -ForegroundColor Cyan
+        Write-WarningLog '请在控制台输入配置信息：'
 
-        Write-Host '【路径配置】' -ForegroundColor Yellow
+        Write-WarningLog '【路径配置】'
         $newSourceDir = Read-Host "源图片目录 [当前: $($Config.Paths.SourceDir)]"
         if ($newSourceDir)
         {
             $Config.Paths.SourceDir = $newSourceDir
         }
 
-        Write-Host "`n【项目信息】" -ForegroundColor Yellow
+        Write-WarningLog '【项目信息】'
         $newAuthor = Read-Host "作者 [当前: $($Config.Project.Author)]"
         if ($newAuthor)
         {
@@ -990,7 +987,7 @@ function Confirm-ProjectConfiguration
             $Config.Project.ChineseTitle = $newChineseTitle
         }
 
-        Write-Host "`n原文简介（按 Ctrl+D 结束输入）：" -ForegroundColor Yellow
+        Write-WarningLog '原文简介（按 Ctrl+D 结束输入）：'
         $newOriginalOverviewLines = @()
         while ($true)
         {
@@ -1006,7 +1003,7 @@ function Confirm-ProjectConfiguration
             $Config.Project.OriginalOverview = $newOriginalOverviewLines -join "`n"
         }
 
-        Write-Host "`n中文简介（按 Ctrl+D 结束输入）：" -ForegroundColor Yellow
+        Write-WarningLog '中文简介（按 Ctrl+D 结束输入）：'
         $newChineseOverviewLines = @()
         while ($true)
         {
@@ -1025,7 +1022,6 @@ function Confirm-ProjectConfiguration
         return Confirm-ProjectConfiguration -Config $Config
     }
 }
-#endregion
 
 Export-ModuleMember -Function @(
     'Get-Configuration',

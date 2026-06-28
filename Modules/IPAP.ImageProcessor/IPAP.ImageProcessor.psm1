@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     IPAP 工作流图片处理模块
 .DESCRIPTION
@@ -186,6 +186,13 @@ function Get-ImageLevel
         try
         {
             # 1. 通过 FFprobe 获取分辨率
+            # -v error: 设置日志级别为 error。FFprobe 默认会输出大量版本、元数据等冗余信息，设为 error 可以屏蔽这些干扰，只在出错时才打印信息，方便脚本解析输出。
+            # -select_streams v:0: 选择第 0 个视频流（v 代表 Video）。因为某些文件可能包含多个流（如音频、字幕、封面图等），这确保我们只分析主视频/图片流。
+            # -show_entries stream=width, height: 指定要显示的数据条目。这里告诉 FFprobe 只显示 stream（流）中的 width（宽）和 height（高）属性，忽略其他如编码格式、帧率等无关信息。
+            # -of csv=s=x:p=0: 设置输出格式（-of 是 -output_format 的缩写）。csv 表示用逗号分隔格式：
+            # s=x：设置分隔符为 x（默认是逗号），这样宽和高之间会用 x 连接。
+            # p=0：不打印属性名前缀（默认会打印 width=1920, height=1080），设为 0 后只打印值。
+            # 如果图片是 1920x1080，这行参数组合的输出结果就是纯净的 1920x1080，没有任何多余字符
             $ffprobeArgs = @('-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=s=x:p=0', $image.FullName)
             $ffprobeOut = & $ffprobePath @ffprobeArgs 2>&1
 
@@ -199,10 +206,26 @@ function Get-ImageLevel
                 $tempDir = Join-Path $env:TEMP ([System.Guid]::NewGuid().ToString())
                 New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
                 $tempOutput = Join-Path $tempDir 'output.png'
-
+                # 1. 基础输入输出参数
+                # -i $image.FullName: 指定输入文件。-i 代表 input，即传入要处理的原始图片路径。
+                # -frames:v 1: 只输出 1 帧画面。因为处理的是静态图片，所以只需提取 1 帧，防止 FFmpeg 卡住。
+                # -y: 默认覆盖。如果输出路径已有同名文件，直接覆盖不弹确认提示，保证自动化脚本不会卡死。
+                # $tempOutput: 输出文件路径。即代码中生成的临时 PNG 文件路径。
+                # 2. 核心滤镜链参数 (-vf)
+                # -vf 后面的长字符串是视频滤镜链，多个滤镜用逗号 , 分隔，按从左到右的顺序流水线执行：
+                # format=gray:
+                # 转为灰度图。这是第一步，去除颜色干扰，只保留亮度信息，为后续提取细节做准备。
+                # dxpostsrc=h=8:v=0:sh=1:x=0:y=0 和 dxpostdst=h=8:v=0:sh=1:x=1:y=0:
+                # 自定义滤镜。FFmpeg 官方默认不含这两个，通常是开发者自行编译加入的（极大概率与杜比视界 Dolby Vision 的元数据或色彩空间转换相关）。对于新手，只需知道它们在调整图像的底层色彩/亮度参数。
+                # dynedgel=28:
+                # 自定义边缘增强滤镜。dyn 代表 Dynamic（动态），edgel 代表 Edge Level（边缘层级）。=28 是强度值。它的作用是动态提取并强化图像的边缘轮廓，让画面中的高频细节（线条、纹理）更加明显。
+                # bmstools=p=3:
+                # 自定义工具滤镜。bms 可能是特定压制工具链的缩写，p=3 是预设参数。这是流水线的最后一步，对图像做最终的格式化处理。
                 $ffmpegArgs = @('-i', $image.FullName, '-vf', 'format=gray,dxpostsrc=h=8:v=0:sh=1:x=0:y=0,dxpostdst=h=8:v=0:sh=1:x=1:y=0,dynedgel=28,bmstools=p=3', '-frames:v', '1', '-y', $tempOutput)
                 $null = & $ffmpegPath @ffmpegArgs 2>&1
-
+                # 滤镜把图片变成黑白，并极力强化了边缘和细节。
+                # 细节越丰富的图片，保存为 PNG 时压缩率越低，文件体积就越大。
+                # 因此，临时输出的 PNG 文件越大（$fileSizeKB），说明原图的高频细节越多（$ydif 越大）。
                 if ($LASTEXITCODE -eq 0 -and (Test-Path $tempOutput))
                 {
                     $fileInfo = Get-Item $tempOutput
@@ -253,9 +276,9 @@ function Get-ImageLevel
 
     Write-InfoLog "图片分级分析完成: $($results.Count) 张"
 
-    $level0Count = @($results | Where-Object { $_.Level -eq 0 }).Count
-    $level1Count = @($results | Where-Object { $_.Level -eq 1 }).Count
-    $level2Count = @($results | Where-Object { $_.Level -eq 2 }).Count
+    $level0Count = @($results | Where-Object { $PSItem.Level -eq 0 }).Count
+    $level1Count = @($results | Where-Object { $PSItem.Level -eq 1 }).Count
+    $level2Count = @($results | Where-Object { $PSItem.Level -eq 2 }).Count
     Write-InfoLog "分级结果 - Level 0 (高清跳过): $level0Count, Level 1 (FFmpeg): $level1Count, Level 2 (Real-CUGAN): $level2Count"
 
     return $results
@@ -419,7 +442,8 @@ function Invoke-ParallelUpscale
             # 将输出格式映射为 FFmpeg 编码器名称
             $codecMap = @{ 'jpg' = 'mjpeg'; 'jpeg' = 'mjpeg'; 'png' = 'png'; 'webp' = 'libwebp' }
             $codec = $codecMap[$outputFormat.ToLower()]
-            if (-not $codec) { $codec = 'mjpeg' }
+            # 默认输出webp格式
+            if (-not $codec) { $codec = 'libwebp' }
 
             $fileName = [System.IO.Path]::GetFileNameWithoutExtension($image.FullName)
             $outputPath = Join-Path $outputDir "${fileName}.${outputFormat}"
@@ -427,6 +451,25 @@ function Invoke-ParallelUpscale
             try
             {
                 # Lanczos 放大 1.2 倍 + USM 锐化
+                # 1. 基础输入输出参数
+                # -i $image.FullName: 指定输入文件。-i 代表 input，即原始图片的完整路径。
+                # -y $outputPath: -y 代表默认覆盖，如果输出路径已有同名文件直接覆盖不卡住脚本；$outputPath 是最终处理完的图片保存路径。
+                # 2. 核心滤镜链参数 (-vf)
+                # -vf 后面的字符串是视频滤镜链，两个滤镜用逗号 , 分隔，按从左到右顺序执行：
+
+                # scale=iw*1.2:ih*1.2:flags=lanczos:
+                # 放大图片。
+
+                # iw*1.2:ih*1.2：将宽度 和高度 分别乘以 1.2，即放大 1.2 倍。
+                # flags=lanczos：指定使用 Lanczos 缩放算法。这是一种高质量的插值算法，能在放大图片时最大程度保留细节，减少锯齿和模糊。
+                # unsharp=5:5:1.0:
+                # 锐化滤镜（USM 锐化）。图片放大后通常会显得发虚，需要加锐化找回清晰感。
+
+                # 前两个 5:5：代表锐化矩阵的宽度和高度（5x5），决定锐化影响的像素范围。
+                # 最后的 1.0：代表锐化强度。数值越大越锐利，但过高会产生白边噪点，1.0 是一个适中的值。
+                # 3. 编码与质量控制参数
+                # -c:v $codec: 指定视频编码器。-c:v 是 codec video 的缩写。代码中会根据你选择的输出格式动态映射，比如输出 webp 就用 libwebp，输出 jpg 就用 mjpeg。
+                # -quality 95: 设置输出质量为 95。对于 webp 或 jpg 等有损压缩格式，95 代表极高的画质（几乎无损），避免二次压缩导致画质严重下降。
                 $ffmpegArgs = @(
                     '-i', $image.FullName,
                     '-vf', 'scale=iw*1.2:ih*1.2:flags=lanczos,unsharp=5:5:1.0',

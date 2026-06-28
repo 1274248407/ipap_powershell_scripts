@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     IPAP 工作流项目管理模块
 .DESCRIPTION
@@ -150,8 +150,22 @@ function New-ReadmeFile
     )
 
     $today = Get-Date -Format 'yyyy-MM-dd'
-    $upscaleStatus = if ($NeedUpscale) { 'X' } else { ' ' }
-    $upscaleRatioText = if ($NeedUpscale) { $UpscaleRatio.ToString() } else { 'N/A' }
+    $upscaleStatus = if ($NeedUpscale)
+    {
+        'X'
+    }
+    else
+    {
+        ' '
+    }
+    $upscaleRatioText = if ($NeedUpscale)
+    {
+        $UpscaleRatio.ToString()
+    }
+    else
+    {
+        'N/A'
+    }
 
     $briefSection = ''
     if ($BriefText)
@@ -197,17 +211,17 @@ ${briefSection}
     {
         $readmePath = Join-Path $ProjectDir 'README.md'
         Write-InfoLog "正在写入 README.md 文件到 $readmePath"
-        
+
         # 确保项目目录存在（使用 -LiteralPath 处理特殊字符）
         if (-not (Test-Path -LiteralPath $ProjectDir))
         {
             Write-ErrorLog "项目目录不存在: $ProjectDir"
             return
         }
-        
+
         # 使用 Out-File -LiteralPath 写入文件，避免 PowerShell 通配符问题
         $content | Out-File -LiteralPath $readmePath -Encoding utf8
-        
+
         if (Test-Path -LiteralPath $readmePath)
         {
             Write-InfoLog 'README.md 文件创建/覆盖成功'

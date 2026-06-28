@@ -12,4 +12,4 @@ Copy-Item -Path 'bin' -Destination "$packageDir\bin" -Recurse
 # 复制配置模板
 Copy-Item -Path 'config.toml.example' -Destination "$packageDir\config.toml"
 
-Write-Host "打包完成，目录: $packageDir"
+Write-Information "打包完成，目录: $packageDir"

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 IPAP Workflow - 漫画翻译准备自动化工具启动脚本
 
@@ -10,6 +10,10 @@ Author: IPAP Team
 Version: 1.0.0
 Date: 2026-04-14
 #>
+
+# $Global:Logger 是 PoShLog 的设计约定，Write-InfoLog 跨模块访问需要全局作用域
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidGlobalVars', '')]
+param()
 
 # Ensure PowerShell 7 or above
 if ($PSVersionTable.PSVersion.Major -lt 7)
@@ -25,12 +29,10 @@ $PoShLogPath = Join-Path $PSScriptRoot 'Modules\PoShLog'
 Import-Module -Name $PoShLogPath -Force -Scope Global
 
 # Initialize Logger in the Global scope so all modules can see it
-& {
-    $Global:Logger = New-Logger |
-        Set-MinimumLevel -Value Verbose |
-        Add-SinkConsole |
-        Start-Logger
-}
+$Global:Logger = New-Logger |
+    Set-MinimumLevel -Value Verbose |
+    Add-SinkConsole |
+    Start-Logger
 
 Write-InfoLog '✓ PoShLog 模块已导入'
 
@@ -45,7 +47,7 @@ Get-Configuration -ProjectRoot $PSScriptRoot | Out-Null
 Write-InfoLog '✓ IPAP 配置已初始化'
 
 # 获取项目根目录（后续模块路径使用）
-$ProjectRoot = $Global:IPAPConfigInstance.Paths.ProjectRoot
+$ProjectRoot = (Get-Configuration).Paths.ProjectRoot
 
 
 # Import modules

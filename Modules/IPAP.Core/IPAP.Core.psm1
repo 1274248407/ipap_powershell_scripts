@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     IPAP 工作流核心基础模块
 .DESCRIPTION
@@ -47,14 +47,14 @@ function Get-NaturalSortKey
     $parts = [regex]::Split($InputString, '(\d+)')
 
     # 过滤空字符串，并转换数字
-    $result = $parts | Where-Object { -not [string]::IsNullOrEmpty($_) } | ForEach-Object {
-        if ($_ -match '^\d+$')
+    $result = $parts | Where-Object { -not [string]::IsNullOrEmpty($PSItem) } | ForEach-Object {
+        if ($PSItem -match '^\d+$')
         {
-            [int]$_
+            [int]$PSItem
         }
         else
         {
-            $_
+            $PSItem
         }
     }
 
@@ -82,8 +82,8 @@ function Get-FfmpegPath
     [CmdletBinding()]
     param()
 
-    # 从配置实例获取 FFmpeg 路径
-    $FfmpegPath = $Global:IPAPConfigInstance.Tools.FfmpegExePath
+    # 从配置获取 FFmpeg 路径
+    $FfmpegPath = (Get-Configuration).Tools.FfmpegExePath
     if ($FfmpegPath)
     {
         return $FfmpegPath
@@ -114,8 +114,8 @@ function Get-FfprobePath
     [CmdletBinding()]
     param()
 
-    # 从配置实例获取 FFprobe 路径
-    $FfprobePath = $Global:IPAPConfigInstance.Tools.FfprobeExePath
+    # 从配置获取 FFprobe 路径
+    $FfprobePath = (Get-Configuration).Tools.FfprobeExePath
     if ($FfprobePath)
     {
         return $FfprobePath
@@ -146,8 +146,8 @@ function Get-RealCuganExePath
     [CmdletBinding()]
     param()
 
-    # 从配置实例获取 Real-CUGAN 路径
-    $RealCuganPath = $Global:IPAPConfigInstance.Tools.RealCuganExePath
+    # 从配置获取 Real-CUGAN 路径
+    $RealCuganPath = (Get-Configuration).Tools.RealCuganExePath
     if ($RealCuganPath)
     {
         return $RealCuganPath
@@ -163,7 +163,7 @@ function Get-RealCuganExePath
 .DESCRIPTION
     从配置实例读取支持的图片格式列表。
 .EXAMPLE
-    Get-SupportedImageFormats
+    Get-SupportedImageFormat
     获取支持的图片格式数组。
 .INPUTS
     无
@@ -173,12 +173,12 @@ function Get-RealCuganExePath
     Author:  lucas_gold
     Website: https://github.com/1274248407
 #>
-function Get-SupportedImageFormats
+function Get-SupportedImageFormat
 {
     [CmdletBinding()]
     param()
 
-    return $Global:IPAPConfigInstance.App.SupportedImageFormats
+    return (Get-Configuration).App.SupportedImageFormats
 }
 
 <#
@@ -202,7 +202,7 @@ function Get-AppConfiguration
     [CmdletBinding()]
     param()
 
-    return $Global:IPAPConfigInstance.App
+    return (Get-Configuration).App
 }
 
 <#
@@ -226,7 +226,7 @@ function Get-PathConfiguration
     [CmdletBinding()]
     param()
 
-    return $Global:IPAPConfigInstance.Paths
+    return (Get-Configuration).Paths
 }
 
 Export-ModuleMember -Function @(
@@ -234,7 +234,7 @@ Export-ModuleMember -Function @(
     'Get-FfmpegPath',
     'Get-FfprobePath',
     'Get-RealCuganExePath',
-    'Get-SupportedImageFormats',
+    'Get-SupportedImageFormat',
     'Get-AppConfiguration',
     'Get-PathConfiguration'
 )

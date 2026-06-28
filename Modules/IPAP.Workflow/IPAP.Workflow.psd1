@@ -1,4 +1,4 @@
-@{
+﻿@{
     RootModule        = 'IPAP.Workflow.psm1'
     ModuleVersion     = '1.0.0'
     GUID              = 'd4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a'

@@ -1,4 +1,4 @@
-@{
+﻿@{
     RootModule        = 'IPAP.ProjectManager.psm1'
     ModuleVersion     = '1.0.0'
     GUID              = 'c3d4e5f6-a7b8-4c5d-0e1f-2a3b4c5d6e7f'
