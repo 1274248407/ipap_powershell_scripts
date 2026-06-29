@@ -40,58 +40,64 @@
 #>
 function New-ProjectStructure
 {
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
+    [OutputType([string])]
     param (
         [Parameter(Mandatory = $true)]
         [string]$BaseDir,
         [Parameter(Mandatory = $true)]
-        [string]$ProjectName
+        [string]$ProjectName,
+        [switch]$Force
     )
 
+    # 构建项目目录路径
     $today = Get-Date -Format 'yyyy-MM-dd'
     $projectDirName = "${today}_${ProjectName}"
-    $projectDir = Join-Path $BaseDir $projectDirName
+    $projectDir = Join-Path -Path $BaseDir -ChildPath $projectDirName
 
     # 使用 -LiteralPath 处理包含特殊字符的路径
     if (Test-Path -LiteralPath $projectDir)
     {
-        $response = Read-Host "目录 $projectDir 已存在，是否覆盖？(Y/N)"
-        if ($response -ne 'Y' -and $response -ne 'y')
+        # 当 -Force 指定时跳过确认提示
+        if (-not $Force -and -not $PSCmdlet.ShouldContinue('项目目录已存在，是否覆盖现有目录？', '确认操作'))
         {
             Write-InfoLog '用户取消覆盖操作'
             return $null
         }
     }
 
-    try
+    if ($PSCmdlet.ShouldProcess($projectDir, '创建项目目录结构'))
     {
-        Write-InfoLog "正在创建项目目录: $projectDir"
-
-        New-Item -ItemType Directory -Path $projectDir -Force | Out-Null
-
-        $subDirs = @(
-            '02_Preprocessing\raw_source',
-            '02_Preprocessing\original_non_text_raw',
-            '02_Preprocessing\inpainted',
-            '02_Preprocessing\mask',
-            '03_Typesetting\workfiles',
-            '03_Typesetting\final_pages'
-        )
-
-        foreach ($subDir in $subDirs)
+        try
         {
-            $fullPath = Join-Path $projectDir $subDir
-            New-Item -ItemType Directory -Path $fullPath -Force | Out-Null
-            Write-InfoLog "已创建子目录: $fullPath"
-        }
+            Write-InfoLog "正在创建项目目录: $projectDir"
 
-        Write-InfoLog '项目目录结构创建成功'
-        return $projectDir
-    }
-    catch
-    {
-        Write-ErrorLog "创建项目目录失败: $($PSItem.Exception.Message)"
-        return $null
+            New-Item -ItemType Directory -Path $projectDir -Force | Out-Null
+
+            $subDirs = @(
+                '02_Preprocessing\raw_source',
+                '02_Preprocessing\original_non_text_raw',
+                '02_Preprocessing\inpainted',
+                '02_Preprocessing\mask',
+                '03_Typesetting\workfiles',
+                '03_Typesetting\final_pages'
+            )
+
+            foreach ($subDir in $subDirs)
+            {
+                $fullPath = Join-Path $projectDir $subDir
+                New-Item -ItemType Directory -Path $fullPath -Force | Out-Null
+                Write-InfoLog "已创建子目录: $fullPath"
+            }
+
+            Write-InfoLog '项目目录结构创建成功'
+            return $projectDir
+        }
+        catch
+        {
+            Write-ErrorLog "创建项目目录失败: $($PSItem.Exception.Message)"
+            return $null
+        }
     }
 }
 
@@ -135,7 +141,8 @@ function New-ProjectStructure
 #>
 function New-ReadmeFile
 {
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess)]
+    [OutputType([void])]
     param (
         [Parameter(Mandatory = $true)]
         [string]$ProjectDir,
@@ -149,35 +156,39 @@ function New-ReadmeFile
         [string]$BriefText = $null
     )
 
-    $today = Get-Date -Format 'yyyy-MM-dd'
-    $upscaleStatus = if ($NeedUpscale)
-    {
-        'X'
-    }
-    else
-    {
-        ' '
-    }
-    $upscaleRatioText = if ($NeedUpscale)
-    {
-        $UpscaleRatio.ToString()
-    }
-    else
-    {
-        'N/A'
-    }
+    $readmePath = Join-Path $ProjectDir 'README.md'
 
-    $briefSection = ''
-    if ($BriefText)
+    if ($PSCmdlet.ShouldProcess($readmePath, '创建 README.md 文件'))
     {
-        $briefSection = @"
+        $today = Get-Date -Format 'yyyy-MM-dd'
+        $upscaleStatus = if ($NeedUpscale)
+        {
+            'X'
+        }
+        else
+        {
+            ' '
+        }
+        $upscaleRatioText = if ($NeedUpscale)
+        {
+            $UpscaleRatio.ToString()
+        }
+        else
+        {
+            'N/A'
+        }
+
+        $briefSection = ''
+        if ($BriefText)
+        {
+            $briefSection = @"
 
 ## 项目信息
 $BriefText
 "@
-    }
+        }
 
-    $content = @"
+        $content = @"
 # 项目记录: ${ProjectName} (${today})
 
 ## 项目基本信息
@@ -207,33 +218,34 @@ $BriefText
 ${briefSection}
 "@
 
-    try
-    {
-        $readmePath = Join-Path $ProjectDir 'README.md'
-        Write-InfoLog "正在写入 README.md 文件到 $readmePath"
-
-        # 确保项目目录存在（使用 -LiteralPath 处理特殊字符）
-        if (-not (Test-Path -LiteralPath $ProjectDir))
+        try
         {
-            Write-ErrorLog "项目目录不存在: $ProjectDir"
-            return
-        }
+            $readmePath = Join-Path $ProjectDir 'README.md'
+            Write-InfoLog "正在写入 README.md 文件到 $readmePath"
 
-        # 使用 Out-File -LiteralPath 写入文件，避免 PowerShell 通配符问题
-        $content | Out-File -LiteralPath $readmePath -Encoding utf8
+            # 确保项目目录存在（使用 -LiteralPath 处理特殊字符）
+            if (-not (Test-Path -LiteralPath $ProjectDir))
+            {
+                Write-ErrorLog "项目目录不存在: $ProjectDir"
+                return
+            }
 
-        if (Test-Path -LiteralPath $readmePath)
-        {
-            Write-InfoLog 'README.md 文件创建/覆盖成功'
+            # 使用 Out-File -LiteralPath 写入文件，避免 PowerShell 通配符问题
+            $content | Out-File -LiteralPath $readmePath -Encoding utf8
+
+            if (Test-Path -LiteralPath $readmePath)
+            {
+                Write-InfoLog 'README.md 文件创建/覆盖成功'
+            }
+            else
+            {
+                Write-ErrorLog '无法验证 README.md 文件创建'
+            }
         }
-        else
+        catch
         {
-            Write-ErrorLog '无法验证 README.md 文件创建'
+            Write-ErrorLog "创建/覆盖 README.md 文件失败: $($PSItem.Exception.Message)"
         }
-    }
-    catch
-    {
-        Write-ErrorLog "创建/覆盖 README.md 文件失败: $($PSItem.Exception.Message)"
     }
 }
 
@@ -258,6 +270,7 @@ ${briefSection}
 function Read-MultiLineInput
 {
     [CmdletBinding()]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
     param (
         [string]$Prompt
     )
@@ -373,26 +386,26 @@ function Read-MultiLineInput
 #>
 function Get-ProjectBriefInfo
 {
-
     [CmdletBinding()]
+    [OutputType([object[]])]
     param(
-        [Parameter(ValueFromPipeline = $true)]
+        [Parameter()]
         [System.String]
         $Author,
 
-        [Parameter(ValueFromPipeline = $true)]
+        [Parameter()]
         [System.String]
         $OriginalTitle,
 
-        [Parameter(ValueFromPipeline = $true)]
+        [Parameter()]
         [System.String]
         $ChineseTitle,
 
-        [Parameter(ValueFromPipeline = $true)]
+        [Parameter()]
         [System.String]
         $OriginalOverview,
 
-        [Parameter(ValueFromPipeline = $true)]
+        [Parameter()]
         [System.String]
         $ChineseOverview
     )

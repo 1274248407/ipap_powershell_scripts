@@ -33,6 +33,7 @@ Export-ModuleMember
 function Get-ImageInfo
 {
     [CmdletBinding()]
+    [OutputType([hashtable])]
     param (
         [Parameter(Mandatory = $true)]
         [string]$SourceDir
@@ -50,8 +51,8 @@ function Get-ImageInfo
     $totalSize = 0
     $count = 0
 
-    # 从配置实例获取支持的图片格式列表
-    $SupportedImageFormats = $Global:IPAPConfigInstance.App.SupportedImageFormats
+    # 从配置获取支持的图片格式列表
+    $SupportedImageFormats = Get-SupportedImageFormats
 
     Get-ChildItem -LiteralPath $SourceDir -File | ForEach-Object {
         if ($SupportedImageFormats -contains $PSItem.Extension.ToLower())
@@ -105,6 +106,7 @@ function Get-ImageInfo
 function Test-NeedUpscale
 {
     [CmdletBinding()]
+    [OutputType([bool])]
     param (
         [Parameter(Mandatory = $true)]
         [AllowNull()]
@@ -153,6 +155,7 @@ function Test-NeedUpscale
 function Get-ImageLevel
 {
     [CmdletBinding()]
+    [OutputType([PSCustomObject[]])]
     param (
         [Parameter(Mandatory = $true)]
         [array]$Images
@@ -325,6 +328,7 @@ function Get-ImageLevel
 function Invoke-ParallelUpscale
 {
     [CmdletBinding()]
+    [OutputType([hashtable])]
     param (
         [Parameter(Mandatory = $true)]
         [array]$Images,
@@ -347,7 +351,7 @@ function Invoke-ParallelUpscale
     )
 
     # 检查引擎对应的可执行文件是否可用
-    if ($Engine -eq 'RealCugan' -and -not $Global:RealCuganExePath)
+    if ($Engine -eq 'RealCugan' -and -not (Get-RealCuganExePath))
     {
         Write-ErrorLog 'realcugan-ncnn-vulkan.exe 未找到，无法进行高清化处理'
         return @{ SuccessCount = 0; FailedCount = $Images.Count }
@@ -376,6 +380,8 @@ function Invoke-ParallelUpscale
     if ($Engine -eq 'RealCugan')
     {
         # Real-CUGAN 引擎：AI 超分（Level 2）
+        $realCuganExePath = Get-RealCuganExePath
+
         $Images | ForEach-Object -Parallel {
             $image = $PSItem
             $outputDir = $using:OutputDir
@@ -384,7 +390,7 @@ function Invoke-ParallelUpscale
             $modelPath = $using:ModelPath
             $outputFormat = $using:OutputFormat
             $tileSize = $using:TileSize
-            $realCuganExePath = $using:Global:RealCuganExePath
+            $realCuganExePath = $using:realCuganExePath
 
             $fileName = [System.IO.Path]::GetFileNameWithoutExtension($image.FullName)
             $outputPath = Join-Path $outputDir "${fileName}.${outputFormat}"
