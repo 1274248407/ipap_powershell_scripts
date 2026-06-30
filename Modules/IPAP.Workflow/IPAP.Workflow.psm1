@@ -123,10 +123,12 @@ function Start-IPAPWorkflow
                     $imageLevels = Get-ImageLevel -Images $imageInfo.Images
 
                     $needUpscale = @($imageLevels | Where-Object { $PSItem.Level -gt 0 }).Count -gt 0
-                    $level1Images = @($imageLevels | Where-Object { $PSItem.Level -eq 1 }) | ForEach-Object { $PSItem.Image }
-                    $level2Images = @($imageLevels | Where-Object { $PSItem.Level -eq 2 }) | ForEach-Object { $PSItem.Image }
+                    $level1ImageLevels = @($imageLevels | Where-Object { $PSItem.Level -eq 1 })
+                    $level2ImageLevels = @($imageLevels | Where-Object { $PSItem.Level -eq 2 })
+                    $level1Images = @($level1ImageLevels | ForEach-Object { $PSItem.Image })
+                    $level2Images = @($level2ImageLevels | ForEach-Object { $PSItem.Image })
 
-                    New-ReadmeFile -ProjectDir $projectDir -ProjectName $ProjectName -ImageCount $imageInfo.Count -NeedUpscale $needUpscale -UpscaleRatio $Config.App.UpscaleRatio -BriefText $briefText
+                    New-ReadmeFile -ProjectDir $projectDir -ProjectName $ProjectName -ImageCount $imageInfo.Count -NeedUpscale $needUpscale -UpscaleRatio $Config.App.UpscaleRatio -BriefText $briefText -Level1ImageLevels $level1ImageLevels -Level2ImageLevels $level2ImageLevels
 
                     $preprocessingDir = Join-Path -Path $projectDir -ChildPath '02_Preprocessing'
                     $maxWorkers = $Config.App.MaxWorkers
