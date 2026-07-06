@@ -216,6 +216,7 @@ $BriefText
                 # Level 1 详情
                 if ($Level1ImageLevels.Count -gt 0)
                 {
+
                     [void]$upscaleDetailLines.AppendLine()
                     [void]$upscaleDetailLines.AppendLine("#### Level 1 (FFmpeg 锐化) - $($Level1ImageLevels.Count) 张")
                     [void]$upscaleDetailLines.AppendLine()

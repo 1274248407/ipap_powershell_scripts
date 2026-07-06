@@ -173,9 +173,18 @@ function Get-ImageLevel
 
     Write-InfoLog "开始分析 $($Images.Count) 张图片的质量分级..."
 
-    # 并行分析所有图片
-    $results = $Images | ForEach-Object -Parallel {
-        $image = $PSItem
+
+
+    # 并行分析所有图片（保留原始顺序）
+    $indexedImages = for ($i = 0; $i -lt $Images.Count; $i++)
+    {
+        [PSCustomObject]@{ Index = $i; Image = $Images[$i] }
+    }
+
+    $results = $indexedImages | ForEach-Object -Parallel {
+        $item = $PSItem
+        $image = $item.Image
+        $index = $item.Index
         $ffprobePath = $using:FfprobePath
         $ffmpegPath = $using:FfmpegPath
 
@@ -267,6 +276,7 @@ function Get-ImageLevel
         }
 
         [PSCustomObject]@{
+            Index    = $index
             Image    = $image
             Level    = $level
             LongEdge = $longEdge
@@ -274,7 +284,12 @@ function Get-ImageLevel
         }
     } -ThrottleLimit 8
 
+    # 按原始索引排序恢复顺序
+    $results = $results | Sort-Object -Property Index
+
     Write-InfoLog "图片分级分析完成: $($results.Count) 张"
+
+
 
     $level0Count = @($results | Where-Object { $PSItem.Level -eq 0 }).Count
     $level1Count = @($results | Where-Object { $PSItem.Level -eq 1 }).Count
