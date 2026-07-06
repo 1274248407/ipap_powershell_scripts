@@ -1,4 +1,4 @@
-#Requires -Modules Pester
+﻿#Requires -Modules Pester
 
 <#
 .SYNOPSIS
@@ -12,6 +12,8 @@
 Describe 'Get-NaturalSortKey Unit Tests' -Tag 'Get-NaturalSortKey', 'IPAP.Core' {
     BeforeAll {
         $ProjectRoot = Split-Path -Parent $PSScriptRoot | Split-Path -Parent
+
+        Import-Module (Join-Path $ProjectRoot 'Modules\IPAP.Configuration\IPAP.Configuration.psd1') -Force -Global
         $ModulePath = Join-Path $ProjectRoot 'Modules\IPAP.Core\IPAP.Core.psd1'
 
         if (Test-Path $ModulePath)

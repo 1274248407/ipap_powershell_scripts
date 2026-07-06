@@ -51,11 +51,8 @@ function Get-ImageInfo
     $totalSize = 0
     $count = 0
 
-    # 从配置获取支持的图片格式列表
-    $SupportedImageFormats = Get-SupportedImageFormats
-
     Get-ChildItem -LiteralPath $SourceDir -File | ForEach-Object {
-        if ($SupportedImageFormats -contains $PSItem.Extension.ToLower())
+        if (Test-SupportedImageFormat -File $PSItem)
         {
             $images += $PSItem
             $totalSize += $PSItem.Length
@@ -337,7 +334,7 @@ function Invoke-ParallelUpscale
         [ValidateSet('RealCugan', 'FFmpeg')]
         [string]$Engine = 'RealCugan',
         [ValidateRange(1, 32)]
-        [int]$MaxWorkers = 8,
+        [int]$MaxWorkers = 0,
         [ValidateRange(1, 4)]
         [int]$Scale = 2,
         [ValidateRange(-1, 3)]

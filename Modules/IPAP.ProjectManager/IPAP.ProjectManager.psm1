@@ -124,6 +124,10 @@ function New-ProjectStructure
     (array) Level 1 图片的分级信息（可选），每个对象应包含 Image、LongEdge、YDIF 属性。
 .PARAMETER Level2ImageLevels
     (array) Level 2 图片的分级信息（可选），每个对象应包含 Image、LongEdge、YDIF 属性。
+.PARAMETER NonTextLevel1ImageLevels
+    (array) 无文字图 Level 1 分级信息（可选），每个对象应包含 Image、LongEdge、YDIF 属性。
+.PARAMETER NonTextLevel2ImageLevels
+    (array) 无文字图 Level 2 分级信息（可选），每个对象应包含 Image、LongEdge、YDIF 属性。
 .EXAMPLE
     New-ReadmeFile -ProjectDir "C:\Projects\Manga1" -ProjectName "Manga1" -ImageCount 50 -NeedUpscale $true -UpscaleRatio 2
     在项目目录下创建包含高清化状态的 README.md 文件。
@@ -131,8 +135,8 @@ function New-ProjectStructure
     New-ReadmeFile -ProjectDir "C:\Projects\Manga1" -ProjectName "Manga1" -ImageCount 50 -NeedUpscale $true -UpscaleRatio 2 -BriefText "项目简介内容"
     在 README.md 中同时包含项目简介内容。
 .EXAMPLE
-    New-ReadmeFile -ProjectDir "C:\Projects\Manga1" -ProjectName "Manga1" -ImageCount 50 -NeedUpscale $true -UpscaleRatio 2 -Level1ImageLevels $level1Levels -Level2ImageLevels $level2Levels
-    在 README.md 中包含高清化处理详情（文件名、长边分辨率、YDIF 值）。
+    New-ReadmeFile -ProjectDir "C:\Projects\Manga1" -ProjectName "Manga1" -ImageCount 50 -NeedUpscale $true -UpscaleRatio 2 -Level1ImageLevels $level1Levels -Level2ImageLevels $level2Levels -NonTextLevel1ImageLevels $nonTextL1 -NonTextLevel2ImageLevels $nonTextL2
+    在 README.md 中包含有文字图和无文字图的高清化处理详情。
 .INPUTS
     无
 .OUTPUTS
@@ -157,7 +161,9 @@ function New-ReadmeFile
         [int]$UpscaleRatio = 2,
         [string]$BriefText = $null,
         [array]$Level1ImageLevels = @(),
-        [array]$Level2ImageLevels = @()
+        [array]$Level2ImageLevels = @(),
+        [array]$NonTextLevel1ImageLevels = @(),
+        [array]$NonTextLevel2ImageLevels = @()
     )
 
     $readmePath = Join-Path $ProjectDir 'README.md'
@@ -195,41 +201,84 @@ $BriefText
 
         # 构建高清化详情段落
         $upscaleDetailSection = ''
-        if ($Level1ImageLevels.Count -gt 0 -or $Level2ImageLevels.Count -gt 0)
+        if ($Level1ImageLevels.Count -gt 0 -or $Level2ImageLevels.Count -gt 0 -or $NonTextLevel1ImageLevels.Count -gt 0 -or $NonTextLevel2ImageLevels.Count -gt 0)
         {
             $upscaleDetailLines = [System.Text.StringBuilder]::new()
             [void]$upscaleDetailLines.AppendLine()
             [void]$upscaleDetailLines.AppendLine('## 高清化处理详情')
-            [void]$upscaleDetailLines.AppendLine()
 
-            # Level 1 详情
-            if ($Level1ImageLevels.Count -gt 0)
+            # 有文字图详情
+            if ($Level1ImageLevels.Count -gt 0 -or $Level2ImageLevels.Count -gt 0)
             {
-                [void]$upscaleDetailLines.AppendLine("### Level 1 (FFmpeg 锐化) - $($Level1ImageLevels.Count) 张")
                 [void]$upscaleDetailLines.AppendLine()
-                [void]$upscaleDetailLines.AppendLine('| 文件名 | 长边分辨率 | YDIF |')
-                [void]$upscaleDetailLines.AppendLine('|--------|-----------|------|')
-                foreach ($level in $Level1ImageLevels)
+                [void]$upscaleDetailLines.AppendLine('### 有文字图')
+
+                # Level 1 详情
+                if ($Level1ImageLevels.Count -gt 0)
                 {
-                    $fileName = [System.IO.Path]::GetFileName($level.Image.FullName)
-                    [void]$upscaleDetailLines.AppendLine("| $fileName | $($level.LongEdge)px | $($level.YDIF) |")
+                    [void]$upscaleDetailLines.AppendLine()
+                    [void]$upscaleDetailLines.AppendLine("#### Level 1 (FFmpeg 锐化) - $($Level1ImageLevels.Count) 张")
+                    [void]$upscaleDetailLines.AppendLine()
+                    [void]$upscaleDetailLines.AppendLine('| 文件名 | 长边分辨率 | YDIF |')
+                    [void]$upscaleDetailLines.AppendLine('|--------|-----------|------|')
+                    foreach ($level in $Level1ImageLevels)
+                    {
+                        $fileName = [System.IO.Path]::GetFileName($level.Image.FullName)
+                        [void]$upscaleDetailLines.AppendLine("| $fileName | $($level.LongEdge)px | $($level.YDIF) |")
+                    }
                 }
-                [void]$upscaleDetailLines.AppendLine()
+
+                # Level 2 详情
+                if ($Level2ImageLevels.Count -gt 0)
+                {
+                    [void]$upscaleDetailLines.AppendLine()
+                    [void]$upscaleDetailLines.AppendLine("#### Level 2 (Real-CUGAN AI 超分) - $($Level2ImageLevels.Count) 张")
+                    [void]$upscaleDetailLines.AppendLine()
+                    [void]$upscaleDetailLines.AppendLine('| 文件名 | 长边分辨率 | YDIF |')
+                    [void]$upscaleDetailLines.AppendLine('|--------|-----------|------|')
+                    foreach ($level in $Level2ImageLevels)
+                    {
+                        $fileName = [System.IO.Path]::GetFileName($level.Image.FullName)
+                        [void]$upscaleDetailLines.AppendLine("| $fileName | $($level.LongEdge)px | $($level.YDIF) |")
+                    }
+                }
             }
 
-            # Level 2 详情
-            if ($Level2ImageLevels.Count -gt 0)
+            # 无文字图详情
+            if ($NonTextLevel1ImageLevels.Count -gt 0 -or $NonTextLevel2ImageLevels.Count -gt 0)
             {
-                [void]$upscaleDetailLines.AppendLine("### Level 2 (Real-CUGAN AI 超分) - $($Level2ImageLevels.Count) 张")
                 [void]$upscaleDetailLines.AppendLine()
-                [void]$upscaleDetailLines.AppendLine('| 文件名 | 长边分辨率 | YDIF |')
-                [void]$upscaleDetailLines.AppendLine('|--------|-----------|------|')
-                foreach ($level in $Level2ImageLevels)
+                [void]$upscaleDetailLines.AppendLine('### 无文字图')
+
+                # 无文字图 Level 1 详情
+                if ($NonTextLevel1ImageLevels.Count -gt 0)
                 {
-                    $fileName = [System.IO.Path]::GetFileName($level.Image.FullName)
-                    [void]$upscaleDetailLines.AppendLine("| $fileName | $($level.LongEdge)px | $($level.YDIF) |")
+                    [void]$upscaleDetailLines.AppendLine()
+                    [void]$upscaleDetailLines.AppendLine("#### Level 1 (FFmpeg 锐化) - $($NonTextLevel1ImageLevels.Count) 张")
+                    [void]$upscaleDetailLines.AppendLine()
+                    [void]$upscaleDetailLines.AppendLine('| 文件名 | 长边分辨率 | YDIF |')
+                    [void]$upscaleDetailLines.AppendLine('|--------|-----------|------|')
+                    foreach ($level in $NonTextLevel1ImageLevels)
+                    {
+                        $fileName = [System.IO.Path]::GetFileName($level.Image.FullName)
+                        [void]$upscaleDetailLines.AppendLine("| $fileName | $($level.LongEdge)px | $($level.YDIF) |")
+                    }
                 }
-                [void]$upscaleDetailLines.AppendLine()
+
+                # 无文字图 Level 2 详情
+                if ($NonTextLevel2ImageLevels.Count -gt 0)
+                {
+                    [void]$upscaleDetailLines.AppendLine()
+                    [void]$upscaleDetailLines.AppendLine("#### Level 2 (Real-CUGAN AI 超分) - $($NonTextLevel2ImageLevels.Count) 张")
+                    [void]$upscaleDetailLines.AppendLine()
+                    [void]$upscaleDetailLines.AppendLine('| 文件名 | 长边分辨率 | YDIF |')
+                    [void]$upscaleDetailLines.AppendLine('|--------|-----------|------|')
+                    foreach ($level in $NonTextLevel2ImageLevels)
+                    {
+                        $fileName = [System.IO.Path]::GetFileName($level.Image.FullName)
+                        [void]$upscaleDetailLines.AppendLine("| $fileName | $($level.LongEdge)px | $($level.YDIF) |")
+                    }
+                }
             }
 
             $upscaleDetailSection = $upscaleDetailLines.ToString()

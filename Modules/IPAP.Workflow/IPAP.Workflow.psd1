@@ -12,6 +12,7 @@
     RequiredModules   = @('IPAP.Configuration', 'IPAP.Core', 'IPAP.ImageProcessor', 'IPAP.ProjectManager')
     FunctionsToExport = @(
         'Start-IPAPWorkflow',
+        'Select-NonTextImage',
         'Test-UpscaleResult'
     )
     VariablesToExport = @()

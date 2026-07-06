@@ -428,14 +428,14 @@ class ApplicationConfiguration
         {
             $appSettings = $Settings.app_settings
             $this.SupportedImageFormats = if ($appSettings.ContainsKey('supported_image_formats') -and $appSettings.supported_image_formats) { $appSettings.supported_image_formats } else { @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp') }
-            $this.MaxWorkers = if ($appSettings.ContainsKey('max_workers')) { [int]$appSettings.max_workers } else { 8 }
+            $this.MaxWorkers = if ($appSettings.ContainsKey('max_workers')) { [int]$appSettings.max_workers } else { 0 }
             $this.UpscaleTimeoutSec = if ($appSettings.ContainsKey('upscale_timeout_sec')) { [int]$appSettings.upscale_timeout_sec } else { 3600 }
             $this.ModelSelect = if ($appSettings.ContainsKey('model_select')) { $appSettings.model_select } else { 'models-se' }
         }
         else
         {
             $this.SupportedImageFormats = @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
-            $this.MaxWorkers = 8
+            $this.MaxWorkers = 0
             $this.UpscaleTimeoutSec = 3600
             $this.ModelSelect = 'models-se'
         }
@@ -464,6 +464,12 @@ class ApplicationConfiguration
             $this.WebpEnabled = $true
             $this.WebpLossless = $true
             $this.WebpQuality = 100
+        }
+
+        # 当 MaxWorkers 为 0 时，根据系统 CPU 核心数动态计算（最少 1 个线程）
+        if ($this.MaxWorkers -eq 0)
+        {
+            $this.MaxWorkers = [math]::Max(1, [System.Environment]::ProcessorCount / 2)
         }
     }
 

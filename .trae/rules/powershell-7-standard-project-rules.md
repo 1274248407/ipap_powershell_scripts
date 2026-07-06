@@ -6,7 +6,7 @@ alwaysApply: true
 ## 1. 语法与架构硬性约束
 - **强类型契约**：禁止使用弱类型定义。必须为所有变量、函数参数（param 块）及返回值显式标注类型。
   - 示例：`[string]$UserName = "Lucas"`, `[int]$RetryCount = 3`
-- **标准架构**：所有函数必须包含 `[CmdletBinding()]` 属性，并统一使用 `param()` 块定义参数。
+- **标准架构**：所有函数必须包含 `[CmdletBinding()]` 和 `[OutputType()]` 属性，并统一使用 `param()` 块定义参数。
 
 ## 2. 命名与风格规范
 - **PascalCase 强制化**：所有自定义变量名、函数名、参数名必须使用 PascalCase（大驼峰命名法）。
