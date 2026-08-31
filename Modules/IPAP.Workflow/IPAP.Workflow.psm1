@@ -144,7 +144,6 @@ function Start-IPAPWorkflow
                     $textLevel2Images = @($textLevel2Levels | ForEach-Object { $PSItem.Image })
 
                     # 分析无文字图质量
-                    $nonTextImageLevels = @()
                     $nonTextLevel1Levels = @()
                     $nonTextLevel2Levels = @()
                     $nonTextLevel1Images = @()
@@ -542,6 +541,20 @@ function Test-UpscaleResult
         Write-ErrorLog '并行处理完全失败，未生成任何输出文件'
         return $false
     }
+    else
+    {
+        $failedCount = $ExpectedCount - $actualCount
+        Write-WarningLog "并行处理部分完成 - 预期: $ExpectedCount, 实际: $actualCount, 失败: $failedCount ($successRate%)"
+        return $false
+    }
+}
+
+Export-ModuleMember -Function @(
+    'Start-IPAPWorkflow',
+    'Select-NonTextImage',
+    'Test-UpscaleResult'
+)
+
     else
     {
         $failedCount = $ExpectedCount - $actualCount

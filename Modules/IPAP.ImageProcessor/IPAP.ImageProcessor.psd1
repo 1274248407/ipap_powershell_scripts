@@ -12,7 +12,8 @@
         'Get-ImageInfo',
         'Test-NeedUpscale',
         'Get-ImageLevel',
-        'Invoke-ParallelUpscale'
+        'Invoke-ParallelUpscale',
+        'Rename-FilesBySize'
     )
     VariablesToExport = @()
     PrivateData       = @{
