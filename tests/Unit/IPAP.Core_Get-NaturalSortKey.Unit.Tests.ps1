@@ -4,9 +4,9 @@
 .SYNOPSIS
     IPAP.Core - Get-NaturalSortKey 单元测试
 .DESCRIPTION
-    测试 Get-NaturalSortKey 函数的边界情况、输出验证和管道行为。
-    注意：Get-NaturalSortKey 使用 [regex]::Split($String, '([0-9]+)') 实现，
-    会按数字分割字符串，返回数组。例如 "file10.txt" -> ["file", "10", ".txt"]
+    测试 Get-NaturalSortKey 函数的边界情况、输出验证和自然排序语义。
+    该函数返回零填充的字符串，确保数字按数值大小排序。
+    例如 "file10.txt" -> "file0000000010.txt"
 #>
 
 Describe 'Get-NaturalSortKey Unit Tests' -Tag 'Get-NaturalSortKey', 'IPAP.Core' {
@@ -29,142 +29,93 @@ Describe 'Get-NaturalSortKey Unit Tests' -Tag 'Get-NaturalSortKey', 'IPAP.Core' 
     Context '正常执行路径 - Normal Execution Path' {
         It '应正确解析包含数字的字符串' {
             $result = Get-NaturalSortKey -InputString 'file10.txt'
-            $result.Count | Should -Be 3
-            $result[0] | Should -Be 'file'
-            $result[1] | Should -Be 10
-            $result[2] | Should -Be '.txt'
+            $result | Should -Be 'file0000000010.txt'
         }
 
         It '应正确解析纯数字字符串' {
             $result = Get-NaturalSortKey -InputString '123'
-            $result.Count | Should -Be 1
-            $result[0] | Should -Be 123
+            $result | Should -Be '0000000123'
         }
 
         It '应正确解析包含多个数字的字符串' {
             $result = Get-NaturalSortKey -InputString 'file10_part20_final'
-            $result.Count | Should -Be 5
-            $result[0] | Should -Be 'file'
-            $result[1] | Should -Be 10
-            $result[2] | Should -Be '_part'
-            $result[3] | Should -Be 20
-            $result[4] | Should -Be '_final'
+            $result | Should -Be 'file0000000010_part0000000020_final'
         }
 
         It '应正确处理文件名中的数字' {
             $result = Get-NaturalSortKey -InputString 'image100.jpg'
-            $result.Count | Should -Be 3
-            $result[0] | Should -Be 'image'
-            $result[1] | Should -Be 100
-            $result[2] | Should -Be '.jpg'
+            $result | Should -Be 'image0000000100.jpg'
         }
     }
 
     Context '边界值测试 - Boundary Value Tests' {
         It '应处理只包含数字的字符串' {
             $result = Get-NaturalSortKey -InputString '42'
-            $result.Count | Should -Be 1
-            $result[0] | Should -Be 42
+            $result | Should -Be '0000000042'
         }
 
         It '应处理包含特殊字符的字符串' {
             $result = Get-NaturalSortKey -InputString 'file@#$%10'
-            $result.Count | Should -Be 2
-            $result[0] | Should -Be 'file@#$%'
-            $result[1] | Should -Be 10
+            $result | Should -Be 'file@#$%0000000010'
         }
 
         It '应处理超长字符串' {
             $longString = 'a' * 100 + '123' + 'b' * 100
             $result = Get-NaturalSortKey -InputString $longString
-            $result.Count | Should -Be 3
-            $result[0] | Should -Be ('a' * 100)
-            $result[1] | Should -Be 123
-            $result[2] | Should -Be ('b' * 100)
+            $result | Should -Be ('a' * 100) + '0000000123' + ('b' * 100)
         }
 
         It '应处理带空格的文件名' {
             $result = Get-NaturalSortKey -InputString 'my file 10.txt'
-            $result.Count | Should -Be 3
-            $result[0] | Should -Be 'my file '
-            $result[1] | Should -Be 10
-            $result[2] | Should -Be '.txt'
+            $result | Should -Be 'my file 0000000010.txt'
         }
 
         It '应处理带括号的文件名' {
             $result = Get-NaturalSortKey -InputString 'image (1).jpg'
-            $result.Count | Should -Be 3
-            $result[0] | Should -Be 'image ('
-            $result[1] | Should -Be 1
-            $result[2] | Should -Be ').jpg'
+            $result | Should -Be 'image (0000000001).jpg'
         }
 
         It '应处理带连字符的文件名' {
             $result = Get-NaturalSortKey -InputString 'file-name-10-final.txt'
-            $result.Count | Should -Be 3
-            $result[0] | Should -Be 'file-name-'
-            $result[1] | Should -Be 10
-            $result[2] | Should -Be '-final.txt'
+            $result | Should -Be 'file-name-0000000010-final.txt'
         }
 
         It '应处理带下划线的文件名' {
             $result = Get-NaturalSortKey -InputString 'file_name_10_final.txt'
-            $result.Count | Should -Be 3
-            $result[0] | Should -Be 'file_name_'
-            $result[1] | Should -Be 10
-            $result[2] | Should -Be '_final.txt'
+            $result | Should -Be 'file_name_0000000010_final.txt'
         }
 
         It '应处理带中文的字符串' {
             $result = Get-NaturalSortKey -InputString '文件10测试'
-            $result.Count | Should -Be 3
-            $result[0] | Should -Be '文件'
-            $result[1] | Should -Be 10
-            $result[2] | Should -Be '测试'
+            $result | Should -Be '文件0000000010测试'
         }
     }
 
     Context '类型验证 - Type Validation' {
-        It '返回类型应为数组' {
+        It '返回类型应为字符串' {
             $result = Get-NaturalSortKey -InputString 'test123'
-            # 当你使用 $result | Should -BeOfType [array] 时，如果 $result 是数组，
-            # 管道会自动展开数组 ，将每个元素逐个传递给 Should 断言。
-            # 因此 Should 收到的是数组的第一个元素 'test' （字符串类型），而不是整个数组对象。
-            # 使用逗号运算符 , 来强制将数组作为单个对象传递：
-            , $result | Should -BeOfType [array]
-        }
-
-        It '数字部分应为整数类型' {
-            $result = Get-NaturalSortKey -InputString 'file10.txt'
-            $numericParts = $result | Where-Object { $PSItem -is [int] }
-            $numericParts | Should -Not -BeNullOrEmpty
-            $numericParts[0] | Should -BeOfType [int]
-        }
-
-        It '字符串部分应为字符串类型' {
-            $result = Get-NaturalSortKey -InputString 'file10.txt'
-            $stringParts = $result | Where-Object { $PSItem -is [string] }
-            $stringParts | Should -Not -BeNullOrEmpty
-            $stringParts[0] | Should -BeOfType [string]
+            $result | Should -BeOfType [string]
         }
     }
 
     Context '自然排序语义验证 - Natural Sort Semantics' {
         It '应正确处理前导零' {
             $result = Get-NaturalSortKey -InputString 'file007.txt'
-            $numericParts = $result | Where-Object { $PSItem -is [int] }
-            $numericParts[0] | Should -Be 7
+            $result | Should -Be 'file0000000007.txt'
         }
 
         It '应处理混合数字和字母' {
             $result = Get-NaturalSortKey -InputString 'a1b2c3'
-            $result.Count | Should -Be 6
-            $result[0] | Should -Be 'a'
-            $result[1] | Should -Be 1
-            $result[2] | Should -Be 'b'
-            $result[3] | Should -Be 2
-            $result[4] | Should -Be 'c'
-            $result[5] | Should -Be 3
+            $result | Should -Be 'a0000000001b0000000002c0000000003'
+        }
+
+        It '自然排序应正确排序' {
+            $files = @('10.webp', '11.webp', '02.webp', '03.webp', '04.webp', '05.webp', '06.webp', '07.webp', '08.webp', '09.webp')
+            $sorted = $files | Sort-Object -Property { Get-NaturalSortKey $PSItem }
+            $sorted[0] | Should -Be '02.webp'
+            $sorted[1] | Should -Be '03.webp'
+            $sorted[8] | Should -Be '10.webp'
+            $sorted[9] | Should -Be '11.webp'
         }
     }
 
@@ -173,6 +124,12 @@ Describe 'Get-NaturalSortKey Unit Tests' -Tag 'Get-NaturalSortKey', 'IPAP.Core' 
             $cmd = Get-Command Get-NaturalSortKey
             $inputStringParam = $cmd.Parameters['InputString']
             $inputStringParam.Attributes.Mandatory | Should -Be $true
+        }
+
+        It '应声明 OutputType 为 string' {
+            $cmd = Get-Command Get-NaturalSortKey
+            $outputType = $cmd.OutputType
+            $outputType.Type.Name | Should -Contain 'String'
         }
     }
 }

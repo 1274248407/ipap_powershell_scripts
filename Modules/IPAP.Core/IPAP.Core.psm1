@@ -38,6 +38,7 @@ if (Test-Path -LiteralPath $PoShLogPath)
 function Get-NaturalSortKey
 {
     [CmdletBinding()]
+    [OutputType([string])]
     param (
         [Parameter(Mandatory = $true)]
         [string]$InputString
@@ -46,11 +47,11 @@ function Get-NaturalSortKey
     # 使用正则分割字符串，捕获数字部分
     $parts = [regex]::Split($InputString, '(\d+)')
 
-    # 过滤空字符串，并转换数字
+    # 过滤空字符串，数字部分零填充（10位）
     $result = $parts | Where-Object { -not [string]::IsNullOrEmpty($PSItem) } | ForEach-Object {
         if ($PSItem -match '^\d+$')
         {
-            [int]$PSItem
+            $PSItem.PadLeft(10, '0')
         }
         else
         {
@@ -58,7 +59,7 @@ function Get-NaturalSortKey
         }
     }
 
-    return $result
+    return $result -join ''
 }
 
 <#

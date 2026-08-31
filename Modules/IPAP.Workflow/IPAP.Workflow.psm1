@@ -133,26 +133,8 @@ function Start-IPAPWorkflow
                         throw
                     }
 
-                    # 复制无文字图到 original_non_text_raw
+                    # 无文字图输出目录
                     $nonTextRawDir = Join-Path -Path $projectDir -ChildPath '02_Preprocessing\original_non_text_raw'
-                    if ($nonTextImages.Count -gt 0)
-                    {
-                        Write-InfoLog "正在复制 $($nonTextImages.Count) 张无文字图到 $nonTextRawDir"
-
-                        try
-                        {
-                            foreach ($image in $nonTextImages)
-                            {
-                                Copy-Item -LiteralPath $image.FullName -Destination $nonTextRawDir -Force
-                            }
-                            Write-InfoLog "已复制 $($nonTextImages.Count) 张无文字图到 original_non_text_raw 目录"
-                        }
-                        catch
-                        {
-                            Write-ErrorLog "复制无文字图失败: $($PSItem.Exception.Message)"
-                            throw
-                        }
-                    }
 
                     # 分析图片质量分级
                     $textImageLevels = Get-ImageLevel -Images $textImages
@@ -162,6 +144,7 @@ function Start-IPAPWorkflow
                     $textLevel2Images = @($textLevel2Levels | ForEach-Object { $PSItem.Image })
 
                     # 分析无文字图质量
+                    $nonTextImageLevels = @()
                     $nonTextLevel1Levels = @()
                     $nonTextLevel2Levels = @()
                     $nonTextLevel1Images = @()
@@ -227,6 +210,32 @@ function Start-IPAPWorkflow
                         else
                         {
                             Write-WarningLog "无文字图 Level 2: $($nonTextLevel2Images.Count) 张图片需要 Real-CUGAN 处理，但未找到可执行文件"
+                        }
+                    }
+
+                    # 复制不需要高清化的无文字图（Level 0）到目标目录
+                    $nonTextLevel0Levels = @($nonTextImageLevels | Where-Object { $PSItem.Level -eq 0 })
+                    $nonTextLevel0Images = @($nonTextLevel0Levels | ForEach-Object { $PSItem.Image })
+                    if ($nonTextLevel0Images.Count -gt 0)
+                    {
+                        Write-InfoLog "无文字图 Level 0: 复制 $($nonTextLevel0Images.Count) 张高清图片到 original_non_text_raw 目录"
+
+                        try
+                        {
+                            if (-not (Test-Path -LiteralPath $nonTextRawDir))
+                            {
+                                New-Item -ItemType Directory -Path $nonTextRawDir -Force | Out-Null
+                            }
+                            foreach ($image in $nonTextLevel0Images)
+                            {
+                                Copy-Item -LiteralPath $image.FullName -Destination $nonTextRawDir -Force
+                            }
+                            Write-InfoLog "已复制 $($nonTextLevel0Images.Count) 张 Level 0 无文字图到 original_non_text_raw 目录"
+                        }
+                        catch
+                        {
+                            Write-ErrorLog "复制 Level 0 无文字图失败: $($PSItem.Exception.Message)"
+                            throw
                         }
                     }
 
