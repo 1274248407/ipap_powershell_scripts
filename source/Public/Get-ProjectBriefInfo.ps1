@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     获取项目信息并生成格式化的项目简介模板。
 .DESCRIPTION
@@ -27,7 +27,7 @@
 .INPUTS
     System.String
 .OUTPUTS
-    System.String, System.String（返回一个包含格式化文本和项目名的元组）
+    System.String（输出两个对象：格式化文本与项目名）
 .NOTES
     Author:  lucas_gold
     Website: https://github.com/1274248407
@@ -35,8 +35,11 @@
 
 function Get-ProjectBriefInfo
 {
+    # 豁免 PSUseOutputTypeCorrectly：双值元组 return 的静态推断为 Object[]，
+    # 与元素类型语义声明 [OutputType([string])] 无法匹配（规则缺陷，官方 issue #1471）
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseOutputTypeCorrectly', '')]
     [CmdletBinding()]
-    [OutputType([object[]])]
+    [OutputType([string])]
     param(
         [Parameter()]
         [System.String]
@@ -59,7 +62,7 @@ function Get-ProjectBriefInfo
         $ChineseOverview
     )
 
-    Write-InfoLog '=== 项目信息输入 ==='
+    Write-LogEntry -Level Info -Message '=== 项目信息输入 ==='
 
     # 输入作者名（参数为空时交互式获取）
     if ([System.String]::IsNullOrWhiteSpace($Author))

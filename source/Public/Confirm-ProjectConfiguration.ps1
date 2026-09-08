@@ -20,7 +20,7 @@
 function Confirm-ProjectConfiguration
 {
     [CmdletBinding()]
-    [OutputType([IPAPConfiguration])]
+    [OutputType('IPAPConfiguration')]
     param(
         [IPAPConfiguration]$Config = $null
     )
@@ -30,24 +30,24 @@ function Confirm-ProjectConfiguration
         $Config = Get-Configuration
     }
 
-    Write-InfoLog '--- 当前配置信息预览 ---'
+    Write-LogEntry -Level Info -Message '--- 当前配置信息预览 ---'
 
-    Write-WarningLog '【路径配置】'
-    Write-InfoLog "  项目根目录: $($Config.Paths.ProjectRoot)"
-    Write-InfoLog "  基准项目目录: $(if ($Config.Paths.BaseProjectDir) { $Config.Paths.BaseProjectDir } else { '[未配置]' })"
-    Write-InfoLog "  源图片目录: $(if ($Config.Paths.SourceDir) { $Config.Paths.SourceDir } else { '[未配置]' })"
+    Write-LogEntry -Level Warning -Message '【路径配置】'
+    Write-LogEntry -Level Info -Message "  项目根目录: $($Config.Paths.ProjectRoot)"
+    Write-LogEntry -Level Info -Message "  基准项目目录: $(if ($Config.Paths.BaseProjectDir) { $Config.Paths.BaseProjectDir } else { '[未配置]' })"
+    Write-LogEntry -Level Info -Message "  源图片目录: $(if ($Config.Paths.SourceDir) { $Config.Paths.SourceDir } else { '[未配置]' })"
 
-    Write-WarningLog '【项目信息】'
-    Write-InfoLog "  作者: $(if ($Config.Project.Author) { $Config.Project.Author } else { '[未配置]' })"
-    Write-InfoLog "  原作品名: $(if ($Config.Project.OriginalTitle) { $Config.Project.OriginalTitle } else { '[未配置]' })"
-    Write-InfoLog "  中文译名: $(if ($Config.Project.ChineseTitle) { $Config.Project.ChineseTitle } else { '[未配置]' })"
-    Write-InfoLog "  原文简介: $(if ($Config.Project.OriginalOverview) { '已配置' } else { '[未配置]' })"
-    Write-InfoLog "  中文简介: $(if ($Config.Project.ChineseOverview) { '已配置' } else { '[未配置]' })"
+    Write-LogEntry -Level Warning -Message '【项目信息】'
+    Write-LogEntry -Level Info -Message "  作者: $(if ($Config.Project.Author) { $Config.Project.Author } else { '[未配置]' })"
+    Write-LogEntry -Level Info -Message "  原作品名: $(if ($Config.Project.OriginalTitle) { $Config.Project.OriginalTitle } else { '[未配置]' })"
+    Write-LogEntry -Level Info -Message "  中文译名: $(if ($Config.Project.ChineseTitle) { $Config.Project.ChineseTitle } else { '[未配置]' })"
+    Write-LogEntry -Level Info -Message "  原文简介: $(if ($Config.Project.OriginalOverview) { '已配置' } else { '[未配置]' })"
+    Write-LogEntry -Level Info -Message "  中文简介: $(if ($Config.Project.ChineseOverview) { '已配置' } else { '[未配置]' })"
 
-    Write-WarningLog '【应用配置】'
-    Write-InfoLog "  最大工作线程数: $($Config.App.MaxWorkers)"
-    Write-InfoLog "  放大倍数: $($Config.App.UpscaleRatio)"
-    Write-InfoLog "  模型选择: $($Config.App.ModelSelect)"
+    Write-LogEntry -Level Warning -Message '【应用配置】'
+    Write-LogEntry -Level Info -Message "  最大工作线程数: $($Config.App.MaxWorkers)"
+    Write-LogEntry -Level Info -Message "  放大倍数: $($Config.App.UpscaleRatio)"
+    Write-LogEntry -Level Info -Message "  模型选择: $($Config.App.ModelSelect)"
 
     do
     {
@@ -56,13 +56,13 @@ function Confirm-ProjectConfiguration
 
     if ($response -eq 'Y' -or $response -eq 'y')
     {
-        Write-InfoLog '应用当前配置'
+        Write-LogEntry -Level Info -Message '应用当前配置'
         return $Config
     }
 
-    Write-WarningLog '您选择不应用当前配置，请选择修改方式：'
-    Write-InfoLog '  1) 使用文本编辑器修改 config.toml（推荐）'
-    Write-InfoLog '  2) 在控制台直接输入'
+    Write-LogEntry -Level Warning -Message '您选择不应用当前配置，请选择修改方式：'
+    Write-LogEntry -Level Info -Message '  1) 使用文本编辑器修改 config.toml（推荐）'
+    Write-LogEntry -Level Info -Message '  2) 在控制台直接输入'
 
     do
     {
@@ -71,17 +71,17 @@ function Confirm-ProjectConfiguration
 
     if ($choice -eq '1')
     {
-        Write-InfoLog '正在打开配置文件...'
+        Write-LogEntry -Level Info -Message '正在打开配置文件...'
         try
         {
             Start-Process -FilePath $Config.Paths.ConfigPath
-            Write-InfoLog '配置文件已打开，请修改后保存。'
+            Write-LogEntry -Level Info -Message '配置文件已打开，请修改后保存。'
             $null = Read-Host '按 Enter 键继续...'
         }
         catch
         {
             # 打开配置文件失败属于可恢复场景：提示用户手动打开后继续流程
-            Write-WarningLog "无法自动打开配置文件，请手动打开: $($Config.Paths.ConfigPath)"
+            Write-LogEntry -Level Warning -Message "无法自动打开配置文件，请手动打开: $($Config.Paths.ConfigPath)"
             $null = Read-Host '按 Enter 键继续...'
         }
 
@@ -93,16 +93,16 @@ function Confirm-ProjectConfiguration
     }
     else
     {
-        Write-WarningLog '请在控制台输入配置信息：'
+        Write-LogEntry -Level Warning -Message '请在控制台输入配置信息：'
 
-        Write-WarningLog '【路径配置】'
+        Write-LogEntry -Level Warning -Message '【路径配置】'
         $newSourceDir = Read-Host "源图片目录 [当前: $($Config.Paths.SourceDir)]"
         if ($newSourceDir)
         {
             $Config.Paths.SourceDir = $newSourceDir
         }
 
-        Write-WarningLog '【项目信息】'
+        Write-LogEntry -Level Warning -Message '【项目信息】'
         $newAuthor = Read-Host "作者 [当前: $($Config.Project.Author)]"
         if ($newAuthor)
         {
@@ -121,12 +121,13 @@ function Confirm-ProjectConfiguration
             $Config.Project.ChineseTitle = $newChineseTitle
         }
 
-        Write-WarningLog '原文简介（按 Ctrl+D 结束输入）：'
+        Write-LogEntry -Level Warning -Message '原文简介（每行输入后按 Enter，输入空行结束）：'
         $newOriginalOverviewLines = @()
         while ($true)
         {
+            # ReadLine 返回空字符串（用户输入空行）或 $null（EOF：Windows 下为 Ctrl+Z 后按 Enter）时结束输入
             $line = $host.ui.ReadLine()
-            if (-not $line -or $line -eq [char]0x04)
+            if (-not $line)
             {
                 break
             }
@@ -137,12 +138,13 @@ function Confirm-ProjectConfiguration
             $Config.Project.OriginalOverview = $newOriginalOverviewLines -join "`n"
         }
 
-        Write-WarningLog '中文简介（按 Ctrl+D 结束输入）：'
+        Write-LogEntry -Level Warning -Message '中文简介（每行输入后按 Enter，输入空行结束）：'
         $newChineseOverviewLines = @()
         while ($true)
         {
+            # ReadLine 返回空字符串（用户输入空行）或 $null（EOF：Windows 下为 Ctrl+Z 后按 Enter）时结束输入
             $line = $host.ui.ReadLine()
-            if (-not $line -or $line -eq [char]0x04)
+            if (-not $line)
             {
                 break
             }

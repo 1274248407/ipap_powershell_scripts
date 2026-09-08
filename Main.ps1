@@ -52,11 +52,11 @@ if ($null -eq $IpapManifest)
 
 # 导入 IPAP 统一模块
 Import-Module -Name $IpapManifest -Force -Scope Global
-Write-Host "✓ IPAP 模块已导入：$IpapManifest"
+Write-LogEntry -Level Success -Message "IPAP 模块已导入：$IpapManifest"
 
 # 初始化配置（读取仓库根目录的 config.toml）
 Get-Configuration -ProjectRoot $PSScriptRoot | Out-Null
-Write-Host '✓ IPAP 配置已初始化'
+Write-LogEntry -Level Success -Message 'IPAP 配置已初始化'
 
 # 确认项目配置，获取用户确认后的配置实例并启动主工作流
 $Config = Confirm-ProjectConfiguration

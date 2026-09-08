@@ -20,9 +20,9 @@ Describe 'Select-NonTextImage Unit Tests' -Tag 'Select-NonTextImage', 'IPAP' {
 
     Context '源目录不存在' {
         It '应抛出终止错误' {
-            Mock -ModuleName IPAP Write-InfoLog {}
-            Mock -ModuleName IPAP Write-ErrorLog { param($Message) throw $Message }
-            Mock -ModuleName IPAP Write-WarningLog {}
+            Mock Write-LogEntry -ModuleName IPAP { }
+
+
 
             { Select-NonTextImage -SourceDir 'TestDrive:\nonexistent_dir' -SupportedImageFormats @('.jpg', '.png') } | Should -Throw '源目录不存在*'
         }
@@ -43,10 +43,10 @@ Describe 'Select-NonTextImage Unit Tests' -Tag 'Select-NonTextImage', 'IPAP' {
             $param.Attributes | Where-Object { $PSItem -is [System.Management.Automation.ParameterAttribute] -and $PSItem.Mandatory } | Should -Not -BeNullOrEmpty
         }
 
-        It '应声明 OutputType 为 object[]' {
+        It '应声明 OutputType 为 FileInfo' {
             $cmd = Get-Command Select-NonTextImage
             $outputType = $cmd.OutputType
-            $outputType.Type.Name | Should -Contain 'Object[]'
+            $outputType.Type.Name | Should -Contain 'FileInfo'
         }
     }
 }

@@ -39,7 +39,7 @@ function Start-IPAPWorkflow
 
     try
     {
-        Write-InfoLog '正在初始化 IPAP 工作流...'
+        Write-LogEntry -Level Info -Message '正在初始化 IPAP 工作流...'
 
         # 获取配置实例
         if (-not $Config)
@@ -88,7 +88,7 @@ function Start-IPAPWorkflow
 
                 if ($projectDir)
                 {
-                    Write-InfoLog "项目初始化成功: $projectDir"
+                    Write-LogEntry -Level Info -Message "项目初始化成功: $projectDir"
 
                     # 交互式选择无文字图（传入预排序图片避免重复排序）
                     $nonTextImages = Select-NonTextImage -SourceDir $SourceDir -SupportedImageFormats $Config.App.SupportedImageFormats -PreSortedImages $imageInfo.Images
@@ -107,7 +107,7 @@ function Start-IPAPWorkflow
 
                     # 复制有文字图到 raw_source
                     $rawSourceDir = Join-Path -Path $projectDir -ChildPath '02_Preprocessing\raw_source'
-                    Write-InfoLog "正在复制 $($textImages.Count) 张有文字图到 $rawSourceDir"
+                    Write-LogEntry -Level Info -Message "正在复制 $($textImages.Count) 张有文字图到 $rawSourceDir"
 
                     try
                     {
@@ -115,11 +115,14 @@ function Start-IPAPWorkflow
                         {
                             Copy-Item -LiteralPath $image.FullName -Destination $rawSourceDir -Force
                         }
-                        Write-InfoLog "已复制 $($textImages.Count) 张有文字图到 raw_source 目录"
+                        Write-LogEntry -Level Info -Message "已复制 $($textImages.Count) 张有文字图到 raw_source 目录"
                     }
                     catch
                     {
-                        Write-ErrorLog "复制有文字图失败: $($PSItem.Exception.Message)"
+                        # 记录上下文后抛出包装异常并保留 InnerException（禁止吞异常）
+                        $ErrorMessage = "复制有文字图失败: $($PSItem.Exception.Message)"
+                        Write-LogEntry -Level Error -Message $ErrorMessage
+                        throw [System.IO.IOException]::new($ErrorMessage, $PSItem.Exception)
                     }
 
                     # 无文字图输出目录
@@ -150,7 +153,7 @@ function Start-IPAPWorkflow
                     $needUpscale = @($textLevel1Levels).Count -gt 0 -or @($textLevel2Levels).Count -gt 0 -or @($nonTextLevel1Levels).Count -gt 0 -or @($nonTextLevel2Levels).Count -gt 0
 
                     # 一次性生成 README（包含有文字图和无文字图的高清化详情）
-                    New-ReadmeFile -ProjectDir $projectDir -ProjectName $ProjectName -ImageCount $imageInfo.Count -NeedUpscale $needUpscale -UpscaleRatio $Config.App.UpscaleRatio -BriefText $briefText -Level1ImageLevels $textLevel1Levels -Level2ImageLevels $textLevel2Levels -NonTextLevel1ImageLevels $nonTextLevel1Levels -NonTextLevel2ImageLevels $nonTextLevel2Levels
+                    New-ReadmeFile -ProjectDir $projectDir -ProjectName $ProjectName -ImageCount $imageInfo.Count -NeedUpscale:$needUpscale -UpscaleRatio $Config.App.UpscaleRatio -BriefText $briefText -Level1ImageLevels $textLevel1Levels -Level2ImageLevels $textLevel2Levels -NonTextLevel1ImageLevels $nonTextLevel1Levels -NonTextLevel2ImageLevels $nonTextLevel2Levels
 
                     $preprocessingDir = Join-Path -Path $projectDir -ChildPath '02_Preprocessing'
                     $maxWorkers = $Config.App.MaxWorkers
@@ -158,46 +161,46 @@ function Start-IPAPWorkflow
                     # 高清化有文字图
                     if ($textLevel1Images.Count -gt 0)
                     {
-                        Write-InfoLog "有文字图 Level 1: 处理 $($textLevel1Images.Count) 张轻度模糊图片 (FFmpeg 锐化)"
+                        Write-LogEntry -Level Info -Message "有文字图 Level 1: 处理 $($textLevel1Images.Count) 张轻度模糊图片 (FFmpeg 锐化)"
                         $result1 = Invoke-ParallelUpscale -Images $textLevel1Images -OutputDir $preprocessingDir -Engine 'FFmpeg' -MaxWorkers $maxWorkers
-                        Write-InfoLog "有文字图 Level 1 完成: 成功=$($result1.SuccessCount), 失败=$($result1.FailedCount)"
+                        Write-LogEntry -Level Info -Message "有文字图 Level 1 完成: 成功=$($result1.SuccessCount), 失败=$($result1.FailedCount)"
                     }
 
                     if ($textLevel2Images.Count -gt 0)
                     {
                         if ($Config.Tools.RealCuganExePath)
                         {
-                            Write-InfoLog "有文字图 Level 2: 处理 $($textLevel2Images.Count) 张重度模糊图片 (Real-CUGAN)"
+                            Write-LogEntry -Level Info -Message "有文字图 Level 2: 处理 $($textLevel2Images.Count) 张重度模糊图片 (Real-CUGAN)"
                             $modelPath = $Config.App.ModelSelect
                             $result2 = Invoke-ParallelUpscale -Images $textLevel2Images -OutputDir $preprocessingDir -Engine 'RealCugan' -MaxWorkers $maxWorkers -ModelPath $modelPath
-                            Write-InfoLog "有文字图 Level 2 完成: 成功=$($result2.SuccessCount), 失败=$($result2.FailedCount)"
+                            Write-LogEntry -Level Info -Message "有文字图 Level 2 完成: 成功=$($result2.SuccessCount), 失败=$($result2.FailedCount)"
                         }
                         else
                         {
-                            Write-WarningLog "有文字图 Level 2: $($textLevel2Images.Count) 张图片需要 Real-CUGAN 处理，但未找到可执行文件"
+                            Write-LogEntry -Level Warning -Message "有文字图 Level 2: $($textLevel2Images.Count) 张图片需要 Real-CUGAN 处理，但未找到可执行文件"
                         }
                     }
 
                     # 高清化无文字图
                     if ($nonTextLevel1Images.Count -gt 0)
                     {
-                        Write-InfoLog "无文字图 Level 1: 处理 $($nonTextLevel1Images.Count) 张轻度模糊图片 (FFmpeg 锐化)"
+                        Write-LogEntry -Level Info -Message "无文字图 Level 1: 处理 $($nonTextLevel1Images.Count) 张轻度模糊图片 (FFmpeg 锐化)"
                         $result3 = Invoke-ParallelUpscale -Images $nonTextLevel1Images -OutputDir $nonTextRawDir -Engine 'FFmpeg' -MaxWorkers $maxWorkers
-                        Write-InfoLog "无文字图 Level 1 完成: 成功=$($result3.SuccessCount), 失败=$($result3.FailedCount)"
+                        Write-LogEntry -Level Info -Message "无文字图 Level 1 完成: 成功=$($result3.SuccessCount), 失败=$($result3.FailedCount)"
                     }
 
                     if ($nonTextLevel2Images.Count -gt 0)
                     {
                         if ($Config.Tools.RealCuganExePath)
                         {
-                            Write-InfoLog "无文字图 Level 2: 处理 $($nonTextLevel2Images.Count) 张重度模糊图片 (Real-CUGAN)"
+                            Write-LogEntry -Level Info -Message "无文字图 Level 2: 处理 $($nonTextLevel2Images.Count) 张重度模糊图片 (Real-CUGAN)"
                             $modelPath = $Config.App.ModelSelect
                             $result4 = Invoke-ParallelUpscale -Images $nonTextLevel2Images -OutputDir $nonTextRawDir -Engine 'RealCugan' -MaxWorkers $maxWorkers -ModelPath $modelPath
-                            Write-InfoLog "无文字图 Level 2 完成: 成功=$($result4.SuccessCount), 失败=$($result4.FailedCount)"
+                            Write-LogEntry -Level Info -Message "无文字图 Level 2 完成: 成功=$($result4.SuccessCount), 失败=$($result4.FailedCount)"
                         }
                         else
                         {
-                            Write-WarningLog "无文字图 Level 2: $($nonTextLevel2Images.Count) 张图片需要 Real-CUGAN 处理，但未找到可执行文件"
+                            Write-LogEntry -Level Warning -Message "无文字图 Level 2: $($nonTextLevel2Images.Count) 张图片需要 Real-CUGAN 处理，但未找到可执行文件"
                         }
                     }
 
@@ -206,7 +209,7 @@ function Start-IPAPWorkflow
                     $nonTextLevel0Images = @($nonTextLevel0Levels | ForEach-Object { $PSItem.Image })
                     if ($nonTextLevel0Images.Count -gt 0)
                     {
-                        Write-InfoLog "无文字图 Level 0: 复制 $($nonTextLevel0Images.Count) 张高清图片到 original_non_text_raw 目录"
+                        Write-LogEntry -Level Info -Message "无文字图 Level 0: 复制 $($nonTextLevel0Images.Count) 张高清图片到 original_non_text_raw 目录"
 
                         try
                         {
@@ -218,11 +221,13 @@ function Start-IPAPWorkflow
                             {
                                 Copy-Item -LiteralPath $image.FullName -Destination $nonTextRawDir -Force
                             }
-                            Write-InfoLog "已复制 $($nonTextLevel0Images.Count) 张 Level 0 无文字图到 original_non_text_raw 目录"
+                            Write-LogEntry -Level Info -Message "已复制 $($nonTextLevel0Images.Count) 张 Level 0 无文字图到 original_non_text_raw 目录"
                         }
                         catch
                         {
-                            Write-ErrorLog "复制 Level 0 无文字图失败: $($PSItem.Exception.Message)"
+                            # 记录上下文后抛出包装异常并保留 InnerException（禁止吞异常）
+                            Write-LogEntry -Level Error -Message "复制 Level 0 无文字图失败: $($PSItem.Exception.Message)"
+                            throw [System.IO.IOException]::new("复制 Level 0 无文字图失败: $($PSItem.Exception.Message)", $PSItem.Exception)
                         }
                     }
 
@@ -234,7 +239,7 @@ function Start-IPAPWorkflow
                     }
                     else
                     {
-                        Write-InfoLog '所有有文字图均为高清 (Level 0)，跳过预处理'
+                        Write-LogEntry -Level Info -Message '所有有文字图均为高清 (Level 0)，跳过预处理'
                     }
 
                     # 验证无文字图处理结果
@@ -246,18 +251,23 @@ function Start-IPAPWorkflow
                 }
                 else
                 {
-                    Write-ErrorLog '项目初始化失败'
+                    # 记录错误现场后显式抛出强类型异常，由外层 catch 捕获记录
+                    $ErrorMessage = '项目初始化失败'
+                    Write-LogEntry -Level Error -Message $ErrorMessage
+                    throw [System.InvalidOperationException]::new($ErrorMessage)
                 }
             }
         }
         else
         {
-            Write-WarningLog '源目录中没有图片，工作流终止'
+            Write-LogEntry -Level Warning -Message '源目录中没有图片，工作流终止'
         }
     }
     catch
     {
-        Write-ErrorLog "执行过程中发生错误: $($PSItem.Exception.Message)"
+        # 顶层统一记录错误后重抛，保证进程退出码非零（供 CI/调度器感知失败）
+        Write-LogEntry -Level Error -Message "执行过程中发生错误: $($PSItem.Exception.Message)"
+        throw $PSItem
     }
 }
 

@@ -31,7 +31,8 @@
         'Get-ProjectBriefInfo',
         'Start-IPAPWorkflow',
         'Select-NonTextImage',
-        'Test-UpscaleResult'
+        'Test-UpscaleResult',
+        'Write-LogEntry'
     )
     VariablesToExport = @()
     PrivateData       = @{

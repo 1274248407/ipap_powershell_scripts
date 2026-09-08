@@ -12,8 +12,7 @@
 # 记录加载耗时
 $moduleLoadStart = [System.Diagnostics.Stopwatch]::StartNew()
 
-# 全局配置实例（跨函数共享的模块级状态）
-[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidGlobalVars', '')]
+# 全局配置实例（跨函数共享的模块级状态，已通过分析设置排除 PSAvoidGlobalVars）
 $Global:IPAPConfigInstance = $null
 
 # 加载顺序：类 -> 私有函数 -> 公开函数（依赖顺序，不可调换）
@@ -63,5 +62,6 @@ Export-ModuleMember -Function @(
     'Get-ProjectBriefInfo',
     'Start-IPAPWorkflow',
     'Select-NonTextImage',
-    'Test-UpscaleResult'
+    'Test-UpscaleResult',
+    'Write-LogEntry'
 )

@@ -1,10 +1,11 @@
-﻿<#
+﻿﻿<#
 .SYNOPSIS
     轻量日志函数，模仿 Python loguru 输出格式
 .DESCRIPTION
     提供统一的日志输出接口，支持 INFO / SUCCESS / WARNING / ERROR 四个级别。
     输出格式为：时间戳 | 级别 | 调用者信息 - 消息，不同级别使用不同终端颜色。
     ERROR 级别输出日志后会抛出终止错误，保持与 $ErrorActionPreference = 'Stop' 的兼容性。
+    本函数已通过 Export-ModuleMember 导出，供模块外部（如 Main.ps1 入口脚本）记录启动事件。
     @see 移植自 FinalizeAndArchiveProject 项目 source/Private/Write-LogEntry.ps1
 .PARAMETER Level
     (ValidateSet) 日志级别，可选值为 Info、Success、Warning、Error

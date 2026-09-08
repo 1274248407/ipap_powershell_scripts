@@ -1,4 +1,4 @@
----
+﻿﻿﻿﻿---
 description: "PowerShell 7 专项开发规则 - 适用于项目中的所有 .ps1/.psm1 文件"
 ---
 
@@ -9,6 +9,12 @@ description: "PowerShell 7 专项开发规则 - 适用于项目中的所有 .ps1
 - **强类型契约**：禁止使用弱类型定义。必须为所有变量、函数参数（param 块）及返回值显式标注类型。
   - 示例：`[string]$UserName = "Lucas"`, `[int]$RetryCount = 3`
 - **标准架构**：所有函数必须包含 `[CmdletBinding()]` 和 `[OutputType()]` 属性，并统一使用 `param()` 块定义参数。
+  - **元素类型语义**：`[OutputType()]` 声明单个输出对象的类型，不声明集合类型。示例：输出多个文件的函数声明 `[OutputType([System.IO.FileInfo])]` 而非 `[OutputType([System.IO.FileInfo[]])]`（与 PowerShell 官方惯例及 `PSUseOutputTypeCorrectly` 检查逻辑一致）。
+  - **无输出函数**：显式声明 `[OutputType([void])]`。
+  - **类方法豁免**：PowerShell 类方法不支持 `[OutputType()]` 属性，返回契约由方法签名的静态返回类型承担（如 `[string] GetProjectName()`）。
+  - **自定义类返回值**：函数返回模块内自定义类的实例时，必须使用**字符串形式**声明 `[OutputType('ClassName')]`。类型字面量形式（`[OutputType([ClassName])]`）的实参在调用者上下文解析，模块类在全局会话状态不可见，将导致运行时 `Unable to find type` 终止错误。内置类型（string、hashtable、bool 等）仍使用类型字面量形式。
+  - **一致性要求**：`[OutputType()]` 声明、Help 块 `.OUTPUTS` 与函数实际 return 行为三者必须一致。
+  - **自动检查**：`build.ps1` 的 Analyze task 含 AST 契约检查（`Invoke-OutputTypeAudit`），缺失声明将阻断构建。
 
 ## 2. PowerShell 7 新语法强制
 
@@ -39,6 +45,10 @@ description: "PowerShell 7 专项开发规则 - 适用于项目中的所有 .ps1
   - 凡涉及 **IO 操作**（文件读取、写入、移动等）的逻辑，必须包裹在 `try-catch` 结构中。
   - 凡涉及 **网络请求**（如 `Invoke-RestMethod`, `Invoke-WebRequest`）的逻辑，必须包裹在 `try-catch` 结构中。
   - `catch` 块应包含明确的异常处理逻辑（如 `throw $PSItem`）。
+- **日志与控制流分离（Write-LogEntry 契约）**：
+  - `Write-LogEntry` 是**纯日志函数**：任何级别（含 Error）都只记录，**不抛出异常、不中断执行**。
+  - 需要"记录并中断"时：先 `Write-LogEntry -Level Error` 记录现场，随后**显式 throw 带明确类型的异常**（如 `[System.ArgumentException]`、`[System.IO.DirectoryNotFoundException]`、`[System.InvalidOperationException]`）。
+  - `catch` 块记录上下文后必须重抛（`throw $PSItem` 或包装异常 `throw [System.IO.IOException]::new($消息, $PSItem.Exception)`），**禁止吞异常**；顶层保证进程退出码非零。
 
 ## 5. 强制 Help-Based Help 模板
 
@@ -174,7 +184,7 @@ class ClassName
     }
     ```
 
-## 7. 测试框架规范（Pester v5 - 仅单元测试）
+## 7. 测试框架规范（Pester v5 - 单元测试与集成测试）
 
 ### 7.0 版本要求
 
@@ -185,10 +195,12 @@ class ClassName
 ### 7.1 文件命名规范
 
 - **测试文件命名**：测试文件必须以 `.Tests.ps1` 结尾。
-- **文件路径结构**：测试文件应放置在项目根目录下的 `tests/Unit` 目录中：
-  - 单元测试：`tests/Unit/*.Unit.Tests.ps1`
-- **命名模式**：`{ModuleName}_{FunctionName}.Unit.Tests.ps1`
-  - 示例：`IPAP.ProjectManager_New-ReadmeFile.Unit.Tests.ps1`
+- **文件路径结构**：测试文件应放置在项目根目录下的 `tests` 目录中：
+  - 单元测试：`tests/Unit/Public/*.Unit.Tests.ps1`
+  - 集成测试：`tests/Integration/*.Integration.Tests.ps1`
+- **命名模式**：`{ModuleName}_{FunctionName}.{Scope}.Tests.ps1`
+  - 单元测试示例：`IPAP_Get-ImageInfo.Unit.Tests.ps1`
+  - 集成测试示例：`IPAP_Rename-FilesBySize.Integration.Tests.ps1`
 
 ### 7.2 测试结构规范
 
@@ -204,7 +216,14 @@ class ClassName
 - **隔离要求**：完全隔离外部依赖，使用 Mock 替代。
 - **目的**：验证函数的逻辑正确性，确保每个单元按预期工作。
 
-### 7.4 Mock 规范
+### 7.4 集成测试规范
+
+- **测试范围**：验证多个函数协作及真实文件系统行为（如目录创建、文件重命名）。
+- **隔离要求**：使用 Pester 的 `TestDrive` 动态生成测试文件，禁止依赖仓库内静态夹具，测试结束自动清理。
+- **日志屏蔽**：使用 Mock 屏蔽模块日志输出（如 `Write-InfoLog`），避免污染测试输出。
+- **数量控制**：仅覆盖核心工作流的正向路径与关键失败路径，不为每个函数编写集成测试。
+
+### 7.5 Mock 规范
 
 - **优先使用 TestDrive**：对于文件操作测试，优先使用 Pester 的 `TestDrive` 功能进行真实文件操作，而非 Mock。
 - **只 Mock 外部依赖**：仅 Mock 模块外部的依赖（如系统命令、外部服务调用），不 Mock 模块内部函数。
@@ -212,7 +231,7 @@ class ClassName
 - **避免过度 Mock**：不要为了测试而过度 Mock，保持测试的真实性和可靠性。
 - **使用 -ModuleName 参数**：当需要 Mock 模块内调用的命令时，必须使用 `-ModuleName` 参数指定目标模块。
 
-### 7.5 断言规范
+### 7.6 断言规范
 
 - **使用精确断言**：断言应尽可能精确，避免模糊匹配导致的误报。
 - **避免简单字符串匹配**：对于内容验证，应使用完整行格式匹配，而非单独的关键字或数字。
@@ -220,7 +239,7 @@ class ClassName
   - 好：`$content | Should -Match '- 原始文件是否需要高清化: \[X\]'`
 - **使用适当的断言方法**：根据测试场景选择合适的断言方法（如 `-Be`, `-Match`, `-Exist` 等）。
 
-### 7.6 测试隔离规范
+### 7.7 测试隔离规范
 
 - **使用 TestDrive**：文件操作测试必须使用 `TestDrive` 进行隔离，避免影响真实文件系统。
 - **清理测试数据**：在 `AfterEach` 或 `AfterAll` 中清理测试产生的数据和状态。

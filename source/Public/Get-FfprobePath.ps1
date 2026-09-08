@@ -18,6 +18,7 @@
 function Get-FfprobePath
 {
     [CmdletBinding()]
+    [OutputType([string])]
     param()
 
     # 从配置获取 FFprobe 路径
@@ -27,6 +28,9 @@ function Get-FfprobePath
         return $FfprobePath
     }
 
-    Write-ErrorLog '未找到 FFprobe'
+    # 记录错误现场后显式抛出强类型异常，中断本函数（Write-LogEntry 为纯日志函数）
+    $ErrorMessage = '未找到 FFprobe'
+    Write-LogEntry -Level Error -Message $ErrorMessage
+    throw [System.IO.FileNotFoundException]::new($ErrorMessage)
 }
 

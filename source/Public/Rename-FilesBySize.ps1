@@ -1,4 +1,4 @@
-﻿<#
+﻿﻿<#
 .SYNOPSIS
     按文件大小排序并重命名目录中的文件
 .DESCRIPTION
@@ -37,17 +37,18 @@ function Rename-FilesBySize
     # 检查目录是否存在
     if (-not (Test-Path -LiteralPath $Directory))
     {
-        Write-ErrorLog "目录不存在: $Directory"
+        # 记录错误现场后显式抛出强类型异常，中断本函数（Write-LogEntry 为纯日志函数）
+        $ErrorMessage = "目录不存在: $Directory"
+        Write-LogEntry -Level Error -Message $ErrorMessage
+        throw [System.ArgumentException]::new($ErrorMessage)
     }
 
     # 获取目录中所有图片文件
-    $files = Get-ChildItem -LiteralPath $Directory -File | Where-Object {
-        Test-SupportedImageFormat -File $PSItem
-    }
+    $files = @(Get-ImageFile -Path $Directory)
 
     if ($files.Count -eq 0)
     {
-        Write-InfoLog "目录中没有图片文件: $Directory"
+        Write-LogEntry -Level Info -Message "目录中没有图片文件: $Directory"
         return 0
     }
 
@@ -83,11 +84,11 @@ function Rename-FilesBySize
         catch
         {
             # 单个文件重命名失败不中断批次，降级为警告日志继续处理后续文件
-            Write-WarningLog "重命名文件失败: $($file.Name) -> $newName. 错误: $($PSItem.Exception.Message)"
+            Write-LogEntry -Level Warning -Message "重命名文件失败: $($file.Name) -> $newName. 错误: $($PSItem.Exception.Message)"
         }
     }
 
-    Write-InfoLog "已完成文件重命名: 成功 $renamedCount 个文件，从 $StartIndex 开始编号"
+    Write-LogEntry -Level Info -Message "已完成文件重命名: 成功 $renamedCount 个文件，从 $StartIndex 开始编号"
 
     return $renamedCount
 }

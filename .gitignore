@@ -1,4 +1,4 @@
-# IPAP Workflow PowerShell 模块 - .gitignore 文件
+﻿﻿﻿﻿# IPAP Workflow PowerShell 模块 - .gitignore 文件
 # 基于 PowerShell 7 项目规范生成
 
 ################################################################################
@@ -96,15 +96,10 @@ System Volume Information/
 # 处理建议：建议在 README 中说明如何下载和安装此工具，而不是将其提交到版本库
 realcugan-ncnn-vulkan-20220728-windows/
 
-# PoShLog 第三方模块
-# 原因：PoShLog 是通过 PowerShell Gallery 安装的第三方日志模块
-# 处理建议：建议在 README 中说明如何安装此模块，而不是将其提交到版本库
-Modules/PoShLog/
-
-# PSToml 第三方模块
-# 原因：PSToml 是通过 PowerShell Gallery 安装的第三方 TOML 解析模块
-# 处理建议：建议在 README 中说明如何安装此模块，而不是将其提交到版本库
-Modules/PSToml/
+# 构建输出目录
+# 原因：build.ps1 的构建产物（output/IPAP/、coverage.xml、ReleaseStaging、RequiredModules）
+# 处理建议：构建产物随时可重新生成，不应提交到版本库
+output/
 
 
 ################################################################################

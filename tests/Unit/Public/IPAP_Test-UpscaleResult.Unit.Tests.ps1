@@ -5,7 +5,7 @@
     IPAP 模块 - Test-UpscaleResult 单元测试
 .DESCRIPTION
     测试 Test-UpscaleResult 函数的结果验证逻辑，包括边界条件和错误处理。
-    注意：源码新增 Test-Path 守卫，且 Write-ErrorLog 具有真实 throw 语义，
+    注意：源码新增 Test-Path 守卫，且 Write-LogEntry -Level Error -Message 具有真实 throw 语义，
     因此"输出目录不存在"和"完全失败"场景会抛出终止错误。
 #>
 
@@ -40,10 +40,10 @@ Describe 'Test-UpscaleResult Unit Tests' -Tag 'Test-UpscaleResult', 'IPAP' {
             App   = $MockAppConfig
         }
 
-        # 使用全局 Mock（Write-ErrorLog 模拟真实 throw 语义）
-        Mock -ModuleName IPAP Write-InfoLog {}
-        Mock -ModuleName IPAP Write-WarningLog {}
-        Mock -ModuleName IPAP Write-ErrorLog { param($Message) throw $Message }
+        # 使用全局 Mock（Write-LogEntry 为纯日志函数，全级别静默记录）
+        Mock Write-LogEntry -ModuleName IPAP { }
+
+
         Mock -ModuleName IPAP Test-Path { return $true }
         Mock -ModuleName IPAP Get-ChildItem { return @() }
     }

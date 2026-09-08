@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     重置配置实例
 .DESCRIPTION
@@ -13,6 +13,7 @@
 function Reset-Configuration
 {
     [CmdletBinding(SupportsShouldProcess = $true)]
+    [OutputType([void])]
     param()
 
     if ($PSCmdlet.ShouldProcess('全局配置实例', '重置'))

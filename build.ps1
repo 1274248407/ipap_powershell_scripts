@@ -203,15 +203,80 @@ function Invoke-AnalyzeTask
         $results += Invoke-ScriptAnalyzer -Path $File.FullName -Settings (Join-Path -Path $script:ModulePath -ChildPath 'PSScriptAnalyzerSettings.psd1')
     }
 
-    # 发现问题则报错退出
-    if ($results)
+    # Error/Warning 级阻断；Information 级仅展示不阻断（参考性规则如 PSUseOutputTypeCorrectly 存在静态误报）
+    $blocking = $results | Where-Object { $PSItem.Severity -in @('Error', 'Warning') }
+    if ($blocking)
     {
         Write-Output "`n静态分析发现问题："
         $results | Format-Table -Property RuleName, Severity, @{n = 'Path'; e = { $PSItem.ScriptPath.Split('\')[-1] } }, Line, Message -AutoSize
         Write-Error '静态分析未通过'
         exit 1
     }
+    # Information 级问题展示但不阻断
+    if ($results)
+    {
+        Write-Output "`n静态分析提示（Information 级，不阻断）："
+        $results | Format-Table -Property RuleName, @{n = 'Path'; e = { $PSItem.ScriptPath.Split('\')[-1] } }, Line, Message -AutoSize | Out-String -Stream | Select-Object -First 15
+    }
     Write-Output '静态分析通过'
+
+    # 函数必须声明 [OutputType()] 的项目契约防线（规则文件第 1 章标准架构）
+    Invoke-OutputTypeAudit
+}
+
+<#
+.SYNOPSIS
+    检查所有函数是否声明 OutputType 属性
+.DESCRIPTION
+    基于 AST 解析 source/Public 与 source/Private 下的全部 .ps1 文件，
+    验证每个函数的 param 块均包含 [OutputType()] 声明。
+    类方法不适用 OutputType 属性（返回契约由方法签名的静态类型承担），予以豁免。
+    发现缺失时列明位置并终止构建。
+.OUTPUTS
+    [void]
+.NOTES
+    Author:  lucas_gold
+    Website: https://github.com/1274248407
+#>
+function Invoke-OutputTypeAudit
+{
+    [CmdletBinding()]
+    [OutputType([void])]
+    param ()
+
+    # 收集待检查文件（Public + Private，一函数一文件）
+    $auditFiles = Get-ChildItem -Path (Join-Path -Path $script:SourcePath -ChildPath 'Public'), (Join-Path -Path $script:SourcePath -ChildPath 'Private') -Filter '*.ps1'
+
+    # 收集缺失 OutputType 声明的条目
+    $missing = @()
+    foreach ($File in $auditFiles)
+    {
+        $tokens = $null
+        $parseErrors = $null
+        # 解析文件 AST 并查找全部函数定义
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($File.FullName, [ref]$tokens, [ref]$parseErrors)
+        $functions = $ast.FindAll({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)
+
+        foreach ($Function in $functions)
+        {
+            # 提取 param 块 attribute 类型名，检查是否声明 OutputType
+            $attrNames = @($Function.Body.ParamBlock.Attributes | ForEach-Object { $PSItem.TypeName.Name })
+            if (-not ($attrNames -contains 'OutputType'))
+            {
+                $missing += '{0} 行 {1}：函数 {2} 缺少 [OutputType()] 声明' -f $File.Name, $Function.Extent.StartLineNumber, $Function.Name
+            }
+        }
+    }
+
+    # 发现缺失则报错退出
+    if ($missing.Count -gt 0)
+    {
+        Write-Output "`n以下函数缺少 [OutputType()] 声明："
+        $missing | ForEach-Object { Write-Output $PSItem }
+        Write-Error 'OutputType 契约检查未通过'
+        exit 1
+    }
+    Write-Output 'OutputType 契约检查通过'
 }
 
 <#

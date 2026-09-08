@@ -22,10 +22,10 @@ Describe 'New-ReadmeFile Unit Tests' -Tag 'New-ReadmeFile', 'IPAP' {
         # 创建测试目录
         [string]$Script:TestProjectDir = New-Item -ItemType Directory -Path 'TestDrive:\test_project' | Select-Object -ExpandProperty FullName
 
-        # Mock 模块内的日志函数（Write-ErrorLog 模拟真实 throw 语义）
-        Mock -ModuleName IPAP Write-InfoLog {}
-        Mock -ModuleName IPAP Write-WarningLog {}
-        Mock -ModuleName IPAP Write-ErrorLog { param($Message) throw $Message }
+        # Mock 模块内的日志函数（Write-LogEntry 为纯日志函数，全级别静默记录）
+        Mock Write-LogEntry -ModuleName IPAP { }
+
+
     }
 
     AfterEach {
@@ -38,14 +38,14 @@ Describe 'New-ReadmeFile Unit Tests' -Tag 'New-ReadmeFile', 'IPAP' {
 
     Context '正常执行路径 - Normal Execution' {
         It '应生成 README 文件' {
-            New-ReadmeFile -ProjectDir $Script:TestProjectDir -ProjectName 'TestProject' -ImageCount 50 -NeedUpscale $true -UpscaleRatio 2
+            New-ReadmeFile -ProjectDir $Script:TestProjectDir -ProjectName 'TestProject' -ImageCount 50 -NeedUpscale -UpscaleRatio 2
 
             $readmePath = Join-Path $Script:TestProjectDir 'README.md'
             Test-Path $readmePath | Should -Be $true
         }
 
         It 'NeedUpscale 为 $true 时应有正确标记' {
-            New-ReadmeFile -ProjectDir $Script:TestProjectDir -ProjectName 'TestProject' -ImageCount 50 -NeedUpscale $true -UpscaleRatio 2
+            New-ReadmeFile -ProjectDir $Script:TestProjectDir -ProjectName 'TestProject' -ImageCount 50 -NeedUpscale -UpscaleRatio 2
 
             $readmePath = Join-Path $Script:TestProjectDir 'README.md'
             $content = Get-Content $readmePath -Raw
@@ -54,7 +54,7 @@ Describe 'New-ReadmeFile Unit Tests' -Tag 'New-ReadmeFile', 'IPAP' {
         }
 
         It 'NeedUpscale 为 $false 时应有正确标记' {
-            New-ReadmeFile -ProjectDir $Script:TestProjectDir -ProjectName 'TestProject' -ImageCount 50 -NeedUpscale $false -UpscaleRatio 2
+            New-ReadmeFile -ProjectDir $Script:TestProjectDir -ProjectName 'TestProject' -ImageCount 50 -UpscaleRatio 2
 
             $readmePath = Join-Path $Script:TestProjectDir 'README.md'
             $content = Get-Content $readmePath -Raw
@@ -64,7 +64,7 @@ Describe 'New-ReadmeFile Unit Tests' -Tag 'New-ReadmeFile', 'IPAP' {
 
         It '应使用 -LiteralPath 参数写入文件' {
             # 直接测试文件是否被正确创建，而不是 Mock Out-File
-            New-ReadmeFile -ProjectDir $Script:TestProjectDir -ProjectName 'TestProject' -ImageCount 50 -NeedUpscale $false
+            New-ReadmeFile -ProjectDir $Script:TestProjectDir -ProjectName 'TestProject' -ImageCount 50
 
             $readmePath = Join-Path $Script:TestProjectDir 'README.md'
             Test-Path $readmePath | Should -Be $true
@@ -77,7 +77,7 @@ Describe 'New-ReadmeFile Unit Tests' -Tag 'New-ReadmeFile', 'IPAP' {
 
     Context 'UpscaleRatio 测试' {
         It '默认 UpscaleRatio 应为 2' {
-            New-ReadmeFile -ProjectDir $Script:TestProjectDir -ProjectName 'TestProject' -ImageCount 50 -NeedUpscale $true
+            New-ReadmeFile -ProjectDir $Script:TestProjectDir -ProjectName 'TestProject' -ImageCount 50 -NeedUpscale
 
             $readmePath = Join-Path $Script:TestProjectDir 'README.md'
             $content = Get-Content $readmePath -Raw
@@ -86,7 +86,7 @@ Describe 'New-ReadmeFile Unit Tests' -Tag 'New-ReadmeFile', 'IPAP' {
         }
 
         It '自定义 UpscaleRatio 应被接受' {
-            New-ReadmeFile -ProjectDir $Script:TestProjectDir -ProjectName 'TestProject' -ImageCount 50 -NeedUpscale $true -UpscaleRatio 4
+            New-ReadmeFile -ProjectDir $Script:TestProjectDir -ProjectName 'TestProject' -ImageCount 50 -NeedUpscale -UpscaleRatio 4
 
             $readmePath = Join-Path $Script:TestProjectDir 'README.md'
             $content = Get-Content $readmePath -Raw
@@ -127,10 +127,10 @@ Describe 'New-ReadmeFile Unit Tests' -Tag 'New-ReadmeFile', 'IPAP' {
             $nonExistentPath = 'TestDrive:\non_existent_folder'
 
             # 注意：try 块内的错误会被外层 catch 包裹为"创建/覆盖 README.md 文件失败: <原始消息>"
-            { New-ReadmeFile -ProjectDir $nonExistentPath -ProjectName 'TestProject' -ImageCount 50 -NeedUpscale $false } | Should -Throw '创建/覆盖 README.md 文件失败: 项目目录不存在*'
+            { New-ReadmeFile -ProjectDir $nonExistentPath -ProjectName 'TestProject' -ImageCount 50 } | Should -Throw '创建/覆盖 README.md 文件失败: 项目目录不存在*'
 
             # 内层记录 1 次 + 外层 catch 记录 1 次
-            Should -Invoke -ModuleName IPAP Write-ErrorLog -Times 2
+            Should -Invoke -ModuleName IPAP Write-LogEntry -ParameterFilter { $Level -eq 'Error' } -Times 2
 
             # 验证文件没有被创建
             $readmePath = Join-Path $nonExistentPath 'README.md'
@@ -140,14 +140,14 @@ Describe 'New-ReadmeFile Unit Tests' -Tag 'New-ReadmeFile', 'IPAP' {
         It '写入文件失败时应抛出终止错误' {
             Mock -ModuleName IPAP Out-File { throw 'Disk full' }
 
-            { New-ReadmeFile -ProjectDir $Script:TestProjectDir -ProjectName 'TestProject' -ImageCount 50 -NeedUpscale $false } | Should -Throw '创建/覆盖 README.md 文件失败*'
+            { New-ReadmeFile -ProjectDir $Script:TestProjectDir -ProjectName 'TestProject' -ImageCount 50 } | Should -Throw '创建/覆盖 README.md 文件失败*'
         }
 
         It '创建后验证失败时应抛出终止错误' {
             # 目录存在检查通过，但 README.md 文件验证失败
             Mock -ModuleName IPAP Test-Path { param($LiteralPath) return ($LiteralPath -eq $Script:TestProjectDir) }
 
-            { New-ReadmeFile -ProjectDir $Script:TestProjectDir -ProjectName 'TestProject' -ImageCount 50 -NeedUpscale $false } | Should -Throw '创建/覆盖 README.md 文件失败: 无法验证 README.md 文件创建*'
+            { New-ReadmeFile -ProjectDir $Script:TestProjectDir -ProjectName 'TestProject' -ImageCount 50 } | Should -Throw '创建/覆盖 README.md 文件失败: 无法验证 README.md 文件创建*'
         }
     }
 }

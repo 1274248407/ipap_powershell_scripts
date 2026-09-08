@@ -609,7 +609,7 @@ class IPAPConfiguration
 
         if (-not (Test-Path -LiteralPath $configPath))
         {
-            Write-Verbose "配置文件不存在: $configPath，使用默认配置"
+            Write-LogEntry -Level Info -Message "配置文件不存在: $configPath，使用默认配置"
             return $defaultSettings
         }
 
@@ -647,7 +647,7 @@ class IPAPConfiguration
                 # 如果解析失败且错误与字符串转义有关，尝试自动修复 Windows 路径转义
                 if (-not $parsedSettings -and $parseError -and $parseError.Exception.Message -match 'Unexpected escape character')
                 {
-                    Write-Warning 'TOML 解析失败，检测到可能是 Windows 路径反斜杠转义问题，正在尝试自动修复...'
+                    Write-LogEntry -Level Warning -Message 'TOML 解析失败，检测到可能是 Windows 路径反斜杠转义问题，正在尝试自动修复...'
                     try
                     {
                         # 将双引号字符串中的单个反斜杠替换为双反斜杠（排除已正确转义的 \\\\、\\"、\\n 等）
@@ -676,7 +676,7 @@ class IPAPConfiguration
                             $fixedContent = $fixedContent.Replace($escapeMap[$escape], $escape)
                         }
                         $parsedSettings = ConvertFrom-Toml -InputObject $fixedContent -ErrorAction Stop
-                        Write-Warning "自动修复成功。建议将 config.toml 中的 Windows 路径改为单引号字面量字符串，例如 source_dir = 'C:\\path\\to\\dir'"
+                        Write-LogEntry -Level Warning -Message "自动修复成功。建议将 config.toml 中的 Windows 路径改为单引号字面量字符串，例如 source_dir = 'C:\\path\\to\\dir'"
                     }
                     catch
                     {
@@ -706,7 +706,7 @@ class IPAPConfiguration
             }
             else
             {
-                Write-Verbose 'PSToml 模块未找到，使用默认配置'
+                Write-LogEntry -Level Info -Message 'PSToml 模块未找到，使用默认配置'
                 return $defaultSettings
             }
         }

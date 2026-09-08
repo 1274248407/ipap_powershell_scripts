@@ -13,7 +13,7 @@
 .INPUTS
     array
 .OUTPUTS
-    PSCustomObject[] (每个对象包含 Image, Level, LongEdge, YDIF 属性)
+    PSCustomObject (每个对象包含 Image, Level, LongEdge, YDIF 属性，逐个输出)
 .NOTES
     Author:  lucas_gold
     Website: https://github.com/1274248407
@@ -22,7 +22,7 @@
 function Get-ImageLevel
 {
     [CmdletBinding()]
-    [OutputType([PSCustomObject[]])]
+    [OutputType([PSCustomObject])]
     param (
         [Parameter(Mandatory = $true)]
         [array]$Images
@@ -32,7 +32,7 @@ function Get-ImageLevel
     $FfprobePath = Get-FfprobePath
     $FfmpegPath = Get-FfmpegPath
 
-    Write-InfoLog "开始分析 $($Images.Count) 张图片的质量分级..."
+    Write-LogEntry -Level Info -Message "开始分析 $($Images.Count) 张图片的质量分级..."
 
 
 
@@ -76,21 +76,11 @@ function Get-ImageLevel
                 $tempDir = Join-Path $env:TEMP ([System.Guid]::NewGuid().ToString())
                 New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
                 $tempOutput = Join-Path $tempDir 'output.png'
-                # 1. 基础输入输出参数
-                # -i $image.FullName: 指定输入文件。-i 代表 input，即传入要处理的原始图片路径。
-                # -frames:v 1: 只输出 1 帧画面。因为处理的是静态图片，所以只需提取 1 帧，防止 FFmpeg 卡住。
-                # -y: 默认覆盖。如果输出路径已有同名文件，直接覆盖不弹确认提示，保证自动化脚本不会卡死。
-                # $tempOutput: 输出文件路径。即代码中生成的临时 PNG 文件路径。
-                # 2. 核心滤镜链参数 (-vf)
-                # -vf 后面的长字符串是视频滤镜链，多个滤镜用逗号 , 分隔，按从左到右的顺序流水线执行：
-                # format=gray:
-                # 转为灰度图。这是第一步，去除颜色干扰，只保留亮度信息，为后续提取细节做准备。
-                # dxpostsrc=h=8:v=0:sh=1:x=0:y=0 和 dxpostdst=h=8:v=0:sh=1:x=1:y=0:
-                # 自定义滤镜。FFmpeg 官方默认不含这两个，通常是开发者自行编译加入的（极大概率与杜比视界 Dolby Vision 的元数据或色彩空间转换相关）。对于新手，只需知道它们在调整图像的底层色彩/亮度参数。
-                # dynedgel=28:
-                # 自定义边缘增强滤镜。dyn 代表 Dynamic（动态），edgel 代表 Edge Level（边缘层级）。=28 是强度值。它的作用是动态提取并强化图像的边缘轮廓，让画面中的高频细节（线条、纹理）更加明显。
-                # bmstools=p=3:
-                # 自定义工具滤镜。bms 可能是特定压制工具链的缩写，p=3 是预设参数。这是流水线的最后一步，对图像做最终的格式化处理。
+                # 滤镜链说明（format=gray 为标准滤镜，其余四个为非标准自定义滤镜，需配合特定 FFmpeg 编译版本）
+                # format=gray: 转为灰度图，去除颜色干扰，只保留亮度信息，为后续提取细节做准备。
+                # dxpostsrc/dxpostdst: 非标准滤镜，FFmpeg 官方文档无记录。调整图像底层色彩/亮度参数，具体行为取决于所使用的 FFmpeg 编译版本。
+                # dynedgel=28: 非标准边缘增强滤镜，FFmpeg 官方有 edgedetect 但无 dynedgel。动态提取并强化图像边缘轮廓，=28 为强度值。
+                # bmstools=p=3: 非标准工具滤镜，FFmpeg 官方有 bm3d（去噪）但无 bmstools。对图像做最终格式化处理，p=3 为预设参数。
                 $ffmpegArgs = @('-i', $image.FullName, '-vf', 'format=gray,dxpostsrc=h=8:v=0:sh=1:x=0:y=0,dxpostdst=h=8:v=0:sh=1:x=1:y=0,dynedgel=28,bmstools=p=3', '-frames:v', '1', '-y', $tempOutput)
                 $null = & $ffmpegPath @ffmpegArgs 2>&1
                 # 滤镜把图片变成黑白，并极力强化了边缘和细节。
@@ -148,14 +138,14 @@ function Get-ImageLevel
     # 按原始索引排序恢复顺序
     $results = $results | Sort-Object -Property Index
 
-    Write-InfoLog "图片分级分析完成: $($results.Count) 张"
+    Write-LogEntry -Level Info -Message "图片分级分析完成: $($results.Count) 张"
 
 
 
     $level0Count = @($results | Where-Object { $PSItem.Level -eq 0 }).Count
     $level1Count = @($results | Where-Object { $PSItem.Level -eq 1 }).Count
     $level2Count = @($results | Where-Object { $PSItem.Level -eq 2 }).Count
-    Write-InfoLog "分级结果 - Level 0 (高清跳过): $level0Count, Level 1 (FFmpeg): $level1Count, Level 2 (Real-CUGAN): $level2Count"
+    Write-LogEntry -Level Info -Message "分级结果 - Level 0 (高清跳过): $level0Count, Level 1 (FFmpeg): $level1Count, Level 2 (Real-CUGAN): $level2Count"
 
     return $results
 }

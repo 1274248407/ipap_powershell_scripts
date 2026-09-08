@@ -53,7 +53,7 @@ function Test-SupportedImageFormat
         # 检查输入对象是否包含 Extension 属性
         if (-not $File.PSObject.Properties['Extension'])
         {
-            Write-WarningLog '输入对象缺少 Extension 属性'
+            Write-LogEntry -Level Warning -Message '输入对象缺少 Extension 属性'
             return $false
         }
 

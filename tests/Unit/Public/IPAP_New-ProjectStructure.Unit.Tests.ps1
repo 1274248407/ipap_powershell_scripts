@@ -15,10 +15,10 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP' {
         $ProjectRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
         Import-Module (Join-Path $ProjectRoot 'source\IPAP.psd1') -Force -Global
 
-        # 使用全局 Mock（Write-ErrorLog 模拟真实 throw 语义）
-        Mock -ModuleName IPAP Write-InfoLog {}
-        Mock -ModuleName IPAP Write-WarningLog {}
-        Mock -ModuleName IPAP Write-ErrorLog { param($Message) throw $Message }
+        # 使用全局 Mock（Write-LogEntry 为纯日志函数，全级别静默记录）
+        Mock Write-LogEntry -ModuleName IPAP { }
+
+
         Mock -ModuleName IPAP Test-Path { return $false }
         Mock -ModuleName IPAP New-Item {}
     }
@@ -91,7 +91,7 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP' {
 
             { New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'TestProject' } | Should -Throw '创建项目目录失败*'
 
-            Should -Invoke -ModuleName IPAP Write-ErrorLog -Times 1
+            Should -Invoke -ModuleName IPAP Write-LogEntry -ParameterFilter { $Level -eq 'Error' } -Times 1
         }
     }
 

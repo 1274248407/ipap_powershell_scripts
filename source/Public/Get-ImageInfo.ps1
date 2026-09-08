@@ -3,7 +3,7 @@
     分析图片目录并计算平均文件大小
 .DESCRIPTION
     遍历指定目录中的图片文件，计算总大小和平均大小，并按自然顺序排序。
-    若目录不存在则记录错误日志并返回空结果。
+    若目录不存在则记录错误日志并抛出终止错误（由上层调用者捕获处理）。
 .PARAMETER SourceDir
     (string, Mandatory) 源图片目录路径。
     （适用于所有参数集）
@@ -28,11 +28,14 @@ function Get-ImageInfo
         [string]$SourceDir
     )
 
-    Write-InfoLog "正在分析图片目录: $SourceDir"
+    Write-LogEntry -Level Info -Message "正在分析图片目录: $SourceDir"
 
     if (-not (Test-Path -LiteralPath $SourceDir))
     {
-        Write-ErrorLog "源目录不存在: $SourceDir"
+        # 记录错误现场后显式抛出强类型异常，中断本函数（Write-LogEntry 为纯日志函数）
+        $ErrorMessage = "源目录不存在: $SourceDir"
+        Write-LogEntry -Level Error -Message $ErrorMessage
+        throw [System.ArgumentException]::new($ErrorMessage)
     }
 
     $images = @()
@@ -56,7 +59,7 @@ function Get-ImageInfo
         $averageSize = $totalSize / 1024 / $count
     }
 
-    Write-InfoLog "发现 $count 张图片，总大小: $([math]::Round($totalSize / 1024 / 1024, 2)) MB，平均大小: $([math]::Round($averageSize, 2)) KB"
+    Write-LogEntry -Level Info -Message "发现 $count 张图片，总大小: $([math]::Round($totalSize / 1024 / 1024, 2)) MB，平均大小: $([math]::Round($averageSize, 2)) KB"
 
     return @{
         Images      = $images

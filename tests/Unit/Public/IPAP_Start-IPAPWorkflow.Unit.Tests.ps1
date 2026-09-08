@@ -5,7 +5,7 @@
     IPAP 模块 - Start-IPAPWorkflow 单元测试
 .DESCRIPTION
     测试 Start-IPAPWorkflow 函数的工作流执行逻辑，包含全面的防御性测试用例。
-    注意：所有依赖函数均在 IPAP 模块内部替换为 Mock；Write-ErrorLog 模拟真实 throw 语义，
+    注意：所有依赖函数均在 IPAP 模块内部替换为 Mock；Write-LogEntry -Level Error 模拟真实 throw 语义，
     因此外层 catch 记录错误后会以"执行过程中发生错误: ..."抛出终止错误。
 #>
 
@@ -47,10 +47,10 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
         # 重置全局状态
         $Global:IPAPConfigInstance = $null
 
-        # Mock 日志函数（Write-ErrorLog 模拟真实 throw 语义）
-        Mock -ModuleName IPAP Write-InfoLog {}
-        Mock -ModuleName IPAP Write-WarningLog {}
-        Mock -ModuleName IPAP Write-ErrorLog { param($Message) throw $Message }
+        # Mock 日志函数（Write-LogEntry 为纯日志函数，全级别静默记录）
+        Mock Write-LogEntry -ModuleName IPAP { }
+
+
 
         # 预设全局配置实例（使 Test-ConfigurationInitialized 守卫通过）
         $Global:IPAPConfigInstance = $Script:MockConfig
@@ -127,10 +127,10 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
         It 'New-ProjectStructure 返回 $null 时应抛出终止错误' {
             Mock -ModuleName IPAP New-ProjectStructure { return $null }
 
-            # 内层 Write-ErrorLog 抛出"项目初始化失败"，外层 catch 包裹为"执行过程中发生错误"
-            { Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images' } | Should -Throw '执行过程中发生错误: 项目初始化失败*'
+            # else 块记录"项目初始化失败"后抛出 InvalidOperationException，外层 catch 记录后重抛原始异常
+            { Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images' } | Should -Throw '项目初始化失败*'
 
-            Should -Invoke -ModuleName IPAP Write-ErrorLog -Times 2
+            Should -Invoke -ModuleName IPAP Write-LogEntry -ParameterFilter { $Level -eq 'Error' } -Times 2
         }
 
         It 'Get-ImageInfo 返回空结构时应跳过后续处理' {

@@ -18,6 +18,7 @@
 function Get-AppConfiguration
 {
     [CmdletBinding()]
+    [OutputType('ApplicationConfiguration')]
     param()
 
     return (Get-Configuration).App

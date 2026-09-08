@@ -1,26 +1,27 @@
-<#
+﻿﻿<#
 .SYNOPSIS
-    提示用户输入项目相关的多行信息并格式化
+    交互式读取用户的多行文本输入
 .DESCRIPTION
-    提示用户输入项目名称、作品中文译名和原文项目简介以及中文项目简介，
-    然后将这些信息按照特定模板格式化为一个字符串，并返回格式化后的
-    字符串和项目名称。
+    逐键读取控制台输入，支持 Enter 换行、Ctrl+D 结束输入、退格与 Delete 行内编辑。
+    每按一次 Enter 将当前行内容存入结果集合，Ctrl+D 结束后返回所有行。
+.PARAMETER Prompt
+    (string, Optional) 显示在输入前的提示文本。
 .EXAMPLE
-    Get-ProjectBriefInfo
-    获取项目简介信息并返回格式化后的字符串和项目名称。
+    $lines = Read-MultiLineInput -Prompt '请输入项目简介（Ctrl+D 结束输入）'
+    交互式读取多行输入，返回各行字符串。
 .INPUTS
     无
 .OUTPUTS
-    object[] (包含格式化字符串和项目名称)
+    string（每行输入文本作为一个字符串对象，逐个返回）
 .NOTES
     Author:  lucas_gold
-    Website: `https://github.com/1274248407`
+    Website: https://github.com/1274248407
 #>
 
 function Read-MultiLineInput
 {
     [CmdletBinding()]
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
+    [OutputType([string])]
     param (
         [string]$Prompt
     )

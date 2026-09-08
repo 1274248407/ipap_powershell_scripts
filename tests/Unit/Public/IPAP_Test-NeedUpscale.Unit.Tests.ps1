@@ -13,7 +13,7 @@ Describe 'Test-NeedUpscale Unit Tests' -Tag 'Test-NeedUpscale', 'IPAP' {
         $ProjectRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
         Import-Module (Join-Path $ProjectRoot 'source\IPAP.psd1') -Force -Global
 
-        Mock -ModuleName IPAP Write-InfoLog {}
+        Mock Write-LogEntry -ModuleName IPAP {}
     }
 
     AfterAll {

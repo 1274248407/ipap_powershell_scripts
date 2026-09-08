@@ -40,12 +40,12 @@ function Test-NeedUpscale
 
     if ($AverageSize -lt $threshold)
     {
-        Write-InfoLog "平均文件大小 $([math]::Round($AverageSize, 2)) KB < $threshold KB，需要高清化"
+        Write-LogEntry -Level Info -Message "平均文件大小 $([math]::Round($AverageSize, 2)) KB < $threshold KB，需要高清化"
         return $true
     }
     else
     {
-        Write-InfoLog "平均文件大小 $([math]::Round($AverageSize, 2)) KB >= $threshold KB，跳过高清化"
+        Write-LogEntry -Level Info -Message "平均文件大小 $([math]::Round($AverageSize, 2)) KB >= $threshold KB，跳过高清化"
         return $false
     }
 }

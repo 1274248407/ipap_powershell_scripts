@@ -12,7 +12,7 @@
 .PARAMETER ImageCount
     (int, Mandatory) 原始文件数量。
 .PARAMETER NeedUpscale
-    (bool, Mandatory) 是否需要高清化处理。
+    (switch) 是否需要高清化处理。指定则为 true，省略则为 false。
 .PARAMETER UpscaleRatio
     (int) 高清化倍数，默认为 2。
 .PARAMETER BriefText
@@ -26,13 +26,13 @@
 .PARAMETER NonTextLevel2ImageLevels
     (array) 无文字图 Level 2 分级信息（可选），每个对象应包含 Image、LongEdge、YDIF 属性。
 .EXAMPLE
-    New-ReadmeFile -ProjectDir "C:\Projects\Manga1" -ProjectName "Manga1" -ImageCount 50 -NeedUpscale $true -UpscaleRatio 2
+    New-ReadmeFile -ProjectDir "C:\Projects\Manga1" -ProjectName "Manga1" -ImageCount 50 -NeedUpscale -UpscaleRatio 2
     在项目目录下创建包含高清化状态的 README.md 文件。
 .EXAMPLE
-    New-ReadmeFile -ProjectDir "C:\Projects\Manga1" -ProjectName "Manga1" -ImageCount 50 -NeedUpscale $true -UpscaleRatio 2 -BriefText "项目简介内容"
+    New-ReadmeFile -ProjectDir "C:\Projects\Manga1" -ProjectName "Manga1" -ImageCount 50 -NeedUpscale -UpscaleRatio 2 -BriefText "项目简介内容"
     在 README.md 中同时包含项目简介内容。
 .EXAMPLE
-    New-ReadmeFile -ProjectDir "C:\Projects\Manga1" -ProjectName "Manga1" -ImageCount 50 -NeedUpscale $true -UpscaleRatio 2 -Level1ImageLevels $level1Levels -Level2ImageLevels $level2Levels -NonTextLevel1ImageLevels $nonTextL1 -NonTextLevel2ImageLevels $nonTextL2
+    New-ReadmeFile -ProjectDir "C:\Projects\Manga1" -ProjectName "Manga1" -ImageCount 50 -NeedUpscale -UpscaleRatio 2 -Level1ImageLevels $level1Levels -Level2ImageLevels $level2Levels -NonTextLevel1ImageLevels $nonTextL1 -NonTextLevel2ImageLevels $nonTextL2
     在 README.md 中包含有文字图和无文字图的高清化处理详情。
 .INPUTS
     无
@@ -55,7 +55,7 @@ function New-ReadmeFile
         [Parameter(Mandatory = $true)]
         [int]$ImageCount,
         [Parameter(Mandatory = $true)]
-        [bool]$NeedUpscale,
+        [switch]$NeedUpscale,
         [int]$UpscaleRatio = 2,
         [string]$BriefText = $null,
         [array]$Level1ImageLevels = @(),
@@ -216,12 +216,15 @@ ${briefSection}
         try
         {
             $readmePath = Join-Path $ProjectDir 'README.md'
-            Write-InfoLog "正在写入 README.md 文件到 $readmePath"
+            Write-LogEntry -Level Info -Message "正在写入 README.md 文件到 $readmePath"
 
             # 确保项目目录存在（使用 -LiteralPath 处理特殊字符）
             if (-not (Test-Path -LiteralPath $ProjectDir))
             {
-                Write-ErrorLog "项目目录不存在: $ProjectDir"
+                # 记录错误现场后显式抛出强类型异常（Write-LogEntry 为纯日志函数）
+                $ErrorMessage = "项目目录不存在: $ProjectDir"
+                Write-LogEntry -Level Error -Message $ErrorMessage
+                throw [System.ArgumentException]::new($ErrorMessage)
             }
 
             # 使用 Out-File -LiteralPath 写入文件，避免 PowerShell 通配符问题
@@ -229,16 +232,21 @@ ${briefSection}
 
             if (Test-Path -LiteralPath $readmePath)
             {
-                Write-InfoLog 'README.md 文件创建/覆盖成功'
+                Write-LogEntry -Level Info -Message 'README.md 文件创建/覆盖成功'
             }
             else
             {
-                Write-ErrorLog '无法验证 README.md 文件创建'
+                # 记录错误现场后显式抛出强类型异常（Write-LogEntry 为纯日志函数）
+                $ErrorMessage = '无法验证 README.md 文件创建'
+                Write-LogEntry -Level Error -Message $ErrorMessage
+                throw [System.InvalidOperationException]::new($ErrorMessage)
             }
         }
         catch
         {
-            Write-ErrorLog "创建/覆盖 README.md 文件失败: $($PSItem.Exception.Message)"
+            # 记录上下文后抛出包装异常并保留 InnerException（禁止吞异常）
+            Write-LogEntry -Level Error -Message "创建/覆盖 README.md 文件失败: $($PSItem.Exception.Message)"
+            throw [System.IO.IOException]::new("创建/覆盖 README.md 文件失败: $($PSItem.Exception.Message)", $PSItem.Exception)
         }
     }
 }

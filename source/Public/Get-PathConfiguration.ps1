@@ -18,6 +18,7 @@
 function Get-PathConfiguration
 {
     [CmdletBinding()]
+    [OutputType('PathConfiguration')]
     param()
 
     return (Get-Configuration).Paths

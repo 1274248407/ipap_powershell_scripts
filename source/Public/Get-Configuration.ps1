@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     获取配置实例
 .DESCRIPTION
@@ -27,6 +27,7 @@
 function Get-Configuration
 {
     [CmdletBinding()]
+    [OutputType('IPAPConfiguration')]
     param(
         [Parameter(ValueFromPipeline = $true)]
         [string]$ProjectRoot

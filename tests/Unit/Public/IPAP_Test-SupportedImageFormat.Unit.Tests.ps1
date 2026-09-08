@@ -13,9 +13,9 @@ Describe 'Test-SupportedImageFormat Unit Tests' -Tag 'Test-SupportedImageFormat'
         $ProjectRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
         Import-Module (Join-Path $ProjectRoot 'source\IPAP.psd1') -Force -Global
 
-        Mock Write-InfoLog -ModuleName IPAP {}
-        Mock Write-WarningLog -ModuleName IPAP {}
-        Mock Write-ErrorLog -ModuleName IPAP { param($Message) throw $Message }
+        Mock Write-LogEntry -ModuleName IPAP { }
+
+
 
         $Global:IPAPConfigInstance = @{
             App = @{

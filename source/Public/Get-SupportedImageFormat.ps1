@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     获取支持的图片格式
 .DESCRIPTION
@@ -9,7 +9,7 @@
 .INPUTS
     无
 .OUTPUTS
-    string[]
+    string（支持的图片格式扩展名，如 .jpg、.png）
 .NOTES
     Author:  lucas_gold
     Website: https://github.com/1274248407
@@ -18,6 +18,7 @@
 function Get-SupportedImageFormat
 {
     [CmdletBinding()]
+    [OutputType([string])]
     param()
 
     return (Get-Configuration).App.SupportedImageFormats

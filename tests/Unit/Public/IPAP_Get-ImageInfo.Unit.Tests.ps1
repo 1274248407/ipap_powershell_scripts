@@ -5,7 +5,7 @@
     IPAP 模块 - Get-ImageInfo 单元测试
 .DESCRIPTION
     测试 Get-ImageInfo 函数的图片目录分析和统计功能。
-    测试图片准备清单：tests/data/images/ 目录下的图片文件。
+    文件系统交互通过 Mock 模拟，无需真实图片夹具。
 #>
 
 Describe 'Get-ImageInfo Unit Tests' -Tag 'Get-ImageInfo', 'IPAP' {
@@ -21,10 +21,10 @@ Describe 'Get-ImageInfo Unit Tests' -Tag 'Get-ImageInfo', 'IPAP' {
             }
         }
 
-        # 使用全局 Mock（Write-ErrorLog 模拟真实 throw 语义）
-        Mock Write-InfoLog -ModuleName IPAP {}
-        Mock Write-WarningLog -ModuleName IPAP {}
-        Mock Write-ErrorLog -ModuleName IPAP { param($Message) throw $Message }
+        # 使用全局 Mock（Write-LogEntry 为纯日志函数，全级别静默记录）
+        Mock Write-LogEntry -ModuleName IPAP { }
+
+
         Mock Get-NaturalSortKey -ModuleName IPAP { param($String) return @($String) }
     }
 
