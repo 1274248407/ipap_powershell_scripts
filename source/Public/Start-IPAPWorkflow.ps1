@@ -235,7 +235,7 @@ function Start-IPAPWorkflow
                     $textTotalProcessed = $textLevel1Images.Count + $textLevel2Images.Count
                     if ($textTotalProcessed -gt 0)
                     {
-                        Test-UpscaleResult -ExpectedCount $textTotalProcessed -OutputDir $preprocessingDir
+                        $null = Test-UpscaleResult -ExpectedCount $textTotalProcessed -OutputDir $preprocessingDir
                     }
                     else
                     {
@@ -246,7 +246,7 @@ function Start-IPAPWorkflow
                     $nonTextTotalProcessed = $nonTextLevel1Images.Count + $nonTextLevel2Images.Count
                     if ($nonTextTotalProcessed -gt 0)
                     {
-                        Test-UpscaleResult -ExpectedCount $nonTextTotalProcessed -OutputDir $nonTextRawDir
+                        $null = Test-UpscaleResult -ExpectedCount $nonTextTotalProcessed -OutputDir $nonTextRawDir
                     }
                 }
                 else

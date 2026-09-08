@@ -1,4 +1,4 @@
-﻿﻿<#
+﻿<#
 .SYNOPSIS
         创建项目目录结构
 .DESCRIPTION
@@ -12,11 +12,11 @@
         '03_Typesetting\workfiles',
         '03_Typesetting\final_pages'
 .PARAMETER BaseDir
-        (statory) 项路径目基础目录。
+        (string) 项目基础目录路径。
 .PARAMETER ProjectName
-        (statory) 项目名称。
+        (string) 项目名称。
 .PARAMETER Force
-    (switch) 跳过确认提示，直接覆盖已适目录。参数集）
+    (switch) 跳过确认提示，直接覆盖已存在的目录。
 .EXAMPLE
         New-ProjectStructure -BaseDir "C:\Projects" -ProjectName "Manga1"
         在 C:\Projects 目录下创建名为 2026-04-20_Manga1 的项目目录。
@@ -25,8 +25,8 @@
 .OUTPUTS
         string 或 $null (创建成功时返回项目目录路径)
 .NOTES
-        Auth or:  lucas_gold
-        Websie: `https://github.com/127424407`
+        Author:  lucas_gold
+        Website: https://github.com/1274248407
 #>
 
 function New-ProjectStructure

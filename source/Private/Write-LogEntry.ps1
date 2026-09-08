@@ -1,4 +1,4 @@
-﻿﻿<#
+<#
 .SYNOPSIS
     轻量日志函数，模仿 Python loguru 输出格式
 .DESCRIPTION
@@ -34,6 +34,7 @@ function Write-LogEntry
         [string] $Level,
 
         [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
         [string] $Message
     )
 
@@ -110,6 +111,7 @@ function Write-LogEntry
     # ERROR 级别抛出终止错误，保持错误传播链
     if ($Level -eq 'Error')
     {
-        throw $Message
+        # 防御空消息：throw 不接受空字符串，需兜底为通用错误描述
+        throw ([string]::IsNullOrEmpty($Message) ? '未知错误（空消息）' : $Message)
     }
 }

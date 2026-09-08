@@ -1,4 +1,4 @@
-﻿﻿<#
+﻿<#
 .SYNOPSIS
     交互式读取用户的多行文本输入
 .DESCRIPTION
@@ -101,4 +101,3 @@ function Read-MultiLineInput
 
     return $lines
 }
-

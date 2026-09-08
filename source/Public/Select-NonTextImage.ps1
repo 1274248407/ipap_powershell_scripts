@@ -110,7 +110,6 @@ function Select-NonTextImage
     [int]$choice = 0
     while ($choice -lt 1 -or $choice -gt $options.Count)
     {
-        p
         try
         {
             [int]$choice = Read-Host "请输入选项 (1-$($options.Count))"

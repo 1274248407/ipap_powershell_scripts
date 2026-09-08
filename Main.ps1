@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     IPAP - 漫画翻译准备自动化工具启动脚本
 .DESCRIPTION

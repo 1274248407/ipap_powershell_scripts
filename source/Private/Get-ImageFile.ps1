@@ -1,4 +1,4 @@
-﻿﻿<#
+<#
 .SYNOPSIS
 扫描目录中的图片文件
 .DESCRIPTION

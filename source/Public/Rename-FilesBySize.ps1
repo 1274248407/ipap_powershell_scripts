@@ -1,4 +1,4 @@
-﻿﻿<#
+﻿<#
 .SYNOPSIS
     按文件大小排序并重命名目录中的文件
 .DESCRIPTION
@@ -92,4 +92,3 @@ function Rename-FilesBySize
 
     return $renamedCount
 }
-
