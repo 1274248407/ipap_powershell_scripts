@@ -1,80 +1,63 @@
 ﻿<#
 .SYNOPSIS
-IPAP Workflow - 漫画翻译准备自动化工具启动脚本
-
+    IPAP - 漫画翻译准备自动化工具启动脚本
 .DESCRIPTION
-启动 IPAP 工作流，导入必要的模块并执行主工作流。
-
+    以双路径策略定位并导入 IPAP 统一模块：
+    1. 开发模式：优先加载仓库内 source\IPAP.psd1（源码目录）
+    2. 发布模式：回退加载发布包内 IPAP\IPAP.psd1（构建产物目录）
+    随后初始化配置并启动主工作流。
 .NOTES
-Author: IPAP Team
-Version: 1.0.0
-Date: 2026-04-14
+    Author:  lucas_gold
+    Website: https://github.com/1274248407
 #>
 
-# $Global:Logger 是 PoShLog 的设计约定，Write-InfoLog 跨模块访问需要全局作用域
+# 屏蔽全局变量告警（Get-Configuration 的模块级状态设计约定）
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidGlobalVars', '')]
 param()
 
-# Ensure PowerShell 7 or above
+# 校验 PowerShell 版本（本工具强依赖 PS7 新语法）
 if ($PSVersionTable.PSVersion.Major -lt 7)
 {
-    Write-ErrorLog '错误: 需要 PowerShell 7 或更高版本'
+    Write-Error '错误: 需要 PowerShell 7 或更高版本'
     exit 1
 }
+
 # 设置控制台输出编码为 UTF-8，以支持特殊字符（如 ✓）
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-# 导入 PoShLog 模块
-$PoShLogPath = Join-Path $PSScriptRoot 'Modules\PoShLog'
-Import-Module -Name $PoShLogPath -Force -Scope Global
+# 按优先级构建模块清单候选路径：开发模式 source\ 优先，发布模式 IPAP\ 回退
+$ManifestCandidates = @(
+    (Join-Path -Path $PSScriptRoot -ChildPath 'source\IPAP.psd1'),
+    (Join-Path -Path $PSScriptRoot -ChildPath 'IPAP\IPAP.psd1')
+)
 
-# Initialize Logger in the Global scope so all modules can see it
-$Global:Logger = New-Logger |
-    Set-MinimumLevel -Value Verbose |
-    Add-SinkConsole |
-    Start-Logger
+# 遍历候选路径，导入首个存在的模块清单
+$IpapManifest = $null
+foreach ($Candidate in $ManifestCandidates)
+{
+    # 找到首个存在的清单文件即导入
+    if (Test-Path -LiteralPath $Candidate)
+    {
+        $IpapManifest = $Candidate
+        break
+    }
+}
 
-Write-InfoLog '✓ PoShLog 模块已导入'
+# 校验模块清单必须存在
+if ($null -eq $IpapManifest)
+{
+    Write-Error '未找到 IPAP 模块清单（source\IPAP.psd1 或 IPAP\IPAP.psd1），请先运行 .\build.ps1 -Task Build'
+    exit 1
+}
 
+# 导入 IPAP 统一模块
+Import-Module -Name $IpapManifest -Force -Scope Global
+Write-Host "✓ IPAP 模块已导入：$IpapManifest"
 
-# 导入 IPAP.Configuration 模块
-$configModulePath = Join-Path $PSScriptRoot 'Modules\IPAP.Configuration\IPAP.Configuration.psd1'
-Import-Module $configModulePath -Force -Scope Global
-Write-InfoLog '✓ IPAP.Configuration 模块已导入'
-
-# 初始化配置
+# 初始化配置（读取仓库根目录的 config.toml）
 Get-Configuration -ProjectRoot $PSScriptRoot | Out-Null
-Write-InfoLog '✓ IPAP 配置已初始化'
+Write-Host '✓ IPAP 配置已初始化'
 
-# 获取项目根目录（后续模块路径使用）
-$ProjectRoot = (Get-Configuration).Paths.ProjectRoot
-
-
-# Import modules
-Write-InfoLog '正在导入 IPAP 模块...'
-
-# Import IPAP.Core module
-$coreModulePath = Join-Path $ProjectRoot 'Modules\IPAP.Core\IPAP.Core.psd1'
-Import-Module $coreModulePath -Force -Scope Global
-Write-InfoLog '✓ IPAP.Core 模块已导入'
-
-# Import IPAP.ImageProcessor module
-$imageProcessorModulePath = Join-Path $ProjectRoot 'Modules\IPAP.ImageProcessor\IPAP.ImageProcessor.psd1'
-Import-Module $imageProcessorModulePath -Force -Scope Global
-Write-InfoLog '✓ IPAP.ImageProcessor 模块已导入'
-
-# Import IPAP.ProjectManager module
-$projectManagerModulePath = Join-Path $ProjectRoot 'Modules\IPAP.ProjectManager\IPAP.ProjectManager.psd1'
-Import-Module $projectManagerModulePath -Force -Scope Global
-Write-InfoLog '✓ IPAP.ProjectManager 模块已导入'
-
-# Import IPAP.Workflow module
-$workflowModulePath = Join-Path $ProjectRoot 'Modules\IPAP.Workflow\IPAP.Workflow.psd1'
-
-Import-Module $workflowModulePath -Force -Scope Global
-Write-InfoLog '✓ IPAP.Workflow 模块已导入'
-
-# Execute main workflow
-# 确认项目配置，获取用户确认后的配置实例
+# 确认项目配置，获取用户确认后的配置实例并启动主工作流
 $Config = Confirm-ProjectConfiguration
 Start-IPAPWorkflow -Config $Config
