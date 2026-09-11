@@ -402,11 +402,21 @@ class ApplicationConfiguration
             $this.WebpQuality = 100
         }
 
-        # 当 MaxWorkers 为 0 时，根据系统 CPU 核心数动态计算（最少 1 个线程）
-        if ($this.MaxWorkers -eq 0)
+        # 当 MaxWorkers 不大于 0 时（0 表示自动检测，负数视为无效值），根据系统 CPU 核心数动态计算（最少 1 个线程）
+        if ($this.MaxWorkers -le 0)
         {
             $this.MaxWorkers = [math]::Max(1, [System.Environment]::ProcessorCount / 2)
         }
+
+        # 将数值属性钳制到各自工具的有效值域，防止无效配置传递到下游工具
+        # Real-CUGAN -s scale: 有效值 1/2/3/4
+        $this.UpscaleRatio = [math]::Max(1, [math]::Min(4, $this.UpscaleRatio))
+        # Real-CUGAN -n noise-level: 有效值 -1/0/1/2/3（-1 表示不降噪）
+        $this.NoiseLevel = [math]::Max(-1, [math]::Min(3, $this.NoiseLevel))
+        # cwebp -q: 有效范围 0~100
+        $this.WebpQuality = [math]::Max(0, [math]::Min(100, $this.WebpQuality))
+        # 超时时间必须为正整数
+        if ($this.UpscaleTimeoutSec -lt 1) { $this.UpscaleTimeoutSec = 3600 }
     }
 
 }

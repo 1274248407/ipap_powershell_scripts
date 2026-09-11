@@ -56,7 +56,7 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
     }
 
     Context '构造函数 - app_settings 默认值回退' {
-        It 'app_settings 为 null 时应使用全部默认值' {
+        It 'app_settings 为 null 时应使用 app_settings 默认值' {
             InModuleScope IPAP {
                 $config = [ApplicationConfiguration]::new(@{})
 
@@ -121,6 +121,17 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
                 $config.UpscaleTimeoutSec | Should -Be 7200
             }
         }
+
+        It 'upscale_timeout_sec 为 0 或负数时应回退到默认值' {
+            InModuleScope IPAP {
+                $configZero = [ApplicationConfiguration]::new(@{ app_settings = @{ upscale_timeout_sec = 0 } })
+                $configNeg = [ApplicationConfiguration]::new(@{ app_settings = @{ upscale_timeout_sec = -100 } })
+
+                # 无效超时值应回退到默认 3600 秒
+                $configZero.UpscaleTimeoutSec | Should -Be 3600
+                $configNeg.UpscaleTimeoutSec | Should -Be 3600
+            }
+        }
     }
 
     Context '构造函数 - upscale 默认值回退' {
@@ -171,6 +182,43 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
                 $config = [ApplicationConfiguration]::new($settings)
 
                 $config.UpscaleRatio | Should -Be 4
+            }
+        }
+
+        It 'noise_level 为字符串数字时应正确转换为 int' {
+            InModuleScope IPAP {
+                $settings = @{
+                    upscale = @{
+                        noise_level = '2'
+                    }
+                }
+                $config = [ApplicationConfiguration]::new($settings)
+
+                $config.NoiseLevel | Should -Be 2
+            }
+        }
+
+        It 'upscale_ratio 超出有效值域时应钳制到边界' {
+            InModuleScope IPAP {
+                # Real-CUGAN -s scale 有效值: 1/2/3/4
+                $configLow = [ApplicationConfiguration]::new(@{ upscale = @{ upscale_ratio = 0 } })
+                $configHigh = [ApplicationConfiguration]::new(@{ upscale = @{ upscale_ratio = 10 } })
+                $configNeg = [ApplicationConfiguration]::new(@{ upscale = @{ upscale_ratio = -2 } })
+
+                $configLow.UpscaleRatio | Should -Be 1
+                $configHigh.UpscaleRatio | Should -Be 4
+                $configNeg.UpscaleRatio | Should -Be 1
+            }
+        }
+
+        It 'noise_level 超出有效值域时应钳制到边界' {
+            InModuleScope IPAP {
+                # Real-CUGAN -n noise-level 有效值: -1/0/1/2/3
+                $configLow = [ApplicationConfiguration]::new(@{ upscale = @{ noise_level = -5 } })
+                $configHigh = [ApplicationConfiguration]::new(@{ upscale = @{ noise_level = 10 } })
+
+                $configLow.NoiseLevel | Should -Be -1
+                $configHigh.NoiseLevel | Should -Be 3
             }
         }
     }
@@ -244,6 +292,30 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
                 $config.WebpEnabled | Should -Be $false
             }
         }
+
+        It 'webp quality 为字符串数字时应正确转换为 int' {
+            InModuleScope IPAP {
+                $settings = @{
+                    webp = @{
+                        quality = '85'
+                    }
+                }
+                $config = [ApplicationConfiguration]::new($settings)
+
+                $config.WebpQuality | Should -Be 85
+            }
+        }
+
+        It 'webp quality 超出有效值域时应钳制到 0~100' {
+            InModuleScope IPAP {
+                # cwebp -q 有效范围: 0~100
+                $configLow = [ApplicationConfiguration]::new(@{ webp = @{ quality = -10 } })
+                $configHigh = [ApplicationConfiguration]::new(@{ webp = @{ quality = 200 } })
+
+                $configLow.WebpQuality | Should -Be 0
+                $configHigh.WebpQuality | Should -Be 100
+            }
+        }
     }
 
     Context '构造函数 - MaxWorkers 动态计算' {
@@ -290,7 +362,7 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
             }
         }
 
-        It 'max_workers 为负数时应直接使用（不触发动态计算）' {
+        It 'max_workers 为负数时应回退到动态计算（视为无效值）' {
             InModuleScope IPAP {
                 $settings = @{
                     app_settings = @{
@@ -299,8 +371,9 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
                 }
                 $config = [ApplicationConfiguration]::new($settings)
 
-                # -1 不等于 0，不触发动态计算
-                $config.MaxWorkers | Should -Be -1
+                # 负数与 0 同等处理，回退到 CPU 核心数动态计算
+                $expected = [math]::Max(1, [System.Environment]::ProcessorCount / 2)
+                $config.MaxWorkers | Should -Be $expected
             }
         }
     }
