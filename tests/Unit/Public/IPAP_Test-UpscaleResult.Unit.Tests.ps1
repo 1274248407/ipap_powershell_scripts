@@ -1,4 +1,4 @@
-﻿#Requires -Modules Pester
+#Requires -Modules Pester
 
 <#
 .SYNOPSIS
@@ -34,10 +34,12 @@ Describe 'Test-UpscaleResult Unit Tests' -Tag 'Test-UpscaleResult', 'IPAP' {
             UpscaleRatio          = 2
             NoiseLevel            = 0
         }
-        $Global:IPAPConfigInstance = [PSCustomObject]@{
-            Paths = $MockPathsConfig
-            Tools = $MockToolsConfig
-            App   = $MockAppConfig
+        InModuleScope IPAP {
+            $script:IPAPConfigInstance = [PSCustomObject]@{
+                Paths = $MockPathsConfig
+                Tools = $MockToolsConfig
+                App   = $MockAppConfig
+            }
         }
 
         # 使用全局 Mock（Write-LogEntry 为纯日志函数，全级别静默记录）

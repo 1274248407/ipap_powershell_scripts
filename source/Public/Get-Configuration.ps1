@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     获取配置实例
 .DESCRIPTION
@@ -35,17 +35,17 @@ function Get-Configuration
 
     process
     {
-        if ($Global:IPAPConfigInstance -and [string]::IsNullOrWhiteSpace($ProjectRoot))
+        if ($script:IPAPConfigInstance -and [string]::IsNullOrWhiteSpace($ProjectRoot))
         {
-            return $Global:IPAPConfigInstance
+            return $script:IPAPConfigInstance
         }
 
         $Root = $ProjectRoot
         if ([string]::IsNullOrWhiteSpace($Root))
         {
-            if ($Global:IPAPConfigInstance)
+            if ($script:IPAPConfigInstance)
             {
-                $Root = $Global:IPAPConfigInstance.Paths.ProjectRoot
+                $Root = $script:IPAPConfigInstance.Paths.ProjectRoot
             }
             else
             {
@@ -53,8 +53,8 @@ function Get-Configuration
             }
         }
 
-        $Global:IPAPConfigInstance = [IPAPConfiguration]::Load($Root)
-        return $Global:IPAPConfigInstance
+        $script:IPAPConfigInstance = [IPAPConfiguration]::Load($Root)
+        return $script:IPAPConfigInstance
     }
 }
 

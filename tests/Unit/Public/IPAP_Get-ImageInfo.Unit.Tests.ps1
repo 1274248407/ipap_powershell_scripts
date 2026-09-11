@@ -1,4 +1,4 @@
-﻿#Requires -Modules Pester
+#Requires -Modules Pester
 
 <#
 .SYNOPSIS
@@ -14,10 +14,12 @@ Describe 'Get-ImageInfo Unit Tests' -Tag 'Get-ImageInfo', 'IPAP' {
         $ProjectRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
         Import-Module (Join-Path $ProjectRoot 'source\IPAP.psd1') -Force -Global
 
-        # 初始化全局配置实例（Get-ImageInfo 从此读取支持的图片格式）
-        $Global:IPAPConfigInstance = @{
-            App = @{
-                SupportedImageFormats = @('.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff')
+        # 初始化模块内配置实例（Get-ImageInfo 从此读取支持的图片格式）
+        InModuleScope IPAP {
+            $script:IPAPConfigInstance = @{
+                App = @{
+                    SupportedImageFormats = @('.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff')
+                }
             }
         }
 

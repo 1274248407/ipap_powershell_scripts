@@ -1,4 +1,4 @@
-﻿#Requires -Modules Pester
+#Requires -Modules Pester
 
 <#
 .SYNOPSIS
@@ -30,8 +30,8 @@ Describe 'New-ReadmeFile 集成测试（真实文件系统协作）' -Tag 'Integ
     }
 
     AfterAll {
-        # 清理全局配置实例与模块，防止污染其他测试
-        $Global:IPAPConfigInstance = $null
+        # 清理模块内配置实例与模块，防止污染其他测试
+        InModuleScope IPAP { $script:IPAPConfigInstance = $null }
         Remove-Module 'IPAP' -ErrorAction SilentlyContinue
     }
 

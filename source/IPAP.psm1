@@ -12,8 +12,8 @@
 # 记录加载耗时
 $moduleLoadStart = [System.Diagnostics.Stopwatch]::StartNew()
 
-# 全局配置实例（跨函数共享的模块级状态，已通过分析设置排除 PSAvoidGlobalVars）
-$Global:IPAPConfigInstance = $null
+# 模块级配置实例（跨函数共享，使用 script: 作用域避免全局污染）
+$script:IPAPConfigInstance = $null
 
 # 加载顺序：类 -> 私有函数 -> 公开函数（依赖顺序，不可调换）
 $loadOrder = @('Classes', 'Private', 'Public')

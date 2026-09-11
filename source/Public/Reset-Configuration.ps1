@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     重置配置实例
 .DESCRIPTION
@@ -18,7 +18,7 @@ function Reset-Configuration
 
     if ($PSCmdlet.ShouldProcess('全局配置实例', '重置'))
     {
-        $Global:IPAPConfigInstance = $null
+        $script:IPAPConfigInstance = $null
     }
 }
 

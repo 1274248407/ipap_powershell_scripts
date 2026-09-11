@@ -11,8 +11,6 @@
     Website: https://github.com/1274248407
 #>
 
-# 屏蔽全局变量告警（Get-Configuration 的模块级状态设计约定）
-[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidGlobalVars', '')]
 param()
 
 # 校验 PowerShell 版本（本工具强依赖 PS7 新语法）

@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     测试配置是否已初始化
 .DESCRIPTION
@@ -20,6 +20,6 @@ function Test-ConfigurationInitialized
     [OutputType([bool])]
     param()
 
-    return $null -ne $Global:IPAPConfigInstance
+    return $null -ne $script:IPAPConfigInstance
 }
 

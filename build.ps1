@@ -255,6 +255,8 @@ function Invoke-OutputTypeAudit
         $parseErrors = $null
         # 解析文件 AST 并查找全部函数定义
         $ast = [System.Management.Automation.Language.Parser]::ParseFile($File.FullName, [ref]$tokens, [ref]$parseErrors)
+        # -is 会匹配继承关系。由于 PowerShell 中类方法（class 内的 method）在 AST 中表示为 FunctionMemberAst，
+        # 而非 FunctionDefinitionAst，因此此判断 天然排除了类方法，无需额外过滤。
         $functions = $ast.FindAll({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)
 
         foreach ($Function in $functions)

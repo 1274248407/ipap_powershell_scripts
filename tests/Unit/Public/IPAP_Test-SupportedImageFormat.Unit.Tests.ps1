@@ -1,4 +1,4 @@
-﻿#Requires -Modules Pester
+#Requires -Modules Pester
 
 <#
 .SYNOPSIS
@@ -17,9 +17,11 @@ Describe 'Test-SupportedImageFormat Unit Tests' -Tag 'Test-SupportedImageFormat'
 
 
 
-        $Global:IPAPConfigInstance = @{
-            App = @{
-                SupportedImageFormats = @('.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff')
+        InModuleScope IPAP {
+            $script:IPAPConfigInstance = @{
+                App = @{
+                    SupportedImageFormats = @('.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff')
+                }
             }
         }
     }

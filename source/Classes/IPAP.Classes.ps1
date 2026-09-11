@@ -75,27 +75,6 @@ class PathConfiguration
         $this.SourceDir = $SourceDir
     }
 
-    <#
-    .SYNOPSIS
-        加载路径配置
-    .DESCRIPTION
-        静态方法，创建并返回新的 PathConfiguration 实例。
-    .PARAMETER ProjectRoot
-        项目根目录路径
-    .PARAMETER SourceDir
-        源图片目录路径（可选）
-    .EXAMPLE
-        $pathConfig = [PathConfiguration]::Load('D:\Projects\MyProject')
-    .OUTPUTS
-        PathConfiguration
-    .NOTES
-        Author:  lucas_gold
-        Website: https://github.com/1274248407
-    #>
-    static [PathConfiguration] Load([string]$ProjectRoot, [string]$BaseProjectDir = $null, [string]$SourceDir = $null)
-    {
-        return [PathConfiguration]::new($ProjectRoot, $BaseProjectDir, $SourceDir)
-    }
 }
 
 
@@ -106,7 +85,7 @@ class PathConfiguration
     管理外部工具的可执行文件路径，包括 FFmpeg、FFprobe 和 Real-CUGAN。
     支持配置路径解析和 PATH 环境变量回退机制。
 .EXAMPLE
-        $toolConfig = [ToolConfiguration]::Load($pathConfig, $settings)
+        $toolConfig = [ToolConfiguration]::new($pathConfig, $settings)
 .NOTES
     Author:  lucas_gold
     Website: https://github.com/1274248407
@@ -219,27 +198,6 @@ class ToolConfiguration
         return $null
     }
 
-    <#
-    .SYNOPSIS
-        加载工具配置
-    .DESCRIPTION
-        静态方法，创建并返回新的 ToolConfiguration 实例。
-    .PARAMETER PathConfig
-        路径配置实例
-    .PARAMETER Settings
-        包含工具路径配置的哈希表
-    .EXAMPLE
-        $toolConfig = [ToolConfiguration]::Load($pathConfig, $settings)
-    .OUTPUTS
-        ToolConfiguration
-    .NOTES
-        Author:  lucas_gold
-        Website: https://github.com/1274248407
-    #>
-    static [ToolConfiguration] Load([PathConfiguration]$PathConfig, [hashtable]$Settings)
-    {
-        return [ToolConfiguration]::new($PathConfig, $Settings)
-    }
 }
 
 
@@ -333,25 +291,6 @@ class ProjectConfiguration
         return $this.OriginalTitle
     }
 
-    <#
-    .SYNOPSIS
-        加载项目配置
-    .DESCRIPTION
-        静态方法，创建并返回新的 ProjectConfiguration 实例。
-    .PARAMETER Settings
-        包含项目配置的哈希表
-    .EXAMPLE
-        $projectConfig = [ProjectConfiguration]::Load($settings)
-    .OUTPUTS
-        ProjectConfiguration
-    .NOTES
-        Author:  lucas_gold
-        Website: https://github.com/1274248407
-    #>
-    static [ProjectConfiguration] Load([hashtable]$Settings)
-    {
-        return [ProjectConfiguration]::new($Settings)
-    }
 }
 
 
@@ -362,7 +301,7 @@ class ProjectConfiguration
     管理应用程序的运行参数，包括支持的图片格式、最大工作线程数、
     超时设置、模型选择、放大参数和 WebP 输出选项。
 .EXAMPLE
-        $appConfig = [ApplicationConfiguration]::Load($settings)
+        $appConfig = [ApplicationConfiguration]::new($settings)
 .NOTES
     Author:  lucas_gold
     Website: https://github.com/1274248407
@@ -470,25 +409,6 @@ class ApplicationConfiguration
         }
     }
 
-    <#
-    .SYNOPSIS
-        加载应用配置
-    .DESCRIPTION
-        静态方法，创建并返回新的 ApplicationConfiguration 实例。
-    .PARAMETER Settings
-        包含应用配置的哈希表
-    .EXAMPLE
-        $appConfig = [ApplicationConfiguration]::Load($settings)
-    .OUTPUTS
-        ApplicationConfiguration
-    .NOTES
-        Author:  lucas_gold
-        Website: https://github.com/1274248407
-    #>
-    static [ApplicationConfiguration] Load([hashtable]$Settings)
-    {
-        return [ApplicationConfiguration]::new($Settings)
-    }
 }
 
 
@@ -575,10 +495,10 @@ class IPAPConfiguration
         $loadedSettings = [IPAPConfiguration]::ReadConfigFile($ProjectRoot)
         $baseProjectDir = if ($loadedSettings.ContainsKey('paths') -and $loadedSettings.paths.ContainsKey('base_project_dir')) { $loadedSettings.paths.base_project_dir } else { $null }
         $sourceDir = if ($loadedSettings.ContainsKey('paths') -and $loadedSettings.paths.ContainsKey('source_dir')) { $loadedSettings.paths.source_dir } else { $null }
-        $loadedPaths = [PathConfiguration]::Load($ProjectRoot, $baseProjectDir, $sourceDir)
-        $loadedTools = [ToolConfiguration]::Load($loadedPaths, $loadedSettings)
-        $loadedApp = [ApplicationConfiguration]::Load($loadedSettings)
-        $loadedProject = [ProjectConfiguration]::Load($loadedSettings)
+        $loadedPaths = [PathConfiguration]::new($ProjectRoot, $baseProjectDir, $sourceDir)
+        $loadedTools = [ToolConfiguration]::new($loadedPaths, $loadedSettings)
+        $loadedApp = [ApplicationConfiguration]::new($loadedSettings)
+        $loadedProject = [ProjectConfiguration]::new($loadedSettings)
         return [IPAPConfiguration]::new($loadedPaths, $loadedTools, $loadedApp, $loadedProject)
     }
 

@@ -20,6 +20,8 @@
 
 function Read-MultiLineInput
 {
+    # 豁免 PSAvoidUsingWriteHost：本函数为交互式控制台输入，必须使用 Write-Host 实现逐字符实时显示
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
     [CmdletBinding()]
     [OutputType([string])]
     param (

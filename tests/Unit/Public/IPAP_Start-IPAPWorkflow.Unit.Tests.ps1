@@ -1,4 +1,4 @@
-﻿#Requires -Modules Pester
+#Requires -Modules Pester
 
 <#
 .SYNOPSIS
@@ -44,16 +44,20 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
     }
 
     BeforeEach {
-        # 重置全局状态
-        $Global:IPAPConfigInstance = $null
+        # 重置模块内配置状态
+        InModuleScope IPAP {
+            $script:IPAPConfigInstance = $null
+        }
 
         # Mock 日志函数（Write-LogEntry 为纯日志函数，全级别静默记录）
         Mock Write-LogEntry -ModuleName IPAP { }
 
 
 
-        # 预设全局配置实例（使 Test-ConfigurationInitialized 守卫通过）
-        $Global:IPAPConfigInstance = $Script:MockConfig
+        # 预设模块内配置实例（使 Test-ConfigurationInitialized 守卫通过）
+        InModuleScope IPAP {
+            $script:IPAPConfigInstance = $Script:MockConfig
+        }
 
         # Mock 模块内依赖函数
         Mock -ModuleName IPAP Get-Configuration { return $Script:MockConfig }
@@ -117,9 +121,11 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
             Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
 
             # 验证 Get-Configuration 的副作用：配置实例被设置
-            $Global:IPAPConfigInstance | Should -Not -Be $null
-            $Global:IPAPConfigInstance.Paths.ProjectRoot | Should -Be $ProjectRoot
-            $Global:IPAPConfigInstance.App.MaxWorkers | Should -Be 8
+            InModuleScope IPAP {
+                $script:IPAPConfigInstance | Should -Not -Be $null
+                $script:IPAPConfigInstance.Paths.ProjectRoot | Should -Be $ProjectRoot
+                $script:IPAPConfigInstance.App.MaxWorkers | Should -Be 8
+            }
         }
     }
 
@@ -155,7 +161,9 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
         }
 
         It 'Level 2 图片且 RealCuganExePath 为空时应正常跳过不抛出异常' {
-            $Global:IPAPConfigInstance.Tools.RealCuganExePath = $null
+            InModuleScope IPAP {
+                $script:IPAPConfigInstance.Tools.RealCuganExePath = $null
+            }
             Mock -ModuleName IPAP Get-ImageLevel {
                 param([array]$Images)
                 return $Images | ForEach-Object {
@@ -178,7 +186,9 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
         }
 
         It '混合级别图片应正常处理不抛出异常' {
-            $Global:IPAPConfigInstance.Tools.RealCuganExePath = 'C:\bin\realcugan.exe'
+            InModuleScope IPAP {
+                $script:IPAPConfigInstance.Tools.RealCuganExePath = 'C:\bin\realcugan.exe'
+            }
             $image1 = [PSCustomObject]@{ Name = 'L1.jpg'; FullName = 'C:\L1.jpg' }
             $image2 = [PSCustomObject]@{ Name = 'L2.jpg'; FullName = 'C:\L2.jpg' }
 
