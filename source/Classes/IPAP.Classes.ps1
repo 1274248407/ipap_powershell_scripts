@@ -359,64 +359,26 @@ class ApplicationConfiguration
     {
         $this.Settings = $Settings
 
-        # 从配置读取值，使用默认值作为回退
-        if ($Settings.ContainsKey('app_settings'))
-        {
-            $appSettings = $Settings.app_settings
-            $this.SupportedImageFormats = if ($appSettings.ContainsKey('supported_image_formats') -and $appSettings.supported_image_formats) { $appSettings.supported_image_formats } else { @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp') }
-            $this.MaxWorkers = if ($appSettings.ContainsKey('max_workers')) { [int]$appSettings.max_workers } else { 0 }
-            $this.UpscaleTimeoutSec = if ($appSettings.ContainsKey('upscale_timeout_sec')) { [int]$appSettings.upscale_timeout_sec } else { 3600 }
-            $this.ModelSelect = if ($appSettings.ContainsKey('model_select')) { $appSettings.model_select } else { 'models-se' }
-        }
-        else
-        {
-            $this.SupportedImageFormats = @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
-            $this.MaxWorkers = 0
-            $this.UpscaleTimeoutSec = 3600
-            $this.ModelSelect = 'models-se'
-        }
+        # 从配置读取值并钳制到有效值域（?? 为空/不存在时回退到默认值）
+        $appSettings = $Settings.app_settings ?? @{}
+        $this.SupportedImageFormats = ($appSettings.ContainsKey('supported_image_formats') -and $appSettings.supported_image_formats) ? $appSettings.supported_image_formats : @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
+        $this.MaxWorkers = [int]($appSettings.max_workers ?? 0)
+        $this.UpscaleTimeoutSec = [int]($appSettings.upscale_timeout_sec ?? 3600)
+        # 超时时间必须为正整数，无效值回退到默认 3600 秒
+        $this.UpscaleTimeoutSec = $this.UpscaleTimeoutSec -lt 1 ? 3600 : $this.UpscaleTimeoutSec
+        $this.ModelSelect = $appSettings.model_select ?? 'models-se'
 
-        if ($Settings.ContainsKey('upscale'))
-        {
-            $upscaleSettings = $Settings.upscale
-            $this.UpscaleRatio = if ($upscaleSettings.ContainsKey('upscale_ratio')) { [int]$upscaleSettings.upscale_ratio } else { 2 }
-            $this.NoiseLevel = if ($upscaleSettings.ContainsKey('noise_level')) { [int]$upscaleSettings.noise_level } else { 0 }
-        }
-        else
-        {
-            $this.UpscaleRatio = 2
-            $this.NoiseLevel = 0
-        }
+        $upscaleSettings = $Settings.upscale ?? @{}
+        $this.UpscaleRatio = [math]::Max(1, [math]::Min(4, [int]($upscaleSettings.upscale_ratio ?? 2)))   # Real-CUGAN -s: 1/2/3/4
+        $this.NoiseLevel = [math]::Max(-1, [math]::Min(3, [int]($upscaleSettings.noise_level ?? 0)))     # Real-CUGAN -n: -1~3
 
-        if ($Settings.ContainsKey('webp'))
-        {
-            $webpSettings = $Settings.webp
-            $this.WebpEnabled = if ($webpSettings.ContainsKey('enabled')) { [bool]$webpSettings.enabled } else { $true }
-            $this.WebpLossless = if ($webpSettings.ContainsKey('lossless')) { [bool]$webpSettings.lossless } else { $true }
-            $this.WebpQuality = if ($webpSettings.ContainsKey('quality')) { [int]$webpSettings.quality } else { 100 }
-        }
-        else
-        {
-            $this.WebpEnabled = $true
-            $this.WebpLossless = $true
-            $this.WebpQuality = 100
-        }
+        $webpSettings = $Settings.webp ?? @{}
+        $this.WebpEnabled = [bool]($webpSettings.enabled ?? $true)
+        $this.WebpLossless = [bool]($webpSettings.lossless ?? $true)
+        $this.WebpQuality = [math]::Max(0, [math]::Min(100, [int]($webpSettings.quality ?? 100)))        # cwebp -q: 0~100
 
-        # 当 MaxWorkers 不大于 0 时（0 表示自动检测，负数视为无效值），根据系统 CPU 核心数动态计算（最少 1 个线程）
-        if ($this.MaxWorkers -le 0)
-        {
-            $this.MaxWorkers = [math]::Max(1, [System.Environment]::ProcessorCount / 2)
-        }
-
-        # 将数值属性钳制到各自工具的有效值域，防止无效配置传递到下游工具
-        # Real-CUGAN -s scale: 有效值 1/2/3/4
-        $this.UpscaleRatio = [math]::Max(1, [math]::Min(4, $this.UpscaleRatio))
-        # Real-CUGAN -n noise-level: 有效值 -1/0/1/2/3（-1 表示不降噪）
-        $this.NoiseLevel = [math]::Max(-1, [math]::Min(3, $this.NoiseLevel))
-        # cwebp -q: 有效范围 0~100
-        $this.WebpQuality = [math]::Max(0, [math]::Min(100, $this.WebpQuality))
-        # 超时时间必须为正整数
-        if ($this.UpscaleTimeoutSec -lt 1) { $this.UpscaleTimeoutSec = 3600 }
+        # MaxWorkers 不大于 0 时（0 = 自动检测，负数 = 无效值），按 CPU 核心数动态计算
+        $this.MaxWorkers = $this.MaxWorkers -le 0 ? [math]::Max(1, [System.Environment]::ProcessorCount / 2) : $this.MaxWorkers
     }
 
 }

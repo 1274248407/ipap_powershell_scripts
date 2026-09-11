@@ -457,9 +457,18 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
             }
         }
 
-        It 'null 设置时应抛出异常（ContainsKey 不支持 null）' {
+        It 'null 设置时应安全处理（?? 回退到空哈希表）' {
             InModuleScope IPAP {
-                { [ApplicationConfiguration]::new($null) } | Should -Throw
+                $config = [ApplicationConfiguration]::new($null)
+
+                # null 输入通过 ?? @{ } 回退，所有属性使用默认值
+                $config.SupportedImageFormats | Should -Be @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
+                $config.UpscaleTimeoutSec | Should -Be 3600
+                $config.ModelSelect | Should -Be 'models-se'
+                $config.UpscaleRatio | Should -Be 2
+                $config.NoiseLevel | Should -Be 0
+                $config.WebpEnabled | Should -Be $true
+                $config.WebpQuality | Should -Be 100
             }
         }
     }
