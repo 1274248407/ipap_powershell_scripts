@@ -369,13 +369,13 @@ class ApplicationConfiguration
         $this.ModelSelect = $appSettings.model_select ?? 'models-se'
 
         $upscaleSettings = $Settings.upscale ?? @{}
-        $this.UpscaleRatio = [math]::Max(1, [math]::Min(4, [ApplicationConfiguration]::TryIntConvert($upscaleSettings.upscale_ratio, 'upscale_ratio') ?? 2))   # Real-CUGAN -s: 1/2/3/4
-        $this.NoiseLevel = [math]::Max(-1, [math]::Min(3, [ApplicationConfiguration]::TryIntConvert($upscaleSettings.noise_level, 'noise_level') ?? 0))           # Real-CUGAN -n: -1~3
+        $this.UpscaleRatio = [int][math]::Max(1, [math]::Min(4, [ApplicationConfiguration]::TryIntConvert($upscaleSettings.upscale_ratio, 'upscale_ratio') ?? 2))   # Real-CUGAN -s: 1/2/3/4
+        $this.NoiseLevel = [int][math]::Max(-1, [math]::Min(3, [ApplicationConfiguration]::TryIntConvert($upscaleSettings.noise_level, 'noise_level') ?? 0))           # Real-CUGAN -n: -1~3
 
         $webpSettings = $Settings.webp ?? @{}
         $this.WebpEnabled = [bool]($webpSettings.enabled ?? $true)
         $this.WebpLossless = [bool]($webpSettings.lossless ?? $true)
-        $this.WebpQuality = [math]::Max(0, [math]::Min(100, [ApplicationConfiguration]::TryIntConvert($webpSettings.quality, 'quality') ?? 100))                     # cwebp -q: 0~100
+        $this.WebpQuality = [int][math]::Max(0, [math]::Min(100, [ApplicationConfiguration]::TryIntConvert($webpSettings.quality, 'quality') ?? 100))                     # cwebp -q: 0~100
 
         # MaxWorkers 不大于 0 时（0 = 自动检测，负数 = 无效值），按 CPU 核心数动态计算
         $this.MaxWorkers = $this.MaxWorkers -le 0 ? [math]::Max(1, [System.Environment]::ProcessorCount / 2) : $this.MaxWorkers
