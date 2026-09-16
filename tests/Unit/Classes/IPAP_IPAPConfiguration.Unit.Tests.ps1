@@ -434,7 +434,7 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
 
                 $config = [IPAPConfiguration]::Load($p)
 
-                $config.Paths | Should -Not -BeNullOrEmpty
+                $config.Paths | Should -BeOfType 'PathConfiguration'
             }
         }
     }

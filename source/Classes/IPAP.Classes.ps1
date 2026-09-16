@@ -361,24 +361,50 @@ class ApplicationConfiguration
 
         # 从配置读取值并钳制到有效值域（?? 为空/不存在时回退到默认值）
         $appSettings = $Settings.app_settings ?? @{}
-        $this.SupportedImageFormats = ($appSettings.ContainsKey('supported_image_formats') -and $appSettings.supported_image_formats) ? $appSettings.supported_image_formats : @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
-        $this.MaxWorkers = [int]($appSettings.max_workers ?? 0)
-        $this.UpscaleTimeoutSec = [int]($appSettings.upscale_timeout_sec ?? 3600)
+        $this.SupportedImageFormats = $appSettings.supported_image_formats ?? @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
+        $this.MaxWorkers = [ApplicationConfiguration]::TryIntConvert($appSettings.max_workers ?? 0, 'max_workers')
+        $this.UpscaleTimeoutSec = [ApplicationConfiguration]::TryIntConvert($appSettings.upscale_timeout_sec ?? 3600, 'upscale_timeout_sec')
         # 超时时间必须为正整数，无效值回退到默认 3600 秒
         $this.UpscaleTimeoutSec = $this.UpscaleTimeoutSec -lt 1 ? 3600 : $this.UpscaleTimeoutSec
         $this.ModelSelect = $appSettings.model_select ?? 'models-se'
 
         $upscaleSettings = $Settings.upscale ?? @{}
-        $this.UpscaleRatio = [math]::Max(1, [math]::Min(4, [int]($upscaleSettings.upscale_ratio ?? 2)))   # Real-CUGAN -s: 1/2/3/4
-        $this.NoiseLevel = [math]::Max(-1, [math]::Min(3, [int]($upscaleSettings.noise_level ?? 0)))     # Real-CUGAN -n: -1~3
+        $this.UpscaleRatio = [math]::Max(1, [math]::Min(4, [ApplicationConfiguration]::TryIntConvert($upscaleSettings.upscale_ratio, 'upscale_ratio') ?? 2))   # Real-CUGAN -s: 1/2/3/4
+        $this.NoiseLevel = [math]::Max(-1, [math]::Min(3, [ApplicationConfiguration]::TryIntConvert($upscaleSettings.noise_level, 'noise_level') ?? 0))           # Real-CUGAN -n: -1~3
 
         $webpSettings = $Settings.webp ?? @{}
         $this.WebpEnabled = [bool]($webpSettings.enabled ?? $true)
         $this.WebpLossless = [bool]($webpSettings.lossless ?? $true)
-        $this.WebpQuality = [math]::Max(0, [math]::Min(100, [int]($webpSettings.quality ?? 100)))        # cwebp -q: 0~100
+        $this.WebpQuality = [math]::Max(0, [math]::Min(100, [ApplicationConfiguration]::TryIntConvert($webpSettings.quality, 'quality') ?? 100))                     # cwebp -q: 0~100
 
         # MaxWorkers 不大于 0 时（0 = 自动检测，负数 = 无效值），按 CPU 核心数动态计算
         $this.MaxWorkers = $this.MaxWorkers -le 0 ? [math]::Max(1, [System.Environment]::ProcessorCount / 2) : $this.MaxWorkers
+    }
+
+    <#
+    .SYNOPSIS
+        安全整数转换
+    .DESCRIPTION
+        将配置值安全转换为 [int]，失败时抛出逻辑异常而非系统异常。
+    .PARAMETER Value
+        待转换的配置值
+    .PARAMETER ParameterName
+        参数名称，用于构造友好的错误信息
+    .OUTPUTS
+        int
+    .NOTES
+        Author:  lucas_gold
+        Website: https://github.com/1274248407
+    #>
+    hidden static [object] TryIntConvert([object]$Value, [string]$ParameterName)
+    {
+        if ($null -eq $Value) { return $null }
+        $parsed = $null
+        if ([int]::TryParse([string]$Value, [ref]$parsed))
+        {
+            return $parsed
+        }
+        throw [System.ArgumentException]::new("配置项 '$ParameterName' 的值 '$Value' 不是有效的整数")
     }
 
 }

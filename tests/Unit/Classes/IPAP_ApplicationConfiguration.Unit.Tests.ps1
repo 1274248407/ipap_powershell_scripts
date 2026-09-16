@@ -61,7 +61,7 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
                 $config = [ApplicationConfiguration]::new(@{})
 
                 $config.SupportedImageFormats | Should -Be @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
-                $config.MaxWorkers | Should -Not -Be 0  # 动态计算后不应为 0
+                $config.MaxWorkers | Should -Be ([math]::Max(1, [System.Environment]::ProcessorCount / 2))
                 $config.UpscaleTimeoutSec | Should -Be 3600
                 $config.ModelSelect | Should -Be 'models-se'
             }
@@ -82,7 +82,7 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
             }
         }
 
-        It 'supported_image_formats 为空数组时应使用空数组（不触发默认值）' {
+        It 'supported_image_formats 为空数组时应保留空数组（用户明确声明不支持任何格式）' {
             InModuleScope IPAP {
                 $settings = @{
                     app_settings = @{
@@ -91,8 +91,8 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
                 }
                 $config = [ApplicationConfiguration]::new($settings)
 
-                # 空数组在 if 条件中为 false（PowerShell 空数组行为），应回退到默认值
-                $config.SupportedImageFormats | Should -Be @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
+                # ?? 只检查 null，空数组非 null，应保留用户设置
+                $config.SupportedImageFormats | Should -Be @()
             }
         }
 
@@ -130,6 +130,14 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
                 # 无效超时值应回退到默认 3600 秒
                 $configZero.UpscaleTimeoutSec | Should -Be 3600
                 $configNeg.UpscaleTimeoutSec | Should -Be 3600
+            }
+        }
+
+        It 'upscale_timeout_sec 为 1 时应保持不变（刚好不触发 -lt 1）' {
+            InModuleScope IPAP {
+                $config = [ApplicationConfiguration]::new(@{ app_settings = @{ upscale_timeout_sec = 1 } })
+
+                $config.UpscaleTimeoutSec | Should -Be 1
             }
         }
     }
@@ -221,6 +229,22 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
                 $configHigh.NoiseLevel | Should -Be 3
             }
         }
+
+        It 'upscale_ratio 为边界值 1 时应保持不变（刚好不触发 Max 下限）' {
+            InModuleScope IPAP {
+                $config = [ApplicationConfiguration]::new(@{ upscale = @{ upscale_ratio = 1 } })
+
+                $config.UpscaleRatio | Should -Be 1
+            }
+        }
+
+        It 'noise_level 为边界值 3 时应保持不变（刚好不触发 Min 上限）' {
+            InModuleScope IPAP {
+                $config = [ApplicationConfiguration]::new(@{ upscale = @{ noise_level = 3 } })
+
+                $config.NoiseLevel | Should -Be 3
+            }
+        }
     }
 
     Context '构造函数 - webp 默认值回退' {
@@ -276,20 +300,9 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
                 }
                 $config = [ApplicationConfiguration]::new($settings)
 
-                $config.WebpQuality | Should -Be 100
-            }
-        }
-
-        It 'webp enabled 为布尔值 false 时应正确设置' {
-            InModuleScope IPAP {
-                $settings = @{
-                    webp = @{
-                        enabled = $false
-                    }
-                }
-                $config = [ApplicationConfiguration]::new($settings)
-
                 $config.WebpEnabled | Should -Be $false
+                $config.WebpLossless | Should -Be $false
+                $config.WebpQuality | Should -Be 100
             }
         }
 
@@ -314,6 +327,22 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
 
                 $configLow.WebpQuality | Should -Be 0
                 $configHigh.WebpQuality | Should -Be 100
+            }
+        }
+
+        It 'webp quality 为边界值 0 时应保持不变（刚好不触发 Max 下限）' {
+            InModuleScope IPAP {
+                $config = [ApplicationConfiguration]::new(@{ webp = @{ quality = 0 } })
+
+                $config.WebpQuality | Should -Be 0
+            }
+        }
+
+        It 'webp quality 为边界值 100 时应保持不变（刚好不触发 Min 上限）' {
+            InModuleScope IPAP {
+                $config = [ApplicationConfiguration]::new(@{ webp = @{ quality = 100 } })
+
+                $config.WebpQuality | Should -Be 100
             }
         }
     }
@@ -384,7 +413,7 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
                 $config = [ApplicationConfiguration]::new(@{})
 
                 $config.SupportedImageFormats | Should -Be @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
-                $config.MaxWorkers | Should -Not -Be 0
+                $config.MaxWorkers | Should -Be ([math]::Max(1, [System.Environment]::ProcessorCount / 2))
                 $config.UpscaleTimeoutSec | Should -Be 3600
                 $config.ModelSelect | Should -Be 'models-se'
                 $config.UpscaleRatio | Should -Be 2
@@ -463,12 +492,46 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
 
                 # null 输入通过 ?? @{ } 回退，所有属性使用默认值
                 $config.SupportedImageFormats | Should -Be @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
+                $config.MaxWorkers | Should -Be ([math]::Max(1, [System.Environment]::ProcessorCount / 2))
                 $config.UpscaleTimeoutSec | Should -Be 3600
                 $config.ModelSelect | Should -Be 'models-se'
                 $config.UpscaleRatio | Should -Be 2
                 $config.NoiseLevel | Should -Be 0
                 $config.WebpEnabled | Should -Be $true
+                $config.WebpLossless | Should -Be $true
                 $config.WebpQuality | Should -Be 100
+            }
+        }
+    }
+
+    Context '构造函数 - 无效输入（Level 2 逻辑异常）' {
+        It 'max_workers 为非数字字符串时应抛出 ArgumentException' {
+            InModuleScope IPAP {
+                { [ApplicationConfiguration]::new(@{ app_settings = @{ max_workers = 'abc' } }) } | Should -Throw -ExpectedMessage '*max_workers*不是有效的整数*'
+            }
+        }
+
+        It 'upscale_timeout_sec 为非数字字符串时应抛出 ArgumentException' {
+            InModuleScope IPAP {
+                { [ApplicationConfiguration]::new(@{ app_settings = @{ upscale_timeout_sec = 'not_a_number' } }) } | Should -Throw -ExpectedMessage '*upscale_timeout_sec*不是有效的整数*'
+            }
+        }
+
+        It 'upscale_ratio 为非数字字符串时应抛出 ArgumentException' {
+            InModuleScope IPAP {
+                { [ApplicationConfiguration]::new(@{ upscale = @{ upscale_ratio = 'xyz' } }) } | Should -Throw -ExpectedMessage '*upscale_ratio*不是有效的整数*'
+            }
+        }
+
+        It 'noise_level 为非数字字符串时应抛出 ArgumentException' {
+            InModuleScope IPAP {
+                { [ApplicationConfiguration]::new(@{ upscale = @{ noise_level = 'bad' } }) } | Should -Throw -ExpectedMessage '*noise_level*不是有效的整数*'
+            }
+        }
+
+        It 'webp quality 为非数字字符串时应抛出 ArgumentException' {
+            InModuleScope IPAP {
+                { [ApplicationConfiguration]::new(@{ webp = @{ quality = 'abc123' } }) } | Should -Throw -ExpectedMessage '*quality*不是有效的整数*'
             }
         }
     }
@@ -491,6 +554,7 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
                 }
                 $config = [ApplicationConfiguration]::new($settings)
 
+                $config.SupportedImageFormats | Should -BeOfType [string]
                 $config.MaxWorkers | Should -BeOfType [int]
                 $config.UpscaleTimeoutSec | Should -BeOfType [int]
                 $config.ModelSelect | Should -BeOfType [string]

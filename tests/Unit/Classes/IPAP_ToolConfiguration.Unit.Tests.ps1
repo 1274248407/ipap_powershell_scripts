@@ -174,7 +174,7 @@ Describe 'ToolConfiguration Unit Tests' -Tag 'ToolConfiguration', 'IPAP', 'Class
                 $settings = @{ paths = @{ ffmpeg_exe = ''; ffprobe_exe = ''; realcugan_exe = '' } }
                 $toolConfig = [ToolConfiguration]::new($pathConfig, $settings)
 
-                $toolConfig.RealCuganExePath | Should -Not -BeNullOrEmpty
+                $toolConfig.RealCuganExePath | Should -Be $realcuganExe
             }
         }
     }
@@ -277,8 +277,8 @@ Describe 'ToolConfiguration Unit Tests' -Tag 'ToolConfiguration', 'IPAP', 'Class
                 $settings = @{ paths = @{ ffmpeg_exe = ''; ffprobe_exe = ''; realcugan_exe = '' } }
                 $toolConfig = [ToolConfiguration]::new($pathConfig, $settings)
 
-                $toolConfig.FfmpegExePath | Should -Not -BeNullOrEmpty
-                $toolConfig.FfprobeExePath | Should -Not -BeNullOrEmpty
+                $toolConfig.FfmpegExePath | Should -Be 'C:\tools\ffmpeg.exe'
+                $toolConfig.FfprobeExePath | Should -Be 'C:\tools\ffprobe.exe'
                 $toolConfig.RealCuganExePath | Should -Not -BeNullOrEmpty
             }
         }
