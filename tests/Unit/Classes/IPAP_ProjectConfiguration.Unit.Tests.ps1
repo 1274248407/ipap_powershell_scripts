@@ -4,8 +4,8 @@
 .SYNOPSIS
     IPAP 模块 - ProjectConfiguration 单元测试
 .DESCRIPTION
-    测试 ProjectConfiguration 类的构造函数、属性初始化、GetProjectName 方法
-    和静态工厂方法 Load。覆盖正常路径、缺失键和 GetProjectName 各种组合边界。
+    测试 ProjectConfiguration 类的构造函数、属性初始化和 GetProjectName 方法。
+    覆盖正常路径、缺失键、非法配置值以及 GetProjectName 的各种组合边界。
 #>
 
 Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 'Classes' {
@@ -98,6 +98,8 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
                 $config.Author | Should -Be ''
                 $config.OriginalTitle | Should -Be '呐喊'
                 $config.ChineseTitle | Should -Be ''
+                $config.OriginalOverview | Should -Be ''
+                $config.ChineseOverview | Should -Be ''
             }
         }
 
@@ -112,8 +114,10 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
                 $config = [ProjectConfiguration]::new($settings)
 
                 $config.Author | Should -Be '鲁迅'
-                $config.ChineseTitle | Should -Be '呐喊'
                 $config.OriginalTitle | Should -Be ''
+                $config.ChineseTitle | Should -Be '呐喊'
+                $config.OriginalOverview | Should -Be ''
+                $config.ChineseOverview | Should -Be ''
             }
         }
     }
@@ -131,6 +135,43 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
 
                 $config.Author | Should -Be ''
                 $config.OriginalTitle | Should -Be ''
+            }
+        }
+    }
+
+    Context '构造函数 - 非法 project 值（Level 2 逻辑异常）' {
+        It 'project 为 null 时应抛出逻辑异常而非系统异常' {
+            InModuleScope IPAP {
+                { [ProjectConfiguration]::new(@{ project = $null }) } |
+                    Should -Throw -ExpectedMessage "*配置项 'project' 必须是 Hashtable 类型*"
+            }
+        }
+
+        It 'project 为字符串时应抛出逻辑异常而非系统异常' {
+            InModuleScope IPAP {
+                { [ProjectConfiguration]::new(@{ project = '呐喊' }) } |
+                    Should -Throw -ExpectedMessage "*配置项 'project' 必须是 Hashtable 类型*"
+            }
+        }
+
+        It 'project 为数组时应抛出逻辑异常' {
+            InModuleScope IPAP {
+                { [ProjectConfiguration]::new(@{ project = @('呐喊') }) } |
+                    Should -Throw -ExpectedMessage "*配置项 'project' 必须是 Hashtable 类型*"
+            }
+        }
+
+        It 'project 为有序字典时应抛出逻辑异常（本项目约定子配置块统一为 Hashtable）' {
+            InModuleScope IPAP {
+                { [ProjectConfiguration]::new(@{ project = [ordered]@{ author = '鲁迅' } }) } |
+                    Should -Throw -ExpectedMessage "*配置项 'project' 必须是 Hashtable 类型*"
+            }
+        }
+
+        It '异常消息应包含实际的类型名以便排查' {
+            InModuleScope IPAP {
+                { [ProjectConfiguration]::new(@{ project = '呐喊' }) } |
+                    Should -Throw -ExpectedMessage "*当前值类型为 'String'*"
             }
         }
     }
@@ -216,11 +257,9 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
                 }
                 $config = [ProjectConfiguration]::new($settings)
 
-                # original_title 未在 settings 中，构造函数不会设置它，保持 null
-                # GetProjectName 检查 IsNullOrWhiteSpace，null 不满足，返回 OriginalTitle（null）
-                # 由于 OriginalTitle 未赋值，PowerShell 类属性默认为 null
-                $result = $config.GetProjectName()
-                $result | Should -BeNullOrEmpty
+                # original_title 未在 settings 中，构造函数已将其初始化为空字符串（而非 null）
+                # GetProjectName 中 IsNullOrWhiteSpace('') 为 true，回退到 return $this.OriginalTitle（''）
+                $config.GetProjectName() | Should -Be ''
             }
         }
 
@@ -318,15 +357,6 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
                 $config = [ProjectConfiguration]::new($settings)
 
                 $config | Should -BeOfType [ProjectConfiguration]
-            }
-        }
-
-        It 'null 设置时应返回全默认值' {
-            InModuleScope IPAP {
-                $config = [ProjectConfiguration]::new($null)
-
-                $config.Author | Should -Be ''
-                $config.OriginalTitle | Should -Be ''
             }
         }
     }

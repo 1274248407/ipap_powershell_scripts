@@ -152,20 +152,16 @@ class ToolConfiguration
     #>
     hidden [string] ResolveToolPath([string]$ConfiguredPath, [string]$CommandName, [string]$DisplayName)
     {
-        if (-not [string]::IsNullOrWhiteSpace($ConfiguredPath))
+        # 空配置值直接置为 null，非空时拼成完整路径
+        $FullPath = [string]::IsNullOrWhiteSpace($ConfiguredPath) ? $null : (Join-Path $this.PathConfig.ProjectRoot $ConfiguredPath)
+        if ($FullPath -and (Test-Path -LiteralPath $FullPath))
         {
-            $FullPath = Join-Path $this.PathConfig.ProjectRoot $ConfiguredPath
-            if (Test-Path -LiteralPath $FullPath)
-            {
-                return $FullPath
-            }
+            return $FullPath
         }
+
+        # 配置路径缺失或不存在时回退到 PATH 环境变量查找
         $Command = Get-Command $CommandName -ErrorAction SilentlyContinue
-        if ($Command)
-        {
-            return $Command.Source
-        }
-        return $null
+        return $Command ? $Command.Source : $null
     }
 
     <#
@@ -183,21 +179,17 @@ class ToolConfiguration
     #>
     hidden [string] ResolveRealCuganPath([string]$ConfiguredPath)
     {
-        if (-not [string]::IsNullOrWhiteSpace($ConfiguredPath))
+        # 空配置值直接置为 null，非空时拼成完整路径
+        $FullPath = [string]::IsNullOrWhiteSpace($ConfiguredPath) ? $null : (Join-Path $this.PathConfig.ProjectRoot $ConfiguredPath)
+        if ($FullPath -and (Test-Path -LiteralPath $FullPath))
         {
-            $FullPath = Join-Path $this.PathConfig.ProjectRoot $ConfiguredPath
-            if (Test-Path -LiteralPath $FullPath)
-            {
-                return $FullPath
-            }
+            return $FullPath
         }
+
+        # 配置路径缺失或不存在时在 bin 目录中递归查找
         $ExeName = 'realcugan-ncnn-vulkan.exe'
         $Found = Get-ChildItem -LiteralPath $this.PathConfig.BinPath -Name $ExeName -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-        if ($Found)
-        {
-            return Join-Path $this.PathConfig.BinPath $Found
-        }
-        return $null
+        return $Found ? (Join-Path $this.PathConfig.BinPath $Found) : $null
     }
 
 }
@@ -239,6 +231,7 @@ class ProjectConfiguration
     .DESCRIPTION
         构造函数使用配置设置初始化项目元数据。
         如果配置中没有提供值，则使用空字符串作为默认值。
+        当 'project' 键存在但其值不是 Hashtable 时，抛出 ArgumentException。
     .PARAMETER Settings
         包含项目配置的哈希表
     .EXAMPLE
@@ -262,6 +255,14 @@ class ProjectConfiguration
         if ($Settings -and $Settings.ContainsKey('project'))
         {
             $projectSettings = $Settings.project
+
+            # 'project' 键存在但不是 Hashtable 时，抛出逻辑异常，避免系统异常直接穿透给调用方
+            if ($projectSettings -isnot [hashtable])
+            {
+                $actualType = $null -eq $projectSettings ? 'null' : $projectSettings.GetType().Name
+                throw [System.ArgumentException]::new("配置项 'project' 必须是 Hashtable 类型，当前值类型为 '$actualType'")
+            }
+
             if ($projectSettings.ContainsKey('author')) { $this.Author = $projectSettings.author }
             if ($projectSettings.ContainsKey('original_title')) { $this.OriginalTitle = $projectSettings.original_title }
             if ($projectSettings.ContainsKey('chinese_title')) { $this.ChineseTitle = $projectSettings.chinese_title }
@@ -285,12 +286,9 @@ class ProjectConfiguration
     #>
     [string] GetProjectName()
     {
-        if (-not [string]::IsNullOrWhiteSpace($this.Author) -and -not [string]::IsNullOrWhiteSpace($this.OriginalTitle))
-        {
-            $result = '[{0}] {1}' -f $this.Author, $this.OriginalTitle
-            return $result
-        }
-        return $this.OriginalTitle
+        # 作者与原作品名均非空时按 '[作者] 作品名' 格式化，否则仅返回原作品名（?: 三元表达式）
+        $HasAuthorAndTitle = -not [string]::IsNullOrWhiteSpace($this.Author) -and -not [string]::IsNullOrWhiteSpace($this.OriginalTitle)
+        return $HasAuthorAndTitle ? ('[{0}] {1}' -f $this.Author, $this.OriginalTitle) : $this.OriginalTitle
     }
 
 }
@@ -361,7 +359,7 @@ class ApplicationConfiguration
     {
         $this.Settings = $Settings
 
-        # 从配置读取值并钳制到有效值域（?? 为空/不存在时回退到默认值）
+        # 从配置读取值并钳制到有效值域（?? 为空/不存在时回退到默认值，[math]::Clamp 钳制上下限）
         $appSettings = $Settings.app_settings ?? @{}
         $this.SupportedImageFormats = $appSettings.supported_image_formats ?? @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
         $this.MaxWorkers = [ApplicationConfiguration]::TryIntConvert($appSettings.max_workers ?? 0, 'max_workers')
@@ -371,13 +369,13 @@ class ApplicationConfiguration
         $this.ModelSelect = $appSettings.model_select ?? 'models-se'
 
         $upscaleSettings = $Settings.upscale ?? @{}
-        $this.UpscaleRatio = [int][math]::Max(1, [math]::Min(4, [ApplicationConfiguration]::TryIntConvert($upscaleSettings.upscale_ratio, 'upscale_ratio') ?? 2))   # Real-CUGAN -s: 1/2/3/4
-        $this.NoiseLevel = [int][math]::Max(-1, [math]::Min(3, [ApplicationConfiguration]::TryIntConvert($upscaleSettings.noise_level, 'noise_level') ?? 0))           # Real-CUGAN -n: -1~3
+        $this.UpscaleRatio = [int][math]::Clamp([ApplicationConfiguration]::TryIntConvert($upscaleSettings.upscale_ratio, 'upscale_ratio') ?? 2, 1, 4)   # Real-CUGAN -s: 1/2/3/4
+        $this.NoiseLevel = [int][math]::Clamp([ApplicationConfiguration]::TryIntConvert($upscaleSettings.noise_level, 'noise_level') ?? 0, -1, 3)      # Real-CUGAN -n: -1~3
 
         $webpSettings = $Settings.webp ?? @{}
         $this.WebpEnabled = [bool]($webpSettings.enabled ?? $true)
         $this.WebpLossless = [bool]($webpSettings.lossless ?? $true)
-        $this.WebpQuality = [int][math]::Max(0, [math]::Min(100, [ApplicationConfiguration]::TryIntConvert($webpSettings.quality, 'quality') ?? 100))                     # cwebp -q: 0~100
+        $this.WebpQuality = [int][math]::Clamp([ApplicationConfiguration]::TryIntConvert($webpSettings.quality, 'quality') ?? 100, 0, 100)            # cwebp -q: 0~100
 
         # MaxWorkers 不大于 0 时（0 = 自动检测，负数 = 无效值），按 CPU 核心数动态计算
         $this.MaxWorkers = $this.MaxWorkers -le 0 ? [math]::Max(1, [System.Environment]::ProcessorCount / 2) : $this.MaxWorkers
@@ -493,8 +491,10 @@ class IPAPConfiguration
     static [IPAPConfiguration] Load([string]$ProjectRoot)
     {
         $loadedSettings = [IPAPConfiguration]::ReadConfigFile($ProjectRoot)
-        $baseProjectDir = if ($loadedSettings.ContainsKey('paths') -and $loadedSettings.paths.ContainsKey('base_project_dir')) { $loadedSettings.paths.base_project_dir } else { $null }
-        $sourceDir = if ($loadedSettings.ContainsKey('paths') -and $loadedSettings.paths.ContainsKey('source_dir')) { $loadedSettings.paths.source_dir } else { $null }
+        # paths 分类可能整体缺失，?? 回退到空哈希表后可安全探测子键；子键存在与否用三元取值
+        $pathsSettings = $loadedSettings['paths'] ?? @{}
+        $baseProjectDir = $pathsSettings.ContainsKey('base_project_dir') ? $pathsSettings.base_project_dir : $null
+        $sourceDir = $pathsSettings.ContainsKey('source_dir') ? $pathsSettings.source_dir : $null
         $loadedPaths = [PathConfiguration]::new($ProjectRoot, $baseProjectDir, $sourceDir)
         $loadedTools = [ToolConfiguration]::new($loadedPaths, $loadedSettings)
         $loadedApp = [ApplicationConfiguration]::new($loadedSettings)
