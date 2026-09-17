@@ -5,7 +5,7 @@
     IPAP 模块 - ProjectConfiguration 单元测试
 .DESCRIPTION
     测试 ProjectConfiguration 类的构造函数、属性初始化和 GetProjectName 方法。
-    覆盖正常路径、缺失键、非法配置值以及 GetProjectName 的各种组合边界。
+    覆盖正常路径、缺失键、非法配置值、空字典与有序字典边界，以及 GetProjectName 的各种组合边界。
 #>
 
 Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 'Classes' {
@@ -137,34 +137,58 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
                 $config.OriginalTitle | Should -Be ''
             }
         }
+
+        It '键存在但值为 null 时属性应退化为空字符串而非 null（Level 3 边界）' {
+            InModuleScope IPAP {
+                $settings = @{
+                    project = @{
+                        author         = $null
+                        original_title = $null
+                    }
+                }
+                $config = [ProjectConfiguration]::new($settings)
+
+                # [string] 属性会将 $null 强制转换为空字符串
+                $config.Author | Should -Be ''
+                $config.OriginalTitle | Should -Be ''
+                $config.GetProjectName() | Should -Be ''
+            }
+        }
     }
 
     Context '构造函数 - 非法 project 值（Level 2 逻辑异常）' {
         It 'project 为 null 时应抛出逻辑异常而非系统异常' {
             InModuleScope IPAP {
                 { [ProjectConfiguration]::new(@{ project = $null }) } |
-                    Should -Throw -ExpectedMessage "*配置项 'project' 必须是 Hashtable 类型*"
+                    Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "*配置项 'project' 必须是 IDictionary 类型*"
             }
         }
 
         It 'project 为字符串时应抛出逻辑异常而非系统异常' {
             InModuleScope IPAP {
                 { [ProjectConfiguration]::new(@{ project = '呐喊' }) } |
-                    Should -Throw -ExpectedMessage "*配置项 'project' 必须是 Hashtable 类型*"
+                    Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "*配置项 'project' 必须是 IDictionary 类型*"
             }
         }
 
         It 'project 为数组时应抛出逻辑异常' {
             InModuleScope IPAP {
                 { [ProjectConfiguration]::new(@{ project = @('呐喊') }) } |
-                    Should -Throw -ExpectedMessage "*配置项 'project' 必须是 Hashtable 类型*"
+                    Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "*配置项 'project' 必须是 IDictionary 类型*"
             }
         }
 
-        It 'project 为有序字典时应抛出逻辑异常（本项目约定子配置块统一为 Hashtable）' {
+        It 'project 为整数时应抛出逻辑异常' {
             InModuleScope IPAP {
-                { [ProjectConfiguration]::new(@{ project = [ordered]@{ author = '鲁迅' } }) } |
-                    Should -Throw -ExpectedMessage "*配置项 'project' 必须是 Hashtable 类型*"
+                { [ProjectConfiguration]::new(@{ project = 42 }) } |
+                    Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "*配置项 'project' 必须是 IDictionary 类型*"
+            }
+        }
+
+        It 'project 为 null 时异常消息中的类型名应显示为 null（三元真分支）' {
+            InModuleScope IPAP {
+                { [ProjectConfiguration]::new(@{ project = $null }) } |
+                    Should -Throw -ExpectedMessage "*当前值类型为 'null'*"
             }
         }
 
@@ -172,6 +196,86 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
             InModuleScope IPAP {
                 { [ProjectConfiguration]::new(@{ project = '呐喊' }) } |
                     Should -Throw -ExpectedMessage "*当前值类型为 'String'*"
+            }
+        }
+    }
+
+    Context '构造函数 - project 为空字典（Level 3 边界）' {
+        It '空哈希表应被接受且所有属性为空字符串' {
+            InModuleScope IPAP {
+                $config = [ProjectConfiguration]::new(@{ project = @{} })
+
+                $config.Author | Should -Be ''
+                $config.OriginalTitle | Should -Be ''
+                $config.ChineseTitle | Should -Be ''
+                $config.OriginalOverview | Should -Be ''
+                $config.ChineseOverview | Should -Be ''
+                $config.GetProjectName() | Should -Be ''
+            }
+        }
+
+        It '空有序字典应被接受且所有属性为空字符串' {
+            InModuleScope IPAP {
+                $config = [ProjectConfiguration]::new(@{ project = [ordered]@{} })
+
+                $config.Author | Should -Be ''
+                $config.OriginalTitle | Should -Be ''
+                $config.ChineseTitle | Should -Be ''
+                $config.OriginalOverview | Should -Be ''
+                $config.ChineseOverview | Should -Be ''
+                $config.GetProjectName() | Should -Be ''
+            }
+        }
+    }
+
+    Context '构造函数 - 有序字典（[ordered]）应被接受' {
+        It '有序字典应能正常构造并读取全部字段' {
+            InModuleScope IPAP {
+                $settings = @{
+                    project = [ordered]@{
+                        author            = '鲁迅'
+                        original_title    = '呐喊'
+                        chinese_title     = '呐喊'
+                        original_overview = 'Overview'
+                        chinese_overview  = '简介'
+                    }
+                }
+                $config = [ProjectConfiguration]::new($settings)
+
+                $config.Author | Should -Be '鲁迅'
+                $config.OriginalTitle | Should -Be '呐喊'
+                $config.ChineseTitle | Should -Be '呐喊'
+                $config.OriginalOverview | Should -Be 'Overview'
+                $config.ChineseOverview | Should -Be '简介'
+            }
+        }
+
+        It '有序字典缺少部分字段时其余字段应保持空字符串' {
+            InModuleScope IPAP {
+                $settings = @{
+                    project = [ordered]@{
+                        chinese_title = '呐喊'
+                    }
+                }
+                $config = [ProjectConfiguration]::new($settings)
+
+                $config.Author | Should -Be ''
+                $config.OriginalTitle | Should -Be ''
+                $config.ChineseTitle | Should -Be '呐喊'
+            }
+        }
+
+        It '有序字典应能正确计算项目名' {
+            InModuleScope IPAP {
+                $settings = @{
+                    project = [ordered]@{
+                        author         = '鲁迅'
+                        original_title = '呐喊'
+                    }
+                }
+                $config = [ProjectConfiguration]::new($settings)
+
+                $config.GetProjectName() | Should -Be '[鲁迅] 呐喊'
             }
         }
     }

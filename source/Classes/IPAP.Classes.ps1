@@ -231,7 +231,8 @@ class ProjectConfiguration
     .DESCRIPTION
         构造函数使用配置设置初始化项目元数据。
         如果配置中没有提供值，则使用空字符串作为默认值。
-        当 'project' 键存在但其值不是 Hashtable 时，抛出 ArgumentException。
+        当 'project' 键存在但其值不是字典（IDictionary）时，抛出 ArgumentException；
+        有序字典（[ordered]）等非 Hashtable 的字典实现会被自动转换为 Hashtable。
     .PARAMETER Settings
         包含项目配置的哈希表
     .EXAMPLE
@@ -256,12 +257,15 @@ class ProjectConfiguration
         {
             $projectSettings = $Settings.project
 
-            # 'project' 键存在但不是 Hashtable 时，抛出逻辑异常，避免系统异常直接穿透给调用方
-            if ($projectSettings -isnot [hashtable])
+            # 'project' 键存在但不是字典类型时，抛出逻辑异常，避免系统异常直接穿透给调用方
+            if ($projectSettings -isnot [System.Collections.IDictionary])
             {
                 $actualType = $null -eq $projectSettings ? 'null' : $projectSettings.GetType().Name
-                throw [System.ArgumentException]::new("配置项 'project' 必须是 Hashtable 类型，当前值类型为 '$actualType'")
+                throw [System.ArgumentException]::new("配置项 'project' 必须是 IDictionary 类型，当前值类型为 '$actualType'")
             }
+
+            # 有序字典等非 Hashtable 的字典实现脱壳为 Hashtable，后续才能安全使用 ContainsKey（与 ReadConfigFile 的子配置块约定一致）
+            $projectSettings = $projectSettings -is [hashtable] ? $projectSettings : [hashtable]$projectSettings
 
             if ($projectSettings.ContainsKey('author')) { $this.Author = $projectSettings.author }
             if ($projectSettings.ContainsKey('original_title')) { $this.OriginalTitle = $projectSettings.original_title }
