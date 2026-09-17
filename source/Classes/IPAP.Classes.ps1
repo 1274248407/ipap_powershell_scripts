@@ -128,8 +128,8 @@ class ToolConfiguration
     ToolConfiguration([PathConfiguration]$PathConfig, [hashtable]$Settings)
     {
         $this.PathConfig = $PathConfig
-        $this.FfmpegExePath = $this.ResolveToolPath($Settings.paths.ffmpeg_exe, 'ffmpeg', 'FFmpeg')
-        $this.FfprobeExePath = $this.ResolveToolPath($Settings.paths.ffprobe_exe, 'ffprobe', 'FFprobe')
+        $this.FfmpegExePath = $this.ResolveToolPath($Settings.paths.ffmpeg_exe, 'ffmpeg')
+        $this.FfprobeExePath = $this.ResolveToolPath($Settings.paths.ffprobe_exe, 'ffprobe')
         $this.RealCuganExePath = $this.ResolveRealCuganPath($Settings.paths.realcugan_exe)
     }
 
@@ -142,19 +142,18 @@ class ToolConfiguration
         配置文件中的相对路径
     .PARAMETER CommandName
         命令名称（用于 PATH 查找）
-    .PARAMETER DisplayName
-        显示名称（用于错误信息）
     .OUTPUTS
         string
     .NOTES
         Author:  lucas_gold
         Website: https://github.com/1274248407
     #>
-    hidden [string] ResolveToolPath([string]$ConfiguredPath, [string]$CommandName, [string]$DisplayName)
+    hidden [string] ResolveToolPath([string]$ConfiguredPath, [string]$CommandName)
     {
         # 空配置值直接置为 null，非空时拼成完整路径
         $FullPath = [string]::IsNullOrWhiteSpace($ConfiguredPath) ? $null : (Join-Path $this.PathConfig.ProjectRoot $ConfiguredPath)
-        if ($FullPath -and (Test-Path -LiteralPath $FullPath))
+        # 配置路径必须指向真实文件，指向目录等非文件目标时视为未命中
+        if ($FullPath -and (Test-Path -LiteralPath $FullPath -PathType Leaf))
         {
             return $FullPath
         }
@@ -181,7 +180,8 @@ class ToolConfiguration
     {
         # 空配置值直接置为 null，非空时拼成完整路径
         $FullPath = [string]::IsNullOrWhiteSpace($ConfiguredPath) ? $null : (Join-Path $this.PathConfig.ProjectRoot $ConfiguredPath)
-        if ($FullPath -and (Test-Path -LiteralPath $FullPath))
+        # 配置路径必须指向真实文件，指向目录等非文件目标时视为未命中
+        if ($FullPath -and (Test-Path -LiteralPath $FullPath -PathType Leaf))
         {
             return $FullPath
         }

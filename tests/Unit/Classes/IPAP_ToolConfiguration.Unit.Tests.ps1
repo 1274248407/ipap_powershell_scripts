@@ -4,9 +4,8 @@
 .SYNOPSIS
     IPAP 模块 - ToolConfiguration 单元测试
 .DESCRIPTION
-    测试 ToolConfiguration 类的构造函数、工具路径解析逻辑（ResolveToolPath / ResolveRealCuganPath）
-    和静态工厂方法 Load。使用真实目录和文件替代全局 Mock Test-Path，避免干扰
-    PathConfiguration 构造函数中的目录验证。
+    测试 ToolConfiguration 类的构造函数与工具路径解析逻辑（ResolveToolPath / ResolveRealCuganPath）。
+    使用真实目录和文件替代全局 Mock Test-Path，避免干扰 PathConfiguration 构造函数中的目录验证。
 #>
 
 Describe 'ToolConfiguration Unit Tests' -Tag 'ToolConfiguration', 'IPAP', 'Classes' {
@@ -199,6 +198,61 @@ Describe 'ToolConfiguration Unit Tests' -Tag 'ToolConfiguration', 'IPAP', 'Class
         }
     }
 
+    Context '构造函数 - 配置路径指向目录（Level 3 边界）' {
+        It '配置路径指向目录时应视为未命中并回退到 PATH 查找' {
+            InModuleScope IPAP {
+                $p = Join-Path $TestDrive 'MockProject'
+                New-Item -Path $p -ItemType Directory -Force | Out-Null
+                New-Item -Path (Join-Path $p 'tools') -ItemType Directory -Force | Out-Null
+
+                Mock -CommandName Get-Command { return $null }
+                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ffmpeg' } {
+                    return [PSCustomObject]@{ Source = 'C:\tools\ffmpeg.exe' }
+                }
+
+                $pathConfig = [PathConfiguration]::new($p, $null, $null)
+                $settings = @{ paths = @{ ffmpeg_exe = 'tools'; ffprobe_exe = ''; realcugan_exe = '' } }
+                $toolConfig = [ToolConfiguration]::new($pathConfig, $settings)
+
+                $toolConfig.FfmpegExePath | Should -Be 'C:\tools\ffmpeg.exe'
+            }
+        }
+    }
+
+    Context '构造函数 - settings 缺失或为空（Level 2 边界，不得抛系统异常）' {
+        It 'settings 为 null 时三个路径均为空（构造完成即证明未抛系统异常）' {
+            InModuleScope IPAP {
+                $p = Join-Path $TestDrive 'MockProject'
+                New-Item -Path $p -ItemType Directory -Force | Out-Null
+
+                Mock -CommandName Get-Command { return $null }
+
+                $pathConfig = [PathConfiguration]::new($p, $null, $null)
+                $toolConfig = [ToolConfiguration]::new($pathConfig, $null)
+
+                $toolConfig.FfmpegExePath | Should -BeNullOrEmpty
+                $toolConfig.FfprobeExePath | Should -BeNullOrEmpty
+                $toolConfig.RealCuganExePath | Should -BeNullOrEmpty
+            }
+        }
+
+        It 'settings 中缺少 paths 键时三个路径均为空' {
+            InModuleScope IPAP {
+                $p = Join-Path $TestDrive 'MockProject'
+                New-Item -Path $p -ItemType Directory -Force | Out-Null
+
+                Mock -CommandName Get-Command { return $null }
+
+                $pathConfig = [PathConfiguration]::new($p, $null, $null)
+                $toolConfig = [ToolConfiguration]::new($pathConfig, @{})
+
+                $toolConfig.FfmpegExePath | Should -BeNullOrEmpty
+                $toolConfig.FfprobeExePath | Should -BeNullOrEmpty
+                $toolConfig.RealCuganExePath | Should -BeNullOrEmpty
+            }
+        }
+    }
+
     Context '构造函数验证' {
         It '应返回 ToolConfiguration 实例' {
             InModuleScope IPAP {
@@ -312,6 +366,26 @@ Describe 'ToolConfiguration Unit Tests' -Tag 'ToolConfiguration', 'IPAP', 'Class
                 $toolConfig.FfmpegExePath | Should -BeNullOrEmpty
                 $toolConfig.FfprobeExePath | Should -BeNullOrEmpty
                 $toolConfig.RealCuganExePath | Should -BeNullOrEmpty
+            }
+        }
+    }
+
+    Context '边界情况 - 配置值为纯空白（Level 3 边界）' {
+        It '配置值为纯空白时应视为空并回退到 PATH 查找' {
+            InModuleScope IPAP {
+                $p = Join-Path $TestDrive 'MockProject'
+                New-Item -Path $p -ItemType Directory -Force | Out-Null
+
+                Mock -CommandName Get-Command { return $null }
+                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ffmpeg' } {
+                    return [PSCustomObject]@{ Source = 'C:\ffmpeg\bin\ffmpeg.exe' }
+                }
+
+                $pathConfig = [PathConfiguration]::new($p, $null, $null)
+                $settings = @{ paths = @{ ffmpeg_exe = '   '; ffprobe_exe = ''; realcugan_exe = '' } }
+                $toolConfig = [ToolConfiguration]::new($pathConfig, $settings)
+
+                $toolConfig.FfmpegExePath | Should -Be 'C:\ffmpeg\bin\ffmpeg.exe'
             }
         }
     }
