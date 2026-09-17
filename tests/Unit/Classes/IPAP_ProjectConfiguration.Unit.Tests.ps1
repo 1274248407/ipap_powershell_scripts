@@ -262,6 +262,9 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
                 $config.Author | Should -Be ''
                 $config.OriginalTitle | Should -Be ''
                 $config.ChineseTitle | Should -Be '呐喊'
+                $config.OriginalOverview | Should -Be ''
+                $config.ChineseOverview | Should -Be ''
+                $config.GetProjectName() | Should -Be ''
             }
         }
 
