@@ -21,7 +21,7 @@ Describe 'PathConfiguration Unit Tests' -Tag 'PathConfiguration', 'IPAP', 'Class
 
     Context '构造函数 - 正常执行路径' {
         It '应正确设置 ProjectRoot 属性' {
-            InModuleScope IPAP {
+            InModuleScope IPAP { ·
                 $p = Join-Path $TestDrive 'MockProject'
                 New-Item -Path $p -ItemType Directory -Force | Out-Null
                 $config = [PathConfiguration]::new($p, $null, $null)
@@ -46,7 +46,7 @@ Describe 'PathConfiguration Unit Tests' -Tag 'PathConfiguration', 'IPAP', 'Class
                 $config.ConfigPath | Should -Be (Join-Path $p 'config.toml')
             }
         }
-
+        ·
         It '不传 BaseProjectDir 时应为 null' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'

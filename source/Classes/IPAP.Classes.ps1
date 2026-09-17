@@ -48,6 +48,8 @@ class PathConfiguration
         验证 ProjectRoot 不为空且目录存在。
     .PARAMETER ProjectRoot
         项目根目录路径
+    .PARAMETER BaseProjectDir
+        漫画/翻译项目工作区的基准目录（可选）
     .PARAMETER SourceDir
         源图片目录路径（可选）
     .EXAMPLE
