@@ -310,7 +310,7 @@ Describe 'ToolConfiguration Unit Tests' -Tag 'ToolConfiguration', 'IPAP', 'Class
             }
         }
 
-        It '所有工具都找到时应全部非空' {
+        It '所有工具都找到时应返回各自的正确路径' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
                 New-Item -Path $p -ItemType Directory -Force | Out-Null
@@ -333,7 +333,7 @@ Describe 'ToolConfiguration Unit Tests' -Tag 'ToolConfiguration', 'IPAP', 'Class
 
                 $toolConfig.FfmpegExePath | Should -Be 'C:\tools\ffmpeg.exe'
                 $toolConfig.FfprobeExePath | Should -Be 'C:\tools\ffprobe.exe'
-                $toolConfig.RealCuganExePath | Should -Not -BeNullOrEmpty
+                $toolConfig.RealCuganExePath | Should -Be $realcuganExe
             }
         }
     }
