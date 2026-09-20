@@ -363,8 +363,8 @@ class ApplicationConfiguration
     {
         $this.Settings = $Settings
 
-        # 从配置读取值并钳制到有效值域（?? 为空/不存在时回退到默认值，[math]::Clamp 钳制上下限）
-        $appSettings = $Settings.app_settings ?? @{}
+        # 从配置读取值并钳制到有效值域（区块缺失回退空哈希表，值缺失回退默认值，[math]::Clamp 钳制上下限）
+        $appSettings = [ApplicationConfiguration]::GetSettingsBlock($Settings.app_settings, 'app_settings')
         $this.SupportedImageFormats = $appSettings.supported_image_formats ?? @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
         $this.MaxWorkers = [ApplicationConfiguration]::TryIntConvert($appSettings.max_workers ?? 0, 'max_workers')
         $this.UpscaleTimeoutSec = [ApplicationConfiguration]::TryIntConvert($appSettings.upscale_timeout_sec ?? 3600, 'upscale_timeout_sec')
@@ -372,17 +372,53 @@ class ApplicationConfiguration
         $this.UpscaleTimeoutSec = $this.UpscaleTimeoutSec -lt 1 ? 3600 : $this.UpscaleTimeoutSec
         $this.ModelSelect = $appSettings.model_select ?? 'models-se'
 
-        $upscaleSettings = $Settings.upscale ?? @{}
+        $upscaleSettings = [ApplicationConfiguration]::GetSettingsBlock($Settings.upscale, 'upscale')
         $this.UpscaleRatio = [int][math]::Clamp([ApplicationConfiguration]::TryIntConvert($upscaleSettings.upscale_ratio, 'upscale_ratio') ?? 2, 1, 4)   # Real-CUGAN -s: 1/2/3/4
         $this.NoiseLevel = [int][math]::Clamp([ApplicationConfiguration]::TryIntConvert($upscaleSettings.noise_level, 'noise_level') ?? 0, -1, 3)      # Real-CUGAN -n: -1~3
 
-        $webpSettings = $Settings.webp ?? @{}
+        $webpSettings = [ApplicationConfiguration]::GetSettingsBlock($Settings.webp, 'webp')
         $this.WebpEnabled = [bool]($webpSettings.enabled ?? $true)
         $this.WebpLossless = [bool]($webpSettings.lossless ?? $true)
         $this.WebpQuality = [int][math]::Clamp([ApplicationConfiguration]::TryIntConvert($webpSettings.quality, 'quality') ?? 100, 0, 100)            # cwebp -q: 0~100
 
         # MaxWorkers 不大于 0 时（0 = 自动检测，负数 = 无效值），按 CPU 核心数动态计算
         $this.MaxWorkers = $this.MaxWorkers -le 0 ? [math]::Max(1, [System.Environment]::ProcessorCount / 2) : $this.MaxWorkers
+    }
+
+    <#
+    .SYNOPSIS
+        安全获取配置区块
+    .DESCRIPTION
+        取出配置中指定的区块并校验其类型。
+        区块缺失或为 $null 时回退为空哈希表，调用方无需再做空值判断；
+        区块存在但不是字典类型时抛出 ArgumentException，避免下游属性访问穿透系统异常
+        （与 ProjectConfiguration 对 'project' 区块的处置一致）。
+    .PARAMETER Value
+        待校验的配置区块值
+    .PARAMETER BlockName
+        配置区块名称，用于构造友好的错误信息
+    .OUTPUTS
+        System.Collections.IDictionary
+    .NOTES
+        Author:  lucas_gold
+        Website: https://github.com/1274248407
+    #>
+    hidden static [System.Collections.IDictionary] GetSettingsBlock([object]$Value, [string]$BlockName)
+    {
+        # 区块缺失时回退空哈希表
+        if ($null -eq $Value)
+        {
+            return @{}
+        }
+
+        # 区块存在但不是字典类型时抛出逻辑异常，避免系统异常直接穿透给调用方
+        if ($Value -isnot [System.Collections.IDictionary])
+        {
+            $actualType = $Value.GetType().Name
+            throw [System.ArgumentException]::new("配置项 '$BlockName' 必须是 IDictionary 类型，当前值类型为 '$actualType'")
+        }
+
+        return $Value
     }
 
     <#
@@ -497,6 +533,12 @@ class IPAPConfiguration
         $loadedSettings = [IPAPConfiguration]::ReadConfigFile($ProjectRoot)
         # paths 分类可能整体缺失，?? 回退到空哈希表后可安全探测子键；子键存在与否用三元取值
         $pathsSettings = $loadedSettings['paths'] ?? @{}
+        # 'paths' 键存在但不是字典类型时抛出逻辑异常，避免 ContainsKey 调用穿透系统异常（与 ProjectConfiguration 的处置一致）
+        if ($pathsSettings -isnot [System.Collections.IDictionary])
+        {
+            $actualType = $pathsSettings.GetType().Name
+            throw [System.ArgumentException]::new("配置项 'paths' 必须是 IDictionary 类型，当前值类型为 '$actualType'")
+        }
         $baseProjectDir = $pathsSettings.ContainsKey('base_project_dir') ? $pathsSettings.base_project_dir : $null
         $sourceDir = $pathsSettings.ContainsKey('source_dir') ? $pathsSettings.source_dir : $null
         $loadedPaths = [PathConfiguration]::new($ProjectRoot, $baseProjectDir, $sourceDir)
@@ -524,7 +566,7 @@ class IPAPConfiguration
     {
         $configPath = Join-Path $ProjectRoot 'config.toml'
         $defaultSettings = @{
-            paths        = @{ base_project_dir = ''; project_dir_prefix = ''; archive_dir = ''; source_dir = ''; ffmpeg_exe = ''; ffprobe_exe = ''; realcugan_exe = '' }
+            paths        = @{ base_project_dir = ''; source_dir = ''; ffmpeg_exe = ''; ffprobe_exe = ''; realcugan_exe = '' }
             project      = @{ author = ''; original_title = ''; chinese_title = ''; original_overview = ''; chinese_overview = '' }
             app_settings = @{ supported_image_formats = @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'); max_workers = 8; upscale_timeout_sec = 3600; model_select = 'models-se' }
             upscale      = @{ upscale_ratio = 2; noise_level = 0 }

@@ -8,6 +8,7 @@
     ReadConfigFile（TOML 读取与 Windows 路径转义修复）和 MergeSettings（浅合并逻辑）。
     使用真实目录和文件替代全局 Mock Test-Path，避免干扰
     PathConfiguration 构造函数中的目录验证。
+    ReadConfigFile 与 MergeSettings 是模块内的隐藏静态方法，在 InModuleScope 中可直接调用，无需反射。
 #>
 
 Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Classes' {
@@ -76,8 +77,13 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
 
                 $config = [IPAPConfiguration]::Load($p)
 
+                # 类型契约：-BeOfType 兼作非空校验
                 $config | Should -BeOfType 'IPAPConfiguration'
-                $config.Paths.ProjectRoot | Should -Be $p
+                # 聚合契约：四个子配置引用须为正确类型，各自默认值由对应的 It 全量断言
+                $config.Paths | Should -BeOfType 'PathConfiguration'
+                $config.Tools | Should -BeOfType 'ToolConfiguration'
+                $config.App | Should -BeOfType 'ApplicationConfiguration'
+                $config.Project | Should -BeOfType 'ProjectConfiguration'
             }
         }
 
@@ -108,8 +114,10 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
                 $config = [IPAPConfiguration]::Load($p)
 
                 $config.App.SupportedImageFormats | Should -Be @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
+                $config.App.MaxWorkers | Should -Be 8
                 $config.App.ModelSelect | Should -Be 'models-se'
                 $config.App.UpscaleRatio | Should -Be 2
+                $config.App.NoiseLevel | Should -Be 0
                 $config.App.WebpEnabled | Should -Be $true
             }
         }
@@ -126,6 +134,51 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
 
                 $config.Project.Author | Should -Be ''
                 $config.Project.OriginalTitle | Should -Be ''
+                $config.Project.ChineseTitle | Should -Be ''
+                $config.Project.OriginalOverview | Should -Be ''
+                $config.Project.ChineseOverview | Should -Be ''
+            }
+        }
+
+        It 'config.toml 不存在时路径与工具配置应为默认值' {
+            InModuleScope IPAP {
+                $p = Join-Path $TestDrive 'MockProject'
+                New-Item -Path $p -ItemType Directory -Force | Out-Null
+
+                Mock -CommandName Write-LogEntry { }
+                # Get-Command 被 Mock 为 $null，工具路径的 PATH 回退分支必然落空
+                Mock -CommandName Get-Command { return $null }
+
+                $config = [IPAPConfiguration]::Load($p)
+
+                $config.Paths.ProjectRoot | Should -Be $p
+                $config.Paths.BaseProjectDir | Should -Be ''
+                $config.Paths.SourceDir | Should -Be ''
+                $config.Paths.BinPath | Should -Be (Join-Path $p 'bin')
+                $config.Paths.ConfigPath | Should -Be (Join-Path $p 'config.toml')
+                $config.Tools.FfmpegExePath | Should -BeNullOrEmpty
+                $config.Tools.FfprobeExePath | Should -BeNullOrEmpty
+                $config.Tools.RealCuganExePath | Should -BeNullOrEmpty
+            }
+        }
+
+        It 'config.toml 不存在时默认配置应包含全部 19 个键' {
+            InModuleScope IPAP {
+                $p = Join-Path $TestDrive 'MockProject'
+                New-Item -Path $p -ItemType Directory -Force | Out-Null
+
+                Mock -CommandName Write-LogEntry { }
+
+                # 直接调用隐藏静态方法读取文件不存在分支返回的默认配置表
+                $rawSettings = [IPAPConfiguration]::ReadConfigFile($p)
+
+                # 5 个区块，键集合总计 5 + 5 + 4 + 2 + 3 = 19 个
+                @($rawSettings.Keys | Sort-Object) | Should -Be @('app_settings', 'paths', 'project', 'upscale', 'webp')
+                @($rawSettings['paths'].Keys | Sort-Object) | Should -Be @('base_project_dir', 'ffmpeg_exe', 'ffprobe_exe', 'realcugan_exe', 'source_dir')
+                @($rawSettings['project'].Keys | Sort-Object) | Should -Be @('author', 'chinese_overview', 'chinese_title', 'original_overview', 'original_title')
+                @($rawSettings['app_settings'].Keys | Sort-Object) | Should -Be @('max_workers', 'model_select', 'supported_image_formats', 'upscale_timeout_sec')
+                @($rawSettings['upscale'].Keys | Sort-Object) | Should -Be @('noise_level', 'upscale_ratio')
+                @($rawSettings['webp'].Keys | Sort-Object) | Should -Be @('enabled', 'lossless', 'quality')
             }
         }
     }
@@ -223,7 +276,7 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
     }
 
     Context '静态方法 Load - TOML 解析失败' {
-        It '解析失败且非转义问题时应抛出异常' {
+        It '解析失败且非转义问题时应抛出 InvalidOperationException 且不触发修复重试' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
                 New-Item -Path $p -ItemType Directory -Force | Out-Null
@@ -241,7 +294,9 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
                     throw [System.Exception]::new('Unexpected token')
                 }
 
-                { [IPAPConfiguration]::Load($p) } | Should -Throw '*无法解析 config.toml*'
+                { [IPAPConfiguration]::Load($p) } | Should -Throw -ExceptionType ([System.InvalidOperationException]) -ExpectedMessage '无法解析 config.toml: Unexpected token'
+                # 错误消息不含转义关键字，不应进入自动修复分支，解析只被尝试一次
+                Should -Invoke -CommandName ConvertFrom-Toml -Times 1 -Exactly
             }
         }
     }
@@ -310,6 +365,38 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
                 }
             }
         }
+
+        It '转义修复后仍解析失败时应抛出带排查提示的 InvalidOperationException' {
+            InModuleScope IPAP {
+                $p = Join-Path $TestDrive 'MockProject'
+                New-Item -Path $p -ItemType Directory -Force | Out-Null
+                $configToml = Join-Path $p 'config.toml'
+                New-Item -Path $configToml -ItemType File -Force | Out-Null
+
+                Mock -CommandName Write-LogEntry { }
+                Mock -CommandName Get-Command { return $null }
+                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
+                    return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
+                }
+                # 自动修复会重新读取原始内容，因此需返回真实可修复的文本
+                Mock -CommandName Get-Content { return 'source_dir = "C:\images"' }
+                Mock -CommandName Import-Module { }
+
+                $script:tomlCallCount = 0
+                Mock -CommandName ConvertFrom-Toml {
+                    $script:tomlCallCount++
+                    if ($script:tomlCallCount -eq 1)
+                    {
+                        throw [System.Exception]::new('Unexpected escape character in string')
+                    }
+                    throw [System.Exception]::new('仍含非法转义')
+                }
+
+                { [IPAPConfiguration]::Load($p) } | Should -Throw -ExceptionType ([System.InvalidOperationException]) -ExpectedMessage '无法解析 config.toml: Unexpected escape character in string。常见原因：Windows 路径使用了双引号但未正确转义反斜杠。请将路径改为单引号字面量字符串，例如 source_dir = ''C:\\path\\to\\dir'''
+                # 首次解析失败后进入修复分支并重新解析，故解析共被调用两次
+                Should -Invoke -CommandName ConvertFrom-Toml -Times 2 -Exactly
+            }
+        }
     }
 
     Context 'MergeSettings 方法 - 浅合并逻辑' {
@@ -338,27 +425,29 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
             }
         }
 
-        It '用户配置中存在默认配置没有的键时应直接添加' {
+        It '用户配置中存在默认配置没有的顶级键时应直接添加，未知子键应被丢弃' {
             InModuleScope IPAP {
-                $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-                $configToml = Join-Path $p 'config.toml'
-                New-Item -Path $configToml -ItemType File -Force | Out-Null
-
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Get-Command { return $null }
-                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
-                    return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
+                $defaultSettings = @{
+                    paths        = @{ source_dir = 'default_source' }
+                    app_settings = @{ model_select = 'models-se' }
                 }
-                Mock -CommandName Get-Content { return '' }
-                Mock -CommandName Import-Module { }
-                Mock -CommandName ConvertFrom-Toml {
-                    return @{ custom_section = @{ custom_key = 'custom_value' } }
+                $parsedSettings = @{
+                    app_settings = @{ model_select = 'custom-model'; brand_new = 'unknown' }
+                    custom_flag  = $true
                 }
 
-                $config = [IPAPConfiguration]::Load($p)
+                # 直接调用隐藏静态方法，验证浅合并的两个边界分支
+                $merged = [IPAPConfiguration]::MergeSettings($parsedSettings, $defaultSettings)
 
-                $config.App.ModelSelect | Should -Be 'models-se'
+                # 顶级未知键应被添加进合并结果
+                @($merged.Keys | Sort-Object) | Should -Be @('app_settings', 'custom_flag', 'paths')
+                $merged['custom_flag'] | Should -Be $true
+                # 已知子键被覆盖，未知子键被丢弃
+                $merged['app_settings']['model_select'] | Should -Be 'custom-model'
+                @($merged['app_settings'].Keys | Sort-Object) | Should -Be @('model_select')
+                # 未被用户覆盖的默认子键应保留，且原始默认表不应被污染
+                $merged['paths']['source_dir'] | Should -Be 'default_source'
+                $defaultSettings.ContainsKey('custom_flag') | Should -Be $false
             }
         }
 
@@ -414,7 +503,7 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
     }
 
     Context 'ReadConfigFile - OrderedDictionary 转换' {
-        It 'OrderedDictionary 类型的子配置应被转换为 hashtable' {
+        It 'OrderedDictionary 类型的子配置应被转换为 Hashtable' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
                 New-Item -Path $p -ItemType Directory -Force | Out-Null
@@ -429,12 +518,17 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
                 Mock -CommandName Get-Content { return '' }
                 Mock -CommandName Import-Module { }
                 Mock -CommandName ConvertFrom-Toml {
-                    return @{ paths = [ordered]@{ base_project_dir = ''; source_dir = '' } }
+                    return @{ paths = [ordered]@{ base_project_dir = 'ordered_base'; source_dir = 'ordered_source' } }
                 }
 
-                $config = [IPAPConfiguration]::Load($p)
+                # 直接调用隐藏静态方法，检查 MergeSettings 之前的真实返回值类型
+                $rawSettings = [IPAPConfiguration]::ReadConfigFile($p)
 
-                $config.Paths | Should -BeOfType 'PathConfiguration'
+                $rawSettings | Should -BeOfType 'System.Collections.Hashtable'
+                # [ordered] 构造的是 OrderedDictionary，此处应已被脱壳为 Hashtable
+                $rawSettings['paths'] | Should -BeOfType 'System.Collections.Hashtable'
+                $rawSettings['paths']['base_project_dir'] | Should -Be 'ordered_base'
+                $rawSettings['paths']['source_dir'] | Should -Be 'ordered_source'
             }
         }
     }
@@ -444,6 +538,16 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
                 New-Item -Path $p -ItemType Directory -Force | Out-Null
+                $configToml = Join-Path $p 'config.toml'
+                New-Item -Path $configToml -ItemType File -Force | Out-Null
+
+                Mock -CommandName Write-LogEntry { }
+                Mock -CommandName Get-Command { return $null }
+                $configToml = Join-Path $p 'config.toml'
+                New-Item -Path $configToml -ItemType File -Force | Out-Null
+
+                Mock -CommandName Write-LogEntry { }
+                Mock -CommandName Get-Command { return $null }
                 $configToml = Join-Path $p 'config.toml'
                 New-Item -Path $configToml -ItemType File -Force | Out-Null
 
@@ -499,6 +603,54 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
                 $config.Project.Author | Should -Be '鲁迅'
                 $config.App.ModelSelect | Should -Be 'models-se'
                 $config.App.UpscaleRatio | Should -Be 2
+            }
+        }
+
+        It '配置文件中 paths 为 null 时应回退为空字典并保留默认路径行为' {
+            InModuleScope IPAP {
+                $p = Join-Path $TestDrive 'MockProject'
+                New-Item -Path $p -ItemType Directory -Force | Out-Null
+                $configToml = Join-Path $p 'config.toml'
+                New-Item -Path $configToml -ItemType File -Force | Out-Null
+
+                Mock -CommandName Write-LogEntry { }
+                Mock -CommandName Get-Command { return $null }
+                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
+                    return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
+                }
+                Mock -CommandName Get-Content { return '' }
+                Mock -CommandName Import-Module { }
+                # 'paths' 键存在但值为 null，MergeSettings 会用 null 整体覆盖默认区块
+                Mock -CommandName ConvertFrom-Toml { return @{ paths = $null } }
+
+                $config = [IPAPConfiguration]::Load($p)
+
+                # 触发 Load 中的 'paths' ?? @{} 回退分支，两个子键取不到值后落回空字符串
+                $config.Paths.ProjectRoot | Should -Be $p
+                $config.Paths.BaseProjectDir | Should -Be ''
+                $config.Paths.SourceDir | Should -Be ''
+            }
+        }
+    }
+
+    Context '静态方法 Load - 配置块类型非法（Level 2 逻辑异常）' {
+        It 'paths 键存在但不是字典类型时应抛出 ArgumentException' {
+            InModuleScope IPAP {
+                $p = Join-Path $TestDrive 'MockProject'
+                New-Item -Path $p -ItemType Directory -Force | Out-Null
+                $configToml = Join-Path $p 'config.toml'
+                New-Item -Path $configToml -ItemType File -Force | Out-Null
+
+                Mock -CommandName Write-LogEntry { }
+                Mock -CommandName Get-Command { return $null }
+                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
+                    return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
+                }
+                Mock -CommandName Get-Content { return '' }
+                Mock -CommandName Import-Module { }
+                Mock -CommandName ConvertFrom-Toml { return @{ paths = 'not_a_dict' } }
+
+                { [IPAPConfiguration]::Load($p) } | Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "配置项 'paths' 必须是 IDictionary 类型，当前值类型为 'String'"
             }
         }
     }

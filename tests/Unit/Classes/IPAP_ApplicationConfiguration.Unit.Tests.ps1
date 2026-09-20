@@ -534,6 +534,24 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
                 { [ApplicationConfiguration]::new(@{ webp = @{ quality = 'abc123' } }) } | Should -Throw -ExpectedMessage '*quality*不是有效的整数*'
             }
         }
+
+        It 'app_settings 键存在但不是字典类型时应抛出 ArgumentException' {
+            InModuleScope IPAP {
+                { [ApplicationConfiguration]::new(@{ app_settings = 'not_a_dict' }) } | Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "配置项 'app_settings' 必须是 IDictionary 类型，当前值类型为 'String'"
+            }
+        }
+
+        It 'upscale 键存在但不是字典类型时应抛出 ArgumentException' {
+            InModuleScope IPAP {
+                { [ApplicationConfiguration]::new(@{ upscale = 'not_a_dict' }) } | Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "配置项 'upscale' 必须是 IDictionary 类型，当前值类型为 'String'"
+            }
+        }
+
+        It 'webp 键存在但不是字典类型时应抛出 ArgumentException' {
+            InModuleScope IPAP {
+                { [ApplicationConfiguration]::new(@{ webp = 'not_a_dict' }) } | Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "配置项 'webp' 必须是 IDictionary 类型，当前值类型为 'String'"
+            }
+        }
     }
 
     Context '属性类型验证' {
