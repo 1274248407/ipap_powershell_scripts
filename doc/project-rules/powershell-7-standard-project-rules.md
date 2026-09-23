@@ -1,7 +1,3 @@
-﻿﻿﻿﻿---
-description: "PowerShell 7 专项开发规则 - 适用于项目中的所有 .ps1/.psm1 文件"
----
-
 # PowerShell 7 专项开发规则
 
 ## 1. 语法与架构硬性约束

@@ -114,11 +114,28 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
                 $config = [IPAPConfiguration]::Load($p)
 
                 $config.App.SupportedImageFormats | Should -Be @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
+                # 判别锚点：默认表给 8，ApplicationConfiguration 兜底给 ProcessorCount/2
                 $config.App.MaxWorkers | Should -Be 8
+                $config.App.UpscaleTimeoutSec | Should -Be 3600
                 $config.App.ModelSelect | Should -Be 'models-se'
+            }
+        }
+
+        It 'config.toml 不存在时应使用默认 upscale 与 webp 配置' {
+            InModuleScope IPAP {
+                $p = Join-Path $TestDrive 'MockProject'
+                New-Item -Path $p -ItemType Directory -Force | Out-Null
+
+                Mock -CommandName Write-LogEntry { }
+                Mock -CommandName Get-Command { return $null }
+
+                $config = [IPAPConfiguration]::Load($p)
+
                 $config.App.UpscaleRatio | Should -Be 2
                 $config.App.NoiseLevel | Should -Be 0
                 $config.App.WebpEnabled | Should -Be $true
+                $config.App.WebpLossless | Should -Be $true
+                $config.App.WebpQuality | Should -Be 100
             }
         }
 
@@ -162,7 +179,7 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
             }
         }
 
-        It 'config.toml 不存在时默认配置应包含全部 19 个键' {
+        It 'config.toml 不存在时默认配置的 19 个键应全部取约定默认值' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
                 New-Item -Path $p -ItemType Directory -Force | Out-Null
@@ -172,13 +189,35 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
                 # 直接调用隐藏静态方法读取文件不存在分支返回的默认配置表
                 $rawSettings = [IPAPConfiguration]::ReadConfigFile($p)
 
-                # 5 个区块，键集合总计 5 + 5 + 4 + 2 + 3 = 19 个
+                # 键集合断言：5 个区块，键数总计 5 + 5 + 4 + 2 + 3 = 19，同时守住「不多不少」
                 @($rawSettings.Keys | Sort-Object) | Should -Be @('app_settings', 'paths', 'project', 'upscale', 'webp')
                 @($rawSettings['paths'].Keys | Sort-Object) | Should -Be @('base_project_dir', 'ffmpeg_exe', 'ffprobe_exe', 'realcugan_exe', 'source_dir')
                 @($rawSettings['project'].Keys | Sort-Object) | Should -Be @('author', 'chinese_overview', 'chinese_title', 'original_overview', 'original_title')
                 @($rawSettings['app_settings'].Keys | Sort-Object) | Should -Be @('max_workers', 'model_select', 'supported_image_formats', 'upscale_timeout_sec')
                 @($rawSettings['upscale'].Keys | Sort-Object) | Should -Be @('noise_level', 'upscale_ratio')
                 @($rawSettings['webp'].Keys | Sort-Object) | Should -Be @('enabled', 'lossless', 'quality')
+
+                # 值断言：逐键对应源码中的默认表，是全文件默认值的唯一真源
+                # 注意：键名断言只能守住键集合，键增删之外的「默认值被改动」全靠下面 19 行拦截
+                $rawSettings['paths']['base_project_dir'] | Should -Be ''
+                $rawSettings['paths']['source_dir'] | Should -Be ''
+                $rawSettings['paths']['ffmpeg_exe'] | Should -Be ''
+                $rawSettings['paths']['ffprobe_exe'] | Should -Be ''
+                $rawSettings['paths']['realcugan_exe'] | Should -Be ''
+                $rawSettings['project']['author'] | Should -Be ''
+                $rawSettings['project']['original_title'] | Should -Be ''
+                $rawSettings['project']['chinese_title'] | Should -Be ''
+                $rawSettings['project']['original_overview'] | Should -Be ''
+                $rawSettings['project']['chinese_overview'] | Should -Be ''
+                $rawSettings['app_settings']['supported_image_formats'] | Should -Be @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
+                $rawSettings['app_settings']['max_workers'] | Should -Be 8
+                $rawSettings['app_settings']['upscale_timeout_sec'] | Should -Be 3600
+                $rawSettings['app_settings']['model_select'] | Should -Be 'models-se'
+                $rawSettings['upscale']['upscale_ratio'] | Should -Be 2
+                $rawSettings['upscale']['noise_level'] | Should -Be 0
+                $rawSettings['webp']['enabled'] | Should -Be $true
+                $rawSettings['webp']['lossless'] | Should -Be $true
+                $rawSettings['webp']['quality'] | Should -Be 100
             }
         }
     }
@@ -192,13 +231,27 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
                 New-Item -Path $configToml -ItemType File -Force | Out-Null
 
                 Mock -CommandName Write-LogEntry { }
+                # Get-Command 被 Mock 为 $null，ConvertFrom-Toml 探测必然落空，ReadConfigFile 走 else 分支
                 Mock -CommandName Get-Command { return $null }
-                Mock -CommandName Get-Content { return '' }
-                Mock -CommandName Import-Module { }
+
+                # 该分支与「配置文件不存在」分支返回源码中同一张 $defaultSettings，故此处按原始表断言
+                $rawSettings = [IPAPConfiguration]::ReadConfigFile($p)
+
+                # 5 个区块，键集合总计 5 + 5 + 4 + 2 + 3 = 19 个
+                @($rawSettings.Keys | Sort-Object) | Should -Be @('app_settings', 'paths', 'project', 'upscale', 'webp')
+                @($rawSettings['paths'].Keys | Sort-Object) | Should -Be @('base_project_dir', 'ffmpeg_exe', 'ffprobe_exe', 'realcugan_exe', 'source_dir')
+                @($rawSettings['project'].Keys | Sort-Object) | Should -Be @('author', 'chinese_overview', 'chinese_title', 'original_overview', 'original_title')
+                @($rawSettings['app_settings'].Keys | Sort-Object) | Should -Be @('max_workers', 'model_select', 'supported_image_formats', 'upscale_timeout_sec')
+                @($rawSettings['upscale'].Keys | Sort-Object) | Should -Be @('noise_level', 'upscale_ratio')
+                @($rawSettings['webp'].Keys | Sort-Object) | Should -Be @('enabled', 'lossless', 'quality')
+                # 值断言：max_workers 是默认表中唯一与类内兜底取值不同的键，恒定可证伪
+                $rawSettings['app_settings']['max_workers'] | Should -Be 8
 
                 $config = [IPAPConfiguration]::Load($p)
 
-                $config.App.ModelSelect | Should -Be 'models-se'
+                # 端到端锚点：默认表给 8，ApplicationConfiguration 兜底给 ProcessorCount/2
+                # （16/17 逻辑核宿主上兜底值恰好也是 8，该行届时失去鉴别力，故上面另设表层值断言）
+                $config.App.MaxWorkers | Should -Be 8
             }
         }
 
@@ -210,9 +263,8 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
                 New-Item -Path $configToml -ItemType File -Force | Out-Null
 
                 Mock -CommandName Write-LogEntry { }
+                # Get-Command 被 Mock 为 $null，ConvertFrom-Toml 探测必然落空，ReadConfigFile 走 else 分支
                 Mock -CommandName Get-Command { return $null }
-                Mock -CommandName Get-Content { return '' }
-                Mock -CommandName Import-Module { }
 
                 [IPAPConfiguration]::Load($p) | Out-Null
 
@@ -246,6 +298,8 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
 
                 $config.App.ModelSelect | Should -Be 'models-pro'
                 $config.App.UpscaleTimeoutSec | Should -Be 3600
+                # 判别锚点：用户未设 max_workers，此处为 8 才能证明合并后默认表确实流入，而非类内兜底
+                $config.App.MaxWorkers | Should -Be 8
             }
         }
 
@@ -422,6 +476,8 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
 
                 $config.App.ModelSelect | Should -Be 'custom-model'
                 $config.App.UpscaleTimeoutSec | Should -Be 3600
+                # 判别锚点：未被覆盖的 max_workers 应为默认表的 8，证明其余默认值来自默认表而非类内兜底
+                $config.App.MaxWorkers | Should -Be 8
             }
         }
 
@@ -474,6 +530,8 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
                 $config.App.WebpQuality | Should -Be 75
                 $config.App.WebpEnabled | Should -Be $true
                 $config.App.WebpLossless | Should -Be $true
+                # 判别锚点：只覆盖 quality 时 max_workers 仍应取默认表的 8，证明其余子键未被连带清空
+                $config.App.MaxWorkers | Should -Be 8
             }
         }
     }
@@ -497,7 +555,8 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
 
                 [IPAPConfiguration]::Load($p) | Out-Null
 
-                Should -Invoke -CommandName Get-Content
+                # 配置文件存在时应恰好读取一次，防止重复读取掩盖流程回归
+                Should -Invoke -CommandName Get-Content -Times 1 -Exactly
             }
         }
     }
@@ -538,16 +597,6 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
                 New-Item -Path $p -ItemType Directory -Force | Out-Null
-                $configToml = Join-Path $p 'config.toml'
-                New-Item -Path $configToml -ItemType File -Force | Out-Null
-
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Get-Command { return $null }
-                $configToml = Join-Path $p 'config.toml'
-                New-Item -Path $configToml -ItemType File -Force | Out-Null
-
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Get-Command { return $null }
                 $configToml = Join-Path $p 'config.toml'
                 New-Item -Path $configToml -ItemType File -Force | Out-Null
 
@@ -600,9 +649,15 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
 
                 $config = [IPAPConfiguration]::Load($p)
 
+                # 用户显式设置的值应生效
                 $config.Project.Author | Should -Be '鲁迅'
+                # 其余四个区块各取一个默认键，逐区块证明「未出现在用户配置中时取默认表值」
+                $config.Paths.BaseProjectDir | Should -Be ''
                 $config.App.ModelSelect | Should -Be 'models-se'
+                # 判别锚点：默认表给 8，类内兜底给 ProcessorCount/2，此处为 8 才能证明上述默认值来自默认表
+                $config.App.MaxWorkers | Should -Be 8
                 $config.App.UpscaleRatio | Should -Be 2
+                $config.App.WebpQuality | Should -Be 100
             }
         }
 
