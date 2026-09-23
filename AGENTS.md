@@ -27,6 +27,7 @@ PowerShell 7 图像处理自动化项目（ipap_workflow）。修改任何 `.ps1
   - 单元测试完全隔离外部依赖用 Mock；集成测试用 `TestDrive` 真实文件操作、Mock 屏蔽日志输出、只覆盖核心正向路径与关键失败路径。
   - 只 Mock 模块外部依赖；Mock 定义在 `BeforeEach` 中；Mock 模块内命令必须用 `-ModuleName`。
   - 断言精确，避免模糊字符串匹配；测试之间不共享状态，`AfterEach/AfterAll` 清理。
+  - 编写测试时参考 `doc/单元测试方法论.md` 的5级分级与纯函数/副作用函数原则。
 
 ## Git 提交
 
