@@ -16,10 +16,26 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
         # tests\Unit\Classes → 项目根（向上三级）
         $script:ProjectRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
         Import-Module (Join-Path $script:ProjectRoot 'source\IPAP.psd1') -Force -Global
+
+        # 真实 TOML 解析用例依赖 PSToml：按「构建产物 → 全局已装」顺序探测导入
+        # （Get-Command/ConvertFrom-Toml 的 Mock 用例优先走 Mock，不受此导入影响）
+        $script:PSTomlAvailable = $false
+        foreach ($PSTomlPath in @(
+            (Join-Path $script:ProjectRoot 'output\RequiredModules\PSToml\0.5.0'),
+            'PSToml'
+        )) {
+            try {
+                Import-Module $PSTomlPath -Force -Global -ErrorAction Stop
+                $script:PSTomlAvailable = $true
+                break
+            }
+            catch { }
+        }
     }
 
     AfterAll {
         Remove-Module 'IPAP' -ErrorAction SilentlyContinue
+        Remove-Module 'PSToml' -ErrorAction SilentlyContinue
     }
 
     Context '构造函数 - 正常路径' {
@@ -277,6 +293,10 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
 
     Context '静态方法 Load - TOML 解析成功' {
         It '应正确解析并合并用户配置' {
+            if (-not $script:PSTomlAvailable) {
+                Set-ItResult -Skipped -Because 'PSToml 模块不可用'
+                return
+            }
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
                 New-Item -Path $p -ItemType Directory -Force | Out-Null
@@ -288,11 +308,12 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
                 Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
                     return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
                 }
-                Mock -CommandName Get-Content { return '' }
+                # 真实 TOML：双引号内无 Windows 路径，无需转义；ConvertFrom-Toml 不做 Mock，走真实解析
+                Mock -CommandName Get-Content { return @'
+[app_settings]
+model_select = "models-pro"
+'@ }
                 Mock -CommandName Import-Module { }
-                Mock -CommandName ConvertFrom-Toml {
-                    return @{ app_settings = @{ model_select = 'models-pro' } }
-                }
 
                 $config = [IPAPConfiguration]::Load($p)
 
@@ -304,6 +325,10 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
         }
 
         It '路径配置中的 base_project_dir 和 source_dir 应正确透传' {
+            if (-not $script:PSTomlAvailable) {
+                Set-ItResult -Skipped -Because 'PSToml 模块不可用'
+                return
+            }
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
                 New-Item -Path $p -ItemType Directory -Force | Out-Null
@@ -315,16 +340,18 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
                 Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
                     return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
                 }
-                Mock -CommandName Get-Content { return '' }
+                # 真实 TOML：路径中不含反斜杠，无需转义；ConvertFrom-Toml 不做 Mock，走真实解析
+                Mock -CommandName Get-Content { return @'
+[paths]
+base_project_dir = "D:/documents/translation/01_Projects_Active"
+source_dir = "D:/images"
+'@ }
                 Mock -CommandName Import-Module { }
-                Mock -CommandName ConvertFrom-Toml {
-                    return @{ paths = @{ base_project_dir = 'custom_base'; source_dir = 'custom_source' } }
-                }
 
                 $config = [IPAPConfiguration]::Load($p)
 
-                $config.Paths.BaseProjectDir | Should -Be 'custom_base'
-                $config.Paths.SourceDir | Should -Be 'custom_source'
+                $config.Paths.BaseProjectDir | Should -Be 'D:/documents/translation/01_Projects_Active'
+                $config.Paths.SourceDir | Should -Be 'D:/images'
             }
         }
     }
@@ -451,6 +478,77 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
                 Should -Invoke -CommandName ConvertFrom-Toml -Times 2 -Exactly
             }
         }
+
+        It '真实解析：含未转义反斜杠的 Windows 路径应被自动修复并返回正确对象' {
+            if (-not $script:PSTomlAvailable) {
+                Set-ItResult -Skipped -Because 'PSToml 模块不可用'
+                return
+            }
+            InModuleScope IPAP {
+                $p = Join-Path $TestDrive 'MockProject'
+                New-Item -Path $p -ItemType Directory -Force | Out-Null
+                $configToml = Join-Path $p 'config.toml'
+                New-Item -Path $configToml -ItemType File -Force | Out-Null
+
+                Mock -CommandName Write-LogEntry { }
+                Mock -CommandName Get-Command { return $null }
+                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
+                    return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
+                }
+                # 真实坏 TOML：双引号内单反斜杠未转义，真实 ConvertFrom-Toml 必然抛 Unexpected escape character
+                # ConvertFrom-Toml 不做 Mock，修复链路由真实解析器完整走通
+                Mock -CommandName Get-Content { return @'
+[paths]
+source_dir = "C:\Users\test\images"
+[app_settings]
+model_select = "models-pro"
+'@ }
+                Mock -CommandName Import-Module { }
+
+                $config = [IPAPConfiguration]::Load($p)
+
+                # 核心：修复后路径值正确（真实解析器背书，而非 Mock 直给）
+                $config.Paths.SourceDir | Should -Be 'C:\Users\test\images'
+                # 未被污染：修复未破坏其他区块的值
+                $config.App.ModelSelect | Should -Be 'models-pro'
+                # 判别锚点：未设 max_workers 时应为默认表 8，证明修复与合并链路无副作用
+                $config.App.MaxWorkers | Should -Be 8
+            }
+        }
+
+        It '真实解析：已正确转义的字符串在修复过程中应原样保留' {
+            if (-not $script:PSTomlAvailable) {
+                Set-ItResult -Skipped -Because 'PSToml 模块不可用'
+                return
+            }
+            InModuleScope IPAP {
+                $p = Join-Path $TestDrive 'MockProject'
+                New-Item -Path $p -ItemType Directory -Force | Out-Null
+                $configToml = Join-Path $p 'config.toml'
+                New-Item -Path $configToml -ItemType File -Force | Out-Null
+
+                Mock -CommandName Write-LogEntry { }
+                Mock -CommandName Get-Command { return $null }
+                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
+                    return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
+                }
+                # 混合场景：坏路径触发修复，author 含已正确转义的 \\ 与 \"，验证保护机制不误伤
+                Mock -CommandName Get-Content { return @'
+[paths]
+source_dir = "C:\Users\someone\images"
+[project]
+author = "Lucas\\G\"old"
+'@ }
+                Mock -CommandName Import-Module { }
+
+                $config = [IPAPConfiguration]::Load($p)
+
+                # 坏路径被修复为正确值
+                $config.Paths.SourceDir | Should -Be 'C:\Users\someone\images'
+                # 合法转义原样保留：\\ -> \，\" -> "
+                $config.Project.Author | Should -Be 'Lucas\G"old'
+            }
+        }
     }
 
     Context 'MergeSettings 方法 - 浅合并逻辑' {
@@ -563,6 +661,10 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
 
     Context 'ReadConfigFile - OrderedDictionary 转换' {
         It 'OrderedDictionary 类型的子配置应被转换为 Hashtable' {
+            if (-not $script:PSTomlAvailable) {
+                Set-ItResult -Skipped -Because 'PSToml 模块不可用'
+                return
+            }
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
                 New-Item -Path $p -ItemType Directory -Force | Out-Null
@@ -574,20 +676,22 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
                 Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
                     return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
                 }
-                Mock -CommandName Get-Content { return '' }
+                # 真实 TOML：PSToml 解析出的子配置块天然是 OrderedDictionary，故此处无 Mock，验证真实解析
+                Mock -CommandName Get-Content { return @'
+[paths]
+base_project_dir = "real_base"
+source_dir = "real_source"
+'@ }
                 Mock -CommandName Import-Module { }
-                Mock -CommandName ConvertFrom-Toml {
-                    return @{ paths = [ordered]@{ base_project_dir = 'ordered_base'; source_dir = 'ordered_source' } }
-                }
 
                 # 直接调用隐藏静态方法，检查 MergeSettings 之前的真实返回值类型
                 $rawSettings = [IPAPConfiguration]::ReadConfigFile($p)
 
+                # 顶层被强转为 Hashtable；真实解析出的 OrderedDictionary 子块应已被脱壳为 Hashtable
                 $rawSettings | Should -BeOfType 'System.Collections.Hashtable'
-                # [ordered] 构造的是 OrderedDictionary，此处应已被脱壳为 Hashtable
                 $rawSettings['paths'] | Should -BeOfType 'System.Collections.Hashtable'
-                $rawSettings['paths']['base_project_dir'] | Should -Be 'ordered_base'
-                $rawSettings['paths']['source_dir'] | Should -Be 'ordered_source'
+                $rawSettings['paths']['base_project_dir'] | Should -Be 'real_base'
+                $rawSettings['paths']['source_dir'] | Should -Be 'real_source'
             }
         }
     }
