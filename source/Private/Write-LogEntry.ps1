@@ -23,8 +23,7 @@
     Author:  lucas_gold
     Website: https://github.com/1274248407
 #>
-function Write-LogEntry
-{
+function Write-LogEntry {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
     [CmdletBinding()]
     [OutputType([void])]
@@ -47,24 +46,20 @@ function Write-LogEntry
 
     # 解析调用者信息：模块名:函数名:行号
     $CallerInfo = '<unknown>:<unknown>:0'
-    if ($null -ne $CallerFrame)
-    {
+    if ($null -ne $CallerFrame) {
         # 从脚本路径提取模块名（父目录名）
         $ScriptPath = $CallerFrame.ScriptName
         $ModuleName = '<script>'
-        if ($ScriptPath)
-        {
+        if ($ScriptPath) {
             $ParentDir = [System.IO.Path]::GetFileName([System.IO.Path]::GetDirectoryName($ScriptPath))
-            if ($ParentDir)
-            {
+            if ($ParentDir) {
                 $ModuleName = $ParentDir
             }
         }
 
         # 获取函数名（匿名脚本块显示为 <ScriptBlock>）
         $FuncName = $CallerFrame.FunctionName
-        if ($FuncName -eq '<ScriptBlock>')
-        {
+        if ($FuncName -eq '<ScriptBlock>') {
             $FuncName = '<module>'
         }
 
@@ -97,20 +92,17 @@ function Write-LogEntry
     # 输出调用者信息（青色）
     Write-Host "${CallerInfo} - " -NoNewline -ForegroundColor Cyan
     # 输出消息（级别对应颜色，ERROR 级别加红色背景）
-    if ($Level -eq 'Error')
-    {
+    if ($Level -eq 'Error') {
         Write-Host $Message -NoNewline -ForegroundColor White -BackgroundColor Red
     }
-    else
-    {
+    else {
         Write-Host $Message -NoNewline -ForegroundColor $LevelColor
     }
     # 换行
     Write-Host ''
 
     # ERROR 级别抛出终止错误，保持错误传播链
-    if ($Level -eq 'Error')
-    {
+    if ($Level -eq 'Error') {
         # 防御空消息：throw 不接受空字符串，需兜底为通用错误描述
         throw ([string]::IsNullOrEmpty($Message) ? '未知错误（空消息）' : $Message)
     }
