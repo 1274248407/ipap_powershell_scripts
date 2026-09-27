@@ -21,9 +21,9 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
         # （Get-Command/ConvertFrom-Toml 的 Mock 用例优先走 Mock，不受此导入影响）
         $script:PSTomlAvailable = $false
         foreach ($PSTomlPath in @(
-            (Join-Path $script:ProjectRoot 'output\RequiredModules\PSToml\0.5.0'),
-            'PSToml'
-        )) {
+                (Join-Path $script:ProjectRoot 'output\RequiredModules\PSToml\0.5.0'),
+                'PSToml'
+            )) {
             try {
                 Import-Module $PSTomlPath -Force -Global -ErrorAction Stop
                 $script:PSTomlAvailable = $true
@@ -31,6 +31,7 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
             }
             catch { }
         }
+        
     }
 
     AfterAll {
@@ -401,8 +402,7 @@ source_dir = "D:/images"
                 $script:tomlCallCount = 0
                 Mock -CommandName ConvertFrom-Toml {
                     $script:tomlCallCount++
-                    if ($script:tomlCallCount -eq 1)
-                    {
+                    if ($script:tomlCallCount -eq 1) {
                         throw [System.Exception]::new('Unexpected escape character in string')
                     }
                     return @{ paths = @{ source_dir = 'C:\Users\test\images' } }
@@ -432,8 +432,7 @@ source_dir = "D:/images"
                 $script:tomlCallCount = 0
                 Mock -CommandName ConvertFrom-Toml {
                     $script:tomlCallCount++
-                    if ($script:tomlCallCount -eq 1)
-                    {
+                    if ($script:tomlCallCount -eq 1) {
                         throw [System.Exception]::new('Unexpected escape character')
                     }
                     return @{ paths = @{ source_dir = 'C:\test' } }
@@ -466,8 +465,7 @@ source_dir = "D:/images"
                 $script:tomlCallCount = 0
                 Mock -CommandName ConvertFrom-Toml {
                     $script:tomlCallCount++
-                    if ($script:tomlCallCount -eq 1)
-                    {
+                    if ($script:tomlCallCount -eq 1) {
                         throw [System.Exception]::new('Unexpected escape character in string')
                     }
                     throw [System.Exception]::new('仍含非法转义')
