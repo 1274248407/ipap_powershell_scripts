@@ -69,22 +69,8 @@ function New-ReadmeFile
     if ($PSCmdlet.ShouldProcess($readmePath, '创建 README.md 文件'))
     {
         $today = Get-Date -Format 'yyyy-MM-dd'
-        $upscaleStatus = if ($NeedUpscale)
-        {
-            'X'
-        }
-        else
-        {
-            ' '
-        }
-        $upscaleRatioText = if ($NeedUpscale)
-        {
-            $UpscaleRatio.ToString()
-        }
-        else
-        {
-            'N/A'
-        }
+        $upscaleStatus = $NeedUpscale ? 'X' : ' '
+        $upscaleRatioText = $NeedUpscale ? $UpscaleRatio.ToString() : 'N/A'
 
         # 构建项目简介段落
         $briefSection = ''

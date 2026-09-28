@@ -34,15 +34,15 @@ function Confirm-ProjectConfiguration
 
     Write-LogEntry -Level Warning -Message '【路径配置】'
     Write-LogEntry -Level Info -Message "  项目根目录: $($Config.Paths.ProjectRoot)"
-    Write-LogEntry -Level Info -Message "  基准项目目录: $(if ($Config.Paths.BaseProjectDir) { $Config.Paths.BaseProjectDir } else { '[未配置]' })"
-    Write-LogEntry -Level Info -Message "  源图片目录: $(if ($Config.Paths.SourceDir) { $Config.Paths.SourceDir } else { '[未配置]' })"
+    Write-LogEntry -Level Info -Message "  基准项目目录: $($Config.Paths.BaseProjectDir ? $Config.Paths.BaseProjectDir : '[未配置]')"
+    Write-LogEntry -Level Info -Message "  源图片目录: $($Config.Paths.SourceDir ? $Config.Paths.SourceDir : '[未配置]')"
 
     Write-LogEntry -Level Warning -Message '【项目信息】'
-    Write-LogEntry -Level Info -Message "  作者: $(if ($Config.Project.Author) { $Config.Project.Author } else { '[未配置]' })"
-    Write-LogEntry -Level Info -Message "  原作品名: $(if ($Config.Project.OriginalTitle) { $Config.Project.OriginalTitle } else { '[未配置]' })"
-    Write-LogEntry -Level Info -Message "  中文译名: $(if ($Config.Project.ChineseTitle) { $Config.Project.ChineseTitle } else { '[未配置]' })"
-    Write-LogEntry -Level Info -Message "  原文简介: $(if ($Config.Project.OriginalOverview) { '已配置' } else { '[未配置]' })"
-    Write-LogEntry -Level Info -Message "  中文简介: $(if ($Config.Project.ChineseOverview) { '已配置' } else { '[未配置]' })"
+    Write-LogEntry -Level Info -Message "  作者: $($Config.Project.Author ? $Config.Project.Author : '[未配置]')"
+    Write-LogEntry -Level Info -Message "  原作品名: $($Config.Project.OriginalTitle ? $Config.Project.OriginalTitle : '[未配置]')"
+    Write-LogEntry -Level Info -Message "  中文译名: $($Config.Project.ChineseTitle ? $Config.Project.ChineseTitle : '[未配置]')"
+    Write-LogEntry -Level Info -Message "  原文简介: $($Config.Project.OriginalOverview ? '已配置' : '[未配置]')"
+    Write-LogEntry -Level Info -Message "  中文简介: $($Config.Project.ChineseOverview ? '已配置' : '[未配置]')"
 
     Write-LogEntry -Level Warning -Message '【应用配置】'
     Write-LogEntry -Level Info -Message "  最大工作线程数: $($Config.App.MaxWorkers)"

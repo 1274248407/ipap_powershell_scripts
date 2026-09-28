@@ -19,6 +19,14 @@
     - Pester 容器内 Get-PSCallStack 深度恒 >= 31，源码恒走深栈分支 $CallStack[2]；
       浅栈分支（[1]）与无帧分支（'<unknown>:<unknown>:0>'）物理不可达，无法在单元测试
       中构造，故不设占位用例，此处注释说明。
+
+    PS7 新特性审计（AGENTS.md 三强约束：三元 / ??、??= / &&、||）：
+    - 本文件第 100 行 $(if ... else ...) 内联表达式已整改为三元
+      $($ExpectedLevelColor -eq 'Red' ? 'White' : $ExpectedLevelColor)。
+    - 第 101/105 行 if/else 为语句级分支（执行不同断言），三元无法表达，保留。
+    - 第 128 行 $script:WriteHostCalls += 数组追加属性能/风格范畴，不在语法审计范围。
+    - 全项目 ?? / && / || 旧写法残留已扫描确认无；同型 $(if...) 残留已在
+      Confirm-ProjectConfiguration.ps1（7 处）与 New-ReadmeFile.ps1（2 处）一并收敛。
 #>
 
 Describe 'Write-LogEntry Unit Tests' -Tag 'Write-LogEntry', 'IPAP' {
@@ -97,7 +105,7 @@ Describe 'Write-LogEntry Unit Tests' -Tag 'Write-LogEntry', 'IPAP' {
 
             # 段3：消息正文，级别对应颜色（Error 为白字红底），不换行
             $WriteHostCalls[3].Text | Should -Be $ExpectedMessage
-            $WriteHostCalls[3].ForegroundColor | Should -Be $(if ($ExpectedLevelColor -eq 'Red') { 'White' } else { $ExpectedLevelColor })
+            $WriteHostCalls[3].ForegroundColor | Should -Be $($ExpectedLevelColor -eq 'Red' ? 'White' : $ExpectedLevelColor)
             if ($null -eq $ExpectedMessageBackgroundColor)
             {
                 $WriteHostCalls[3].BackgroundColor | Should -BeNullOrEmpty
