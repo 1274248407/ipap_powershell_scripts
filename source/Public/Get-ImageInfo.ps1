@@ -19,8 +19,7 @@
     Website: https://github.com/1274248407
 #>
 
-function Get-ImageInfo
-{
+function Get-ImageInfo {
     [CmdletBinding()]
     [OutputType([hashtable])]
     param (
@@ -30,42 +29,38 @@ function Get-ImageInfo
 
     Write-LogEntry -Level Info -Message "正在分析图片目录: $SourceDir"
 
-    if (-not (Test-Path -LiteralPath $SourceDir))
-    {
+    if (-not (Test-Path -LiteralPath $SourceDir)) {
         # 记录错误现场后显式抛出强类型异常，中断本函数（Write-LogEntry 为纯日志函数）
         $ErrorMessage = "源目录不存在: $SourceDir"
         Write-LogEntry -Level Error -Message $ErrorMessage
         throw [System.ArgumentException]::new($ErrorMessage)
     }
 
-    $images = @()
-    $totalSize = 0
-    $count = 0
+    [object[]]$Images = @()
+    [long]$TotalSize = 0
+    [int]$Count = 0
 
     Get-ChildItem -LiteralPath $SourceDir -File | ForEach-Object {
-        if (Test-SupportedImageFormat -File $PSItem)
-        {
-            $images += $PSItem
-            $totalSize += $PSItem.Length
-            $count++
+        if (Test-SupportedImageFormat -File $PSItem) {
+            $Images += $PSItem
+            $TotalSize += $PSItem.Length
+            $Count++
         }
     }
 
-    $images = $images | Sort-Object -Property { Get-NaturalSortKey $PSItem.Name }
+    # @() 包裹管道结果，确保空管道时 $Images 仍为真正的空数组
+    #（管道无输出会得到 AutomationNull 哨兵值，@() 对之不产生元素）
+    $Images = @($Images | Sort-Object -Property { Get-NaturalSortKey $PSItem.Name })
 
-    $averageSize = 0
-    if ($count -gt 0)
-    {
-        $averageSize = $totalSize / 1024 / $count
-    }
+    [double]$AverageSize = $Count -gt 0 ? $TotalSize / 1024 / $Count : 0
 
-    Write-LogEntry -Level Info -Message "发现 $count 张图片，总大小: $([math]::Round($totalSize / 1024 / 1024, 2)) MB，平均大小: $([math]::Round($averageSize, 2)) KB"
+    Write-LogEntry -Level Info -Message "发现 $Count 张图片，总大小: $([math]::Round($TotalSize / 1024 / 1024, 2)) MB，平均大小: $([math]::Round($AverageSize, 2)) KB"
 
     return @{
-        Images      = $images
-        TotalSize   = $totalSize
-        AverageSize = $averageSize
-        Count       = $count
+        Images      = $Images
+        TotalSize   = $TotalSize
+        AverageSize = $AverageSize
+        Count       = $Count
     }
 }
 
