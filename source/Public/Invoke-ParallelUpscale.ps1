@@ -49,7 +49,7 @@ function Invoke-ParallelUpscale
         [ValidateSet('RealCugan', 'FFmpeg')]
         [string]$Engine = 'RealCugan',
         [ValidateRange(1, 32)]
-        [int]$MaxWorkers = 0,
+        [int]$MaxWorkers = 8,
         [ValidateRange(1, 4)]
         [int]$Scale = 2,
         [ValidateRange(-1, 3)]
