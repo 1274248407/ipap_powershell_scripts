@@ -29,8 +29,7 @@
         Website: https://github.com/1274248407
 #>
 
-function New-ProjectStructure
-{
+function New-ProjectStructure {
     [CmdletBinding(SupportsShouldProcess)]
     [OutputType([string])]
     param (
@@ -47,20 +46,16 @@ function New-ProjectStructure
     $projectDir = Join-Path -Path $BaseDir -ChildPath $projectDirName
 
     # 使用 -LiteralPath 处理包含特殊字符的路径
-    if (Test-Path -LiteralPath $projectDir)
-    {
+    if (Test-Path -LiteralPath $projectDir) {
         # 当 -Force 指定时跳过确认提示
-        if (-not $Force -and -not $PSCmdlet.ShouldContinue('项目目录已存在，是否覆盖现有目录？', '确认操作'))
-        {
+        if (-not $Force -and -not $PSCmdlet.ShouldContinue('项目目录已存在，是否覆盖现有目录？', '确认操作')) {
             Write-LogEntry -Level Info -Message '用户取消覆盖操作'
             return $null
         }
     }
 
-    if ($PSCmdlet.ShouldProcess($projectDir, '创建项目目录结构'))
-    {
-        try
-        {
+    if ($PSCmdlet.ShouldProcess($projectDir, '创建项目目录结构')) {
+        try {
             Write-LogEntry -Level Info -Message "正在创建项目目录: $projectDir"
 
             New-Item -ItemType Directory -Path $projectDir -Force | Out-Null
@@ -74,8 +69,7 @@ function New-ProjectStructure
                 '03_Typesetting\final_pages'
             )
 
-            foreach ($subDir in $subDirs)
-            {
+            foreach ($subDir in $subDirs) {
                 $fullPath = Join-Path $projectDir $subDir
                 New-Item -ItemType Directory -Path $fullPath -Force | Out-Null
                 Write-LogEntry -Level Info -Message "已创建子目录: $fullPath"
@@ -84,8 +78,7 @@ function New-ProjectStructure
             Write-LogEntry -Level Info -Message '项目目录结构创建成功'
             return $projectDir
         }
-        catch
-        {
+        catch {
             # 记录错误信息后抛出包装异常（禁止吞异常）
             $errorMessage = "创建项目目录失败: $($PSItem.Exception.Message)"
             Write-LogEntry -Level Error -Message $errorMessage
