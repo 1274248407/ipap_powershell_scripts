@@ -18,7 +18,15 @@
     唯一可行手段是以 Start-Process -RedirectStandardInput 启动整个 pwsh 进程，
     不属于单元测试做法。该分支已登记至 doc/将来要改的地方.md（make it work / 重要且紧急）。
 
-    临时用例标注【临时】者，随 Write-LogEntry 回归纯日志函数后须删除，原因见用例内注释。
+    【临时】用例清单（均带 -Tag 'Temporary'，可用 Invoke-Pester -ExcludeTagFilter 'Temporary' 批量隔离）：
+    1. '【临时】空白字符串 BaseDir 不被 Mandatory 校验拦截，应进入函数体'
+       钉住 BaseDir 纯空白串未被拒绝的缺陷现状；待源码补空白校验后须删除或改写为断言绑定期拒绝。
+    2. '【临时】Write-LogEntry 抛异常时真实中断类型为 RuntimeException'
+       钉住 Write-LogEntry Error 级中断的真实异常类型；待其回归纯日志函数后须删除。
+    两者的删除前提不同，不可一并处理，具体见各用例内注释与 doc/将来要改的地方.md。
+
+    跨文件标记不一致（IPAP_Get-ImageInfo、IPAP_Invoke-ParallelUpscale 中的同类条件断言
+    未加【临时】前缀与 Tag）已登记至 doc/将来要改的地方.md，本轮按裁决不改动那两个文件。
 .INPUTS
     无
 .OUTPUTS
@@ -126,8 +134,12 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP' {
             $ScriptBlock | Should -Throw -ExceptionType ([System.Management.Automation.ParameterBindingException]) -ErrorId 'MissingMandatoryParameter*'
         }
 
-        It '空白字符串 BaseDir 不被 Mandatory 校验拦截，应进入函数体' {
-            # 实测：Mandatory 只拦截空字符串，纯空白串会通过绑定进入函数体
+        It '【临时】空白字符串 BaseDir 不被 Mandatory 校验拦截，应进入函数体' -Tag 'Temporary' {
+            # 本用例钉住的是缺陷现状，不是正确契约：BaseDir 为纯空白串时应在参数绑定期被拒绝。
+            # 已实测：[Parameter(Mandatory)] 只拦空字符串，纯空白串可通过绑定进入函数体。
+            # 详见 doc/将来要改的地方.md「New-ProjectStructure 应拒绝纯空白串参数」条目，
+            # 其中含各候选校验机制对空白串实际效果的探针结论。
+            # 源码补上空白校验后，本用例须删除或改写为断言绑定期拒绝。
             $Result = New-ProjectStructure -BaseDir '   ' -ProjectName 'TestProject'
 
             $Result | Should -BeExactly '   \2026-01-01_TestProject'
@@ -176,7 +188,7 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP' {
             Should -Invoke -ModuleName IPAP Write-LogEntry -ParameterFilter { $Level -eq 'Error' } -Times 1 -Exactly
         }
 
-        It '【临时】Write-LogEntry 抛异常时真实中断类型为 RuntimeException' {
+        It '【临时】Write-LogEntry 抛异常时真实中断类型为 RuntimeException' -Tag 'Temporary' {
             # 忠实还原 Write-LogEntry 的 Error 级 throw 契约（source/Private/Write-LogEntry.ps1 第 105-107 行）。
             # 此刻源码第 92 行的 [System.IO.IOException] 包装在真实运行中不可达，
             # 实际抛出的是 Write-LogEntry 抛出的裸字符串 RuntimeException。
