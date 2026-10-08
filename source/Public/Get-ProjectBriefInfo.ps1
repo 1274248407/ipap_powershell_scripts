@@ -6,9 +6,9 @@
     然后生成格式化的项目信息字符串。此函数支持混合使用两种方式：
     已提供值的参数将跳过交互式输入，仅对未提供的参数进行提示。
 .PARAMETER Author
-    作者名，用于构建项目标识。
+    作者名，用于构建项目标识；返回前统一去除首尾空白。
 .PARAMETER OriginalTitle
-    原作品名（原文），用于构建项目标识。
+    原作品名（原文），用于构建项目标识；返回前统一去除首尾空白。
 .PARAMETER ChineseTitle
     作品的中文译名，用于构建中文项目标识。
 .PARAMETER OriginalOverview
@@ -84,6 +84,11 @@ function Get-ProjectBriefInfo
         $ChineseTitle = Read-Host '作品中文译名'
         $ChineseTitle = $ChineseTitle.Trim()
     }
+
+    # 归一：Author / OriginalTitle 的唯一汇合点（Read-Host 分支已各自 Trim，此处补齐参数传入来源），
+    # 保证返回的 ProjectName 与实际创建的目录名一致，避免 README 与磁盘目录名不一致
+    $Author = ([string]$Author).Trim()
+    $OriginalTitle = ([string]$OriginalTitle).Trim()
 
     # 自动组合 projectName 和 authorChinese
     $projectName = "[${Author}] ${OriginalTitle}"

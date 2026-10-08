@@ -4,6 +4,8 @@
 .DESCRIPTION
         创建符合 IPAP 工作流标准的项目目录结构，包括预处理和排版目录。
         若目录已存在则询问用户是否覆盖，创建失败时记录错误日志。
+        BaseDir 与 ProjectName 在函数入口做空白与尾点校验，非法入参记录 Error 日志后抛出
+        [System.ArgumentException]，不创建任何目录。
         在项目目录下创建子目录：
         '02_Preprocessing\raw_source',
         '02_Preprocessing\original_non_text_raw',
@@ -13,8 +15,12 @@
         '03_Typesetting\final_pages'
 .PARAMETER BaseDir
         (string) 项目基础目录路径。
+        不能为纯空白字符串，也不能以 ASCII 空白字符（0x20/0x09/0x0A/0x0B/0x0C/0x0D）或点 (.) 结尾，
+        否则抛出 [System.ArgumentException]（Win32 路径规范化会裁剪路径末段的此类字符，
+        使同一入参同时产出裁剪空壳与真身两个目录，真实产物落入不可寻址路径，即目录分裂）。
 .PARAMETER ProjectName
         (string) 项目名称。
+        同样受上述空白与尾点约束：不能为纯空白字符串，不能以 ASCII 空白字符或点 (.) 结尾。
 .PARAMETER Force
     (switch) 跳过确认提示，直接覆盖已存在的目录。
 .EXAMPLE
@@ -39,6 +45,49 @@ function New-ProjectStructure {
         [string]$ProjectName,
         [switch]$Force
     )
+
+    # 参数空白与尾点守卫（目录分裂防线）：
+    # Win32 路径规范化会裁剪路径末段的 ASCII 空白与尾部点，而中间段的同类字符会被保留，
+    # 同一入参会因此产出「裁剪空壳」与「真身」两个目录，真实产物落入 provider 无法寻址的路径。
+    # 判据按探针实证精确设定：ASCII 空白与尾点会触发裁剪；NBSP(U+00A0)、全角空格(U+3000)
+    # 实测既不被裁剪也可正常寻址，故不拒绝（放行，不为无害入参报错）。
+    $AsciiWhitespace = [char[]]@([char]0x20, [char]0x09, [char]0x0A, [char]0x0B, [char]0x0C, [char]0x0D)
+
+    if ([string]::IsNullOrWhiteSpace($BaseDir)) {
+        $ErrorMessage = "参数 'BaseDir' 不能为纯空白字符串（当前值: '$BaseDir'）"
+        Write-LogEntry -Level Error -Message $ErrorMessage
+        throw [System.ArgumentException]::new($ErrorMessage)
+    }
+
+    if ($BaseDir -ne $BaseDir.Trim($AsciiWhitespace)) {
+        $ErrorMessage = "参数 'BaseDir' 不能以空白字符开头或结尾（当前值: '$BaseDir'）"
+        Write-LogEntry -Level Error -Message $ErrorMessage
+        throw [System.ArgumentException]::new($ErrorMessage)
+    }
+
+    if ($BaseDir.EndsWith('.')) {
+        $ErrorMessage = "参数 'BaseDir' 不能以点 (.) 结尾（当前值: '$BaseDir'）"
+        Write-LogEntry -Level Error -Message $ErrorMessage
+        throw [System.ArgumentException]::new($ErrorMessage)
+    }
+
+    if ([string]::IsNullOrWhiteSpace($ProjectName)) {
+        $ErrorMessage = "参数 'ProjectName' 不能为纯空白字符串（当前值: '$ProjectName'）"
+        Write-LogEntry -Level Error -Message $ErrorMessage
+        throw [System.ArgumentException]::new($ErrorMessage)
+    }
+
+    if ($ProjectName -ne $ProjectName.Trim($AsciiWhitespace)) {
+        $ErrorMessage = "参数 'ProjectName' 不能以空白字符开头或结尾（当前值: '$ProjectName'）"
+        Write-LogEntry -Level Error -Message $ErrorMessage
+        throw [System.ArgumentException]::new($ErrorMessage)
+    }
+
+    if ($ProjectName.EndsWith('.')) {
+        $ErrorMessage = "参数 'ProjectName' 不能以点 (.) 结尾（当前值: '$ProjectName'）"
+        Write-LogEntry -Level Error -Message $ErrorMessage
+        throw [System.ArgumentException]::new($ErrorMessage)
+    }
 
     # 构建项目目录路径
     $today = Get-Date -Format 'yyyy-MM-dd'

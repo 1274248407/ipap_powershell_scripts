@@ -10,6 +10,7 @@
     (IPAPConfiguration) 配置实例（可选），若未指定则从全局配置获取。
 .PARAMETER BaseDir
     (string) 项目基础目录（可选），若未指定则从配置读取或交互式输入。
+    三个来源汇合后统一去除首尾空白，避免带尾部空白的入参传入 New-ProjectStructure 造成目录分裂。
 .PARAMETER SourceDir
     (string) 源图片目录（可选），若未指定则从配置读取或交互式输入。
 .EXAMPLE
@@ -60,6 +61,10 @@ function Start-IPAPWorkflow
         {
             $BaseDir = Read-Host '请输入项目基础目录'
         }
+
+        # 归一：在 BaseDir 的唯一汇合点去除首尾空白（覆盖函数参数 / 配置文件 / 交互式输入三个来源），
+        # 避免带尾部空白的入参传入 New-ProjectStructure 后造成目录分裂
+        $BaseDir = ([string]$BaseDir).Trim()
 
         if (-not $SourceDir)
         {

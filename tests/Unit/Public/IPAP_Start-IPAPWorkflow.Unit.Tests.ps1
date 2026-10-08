@@ -115,6 +115,15 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
         It '路径中包含 Unicode 字符应正常处理' {
             { Start-IPAPWorkflow -BaseDir 'C:\Test\αβγ' -SourceDir 'C:\Images' } | Should -Not -Throw
         }
+
+        It 'BaseDir 含尾部空白时应在汇合点归一后传入 New-ProjectStructure' {
+            # BaseDir 的唯一汇合点覆盖函数参数 / 配置文件 / 交互式输入三个来源；
+            # 此处断言传入 New-ProjectStructure 的实参已被 Trim，避免带尾空格入参造成目录分裂。
+            # 显式传 -Config 以隔离本用例与配置初始化守卫（该守卫的 fixture 缺陷与本条无关）
+            Start-IPAPWorkflow -Config $Script:MockConfig -BaseDir 'C:\Projects  ' -SourceDir 'C:\Images'
+
+            Should -Invoke -ModuleName IPAP New-ProjectStructure -ParameterFilter { $BaseDir -eq 'C:\Projects' } -Times 1 -Exactly
+        }
     }
 
     Context '项目初始化测试' {

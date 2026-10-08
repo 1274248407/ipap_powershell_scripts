@@ -155,6 +155,22 @@ Describe 'Get-ProjectBriefInfo Unit Tests' -Tag 'Get-ProjectBriefInfo', 'IPAP' {
 
             $ProjectName | Should -Be '[Author] TestProject'
         }
+
+        It '参数传入的作者名与原作品名应去除首尾空白（非交互分支 Trim）' {
+            # ProjectName 的唯一汇合点归一：配置来源（非交互分支）原样传入时也须去空白，
+            # 否则返回给 README 的名字与 New-ProjectStructure 实际创建的目录名不一致
+            $script:ThrowOnReadHost = $true
+
+            $Formatted, $ProjectName = Get-ProjectBriefInfo `
+                -Author '  鲁迅  ' `
+                -OriginalTitle '  呐喊  ' `
+                -ChineseTitle '呐喊' `
+                -OriginalOverview '原文简介内容' `
+                -ChineseOverview '中文简介内容'
+
+            $ProjectName | Should -BeExactly '[鲁迅] 呐喊'
+            ($Formatted -split "`n")[2] | Should -BeExactly '  原文：[鲁迅] 呐喊'
+        }
     }
 
     Context '返回值格式测试 - L5 输出字段' {

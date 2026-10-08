@@ -11,20 +11,18 @@
     L4 分支与循环    —— Context 'L4 目录已存在处理' / Context 'L4 ShouldProcess 与 WhatIf'
     L5 输出字段验证  —— Context 'L5 输出字段验证'
 
-    已知不可测分支（源码第 53-57 行「用户取消覆盖 -> return $null」）：
+    已知不可测分支（源码 ShouldContinue 判定处「用户取消覆盖 -> return $null」）：
     $PSCmdlet.ShouldContinue 在 Pester 非交互宿主下抛出 MethodInvocationException
     （内含 NullReferenceException，根因为 stdin 重定向）；真控制台下则阻塞等待输入；
     $Host 为只读变量无法 Mock；-Confirm:$false 与 -WhatIf 均无法使其返回 $false。
     唯一可行手段是以 Start-Process -RedirectStandardInput 启动整个 pwsh 进程，
     不属于单元测试做法。该分支已登记至 doc/将来要改的地方.md（make it work / 重要且紧急）。
 
-    【临时】用例清单（带 -Tag 'Temporary'，可用 Invoke-Pester -ExcludeTagFilter 'Temporary' 批量隔离）：
-    1. '【临时】空白字符串 BaseDir 不被 Mandatory 校验拦截，应进入函数体'
-       钉住 BaseDir 纯空白串未被拒绝的缺陷现状；待源码补空白校验后须删除或改写为断言绑定期拒绝。
-       该缺陷与补校验的实施步骤已登记至 doc/将来要改的地方.md（make it work / 重要但不紧急）。
-
-    备注：原第 2 项临时用例「Write-LogEntry 抛异常时真实中断类型为 RuntimeException」
-    已随 Write-LogEntry 回归纯日志函数（Error 级不再 throw）于本次删除。
+    备注：原【临时】用例清单已清空（当前本文件无 -Tag 'Temporary' 用例），两项历史处置如下：
+    1. 「Write-LogEntry 抛异常时真实中断类型为 RuntimeException」已随 Write-LogEntry
+       回归纯日志函数（Error 级不再 throw）删除。
+    2. 「空白字符串 BaseDir 不被 Mandatory 校验拦截，应进入函数体」已随源码补参数空白与尾点守卫
+       改写为断言函数入口拒绝。判据、探针实证与实施记录见 doc/将来要改的地方.md。
 
     跨文件标记不一致（IPAP_Get-ImageInfo、IPAP_Invoke-ParallelUpscale 中的同类条件断言
     未加【临时】前缀与 Tag）已登记至 doc/将来要改的地方.md，本轮按裁决不改动那两个文件。
@@ -57,7 +55,7 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP' {
         Mock Write-LogEntry -ModuleName IPAP { }
 
         # 冻结日期使路径断言精确且与运行日期、时区无关
-        # 源码第 45 行 Get-Date -Format 'yyyy-MM-dd' 的真实输出正是此类字符串
+        # 源码中 Get-Date -Format 'yyyy-MM-dd' 的真实输出正是此类字符串
         # Write-LogEntry 的时间戳取自 [DateTime]::Now（不经过 Get-Date），不受影响
         Mock Get-Date -ModuleName IPAP { '2026-01-01' }
 
@@ -135,15 +133,53 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP' {
             $ScriptBlock | Should -Throw -ExceptionType ([System.Management.Automation.ParameterBindingException]) -ErrorId 'MissingMandatoryParameter*'
         }
 
-        It '【临时】空白字符串 BaseDir 不被 Mandatory 校验拦截，应进入函数体' -Tag 'Temporary' {
-            # 本用例钉住的是缺陷现状，不是正确契约：BaseDir 为纯空白串时应在参数绑定期被拒绝。
-            # 已实测：[Parameter(Mandatory)] 只拦空字符串，纯空白串可通过绑定进入函数体。
-            # 详见 doc/将来要改的地方.md「New-ProjectStructure 应拒绝纯空白串参数」条目，
-            # 其中含各候选校验机制对空白串实际效果的探针结论。
-            # 源码补上空白校验后，本用例须删除或改写为断言绑定期拒绝。
-            $Result = New-ProjectStructure -BaseDir '   ' -ProjectName 'TestProject'
+        It '空白字符串 BaseDir 应在函数入口被拒绝' {
+            # 替换原【临时】用例：[Parameter(Mandatory)] 只拦空字符串，纯空白串可穿过绑定，
+            # 现由函数入口的 IsNullOrWhiteSpace 守卫拦截；守卫先记录 Error 日志再抛强类型异常
+            $ScriptBlock = { New-ProjectStructure -BaseDir '   ' -ProjectName 'TestProject' }
 
-            $Result | Should -BeExactly '   \2026-01-01_TestProject'
+            $ScriptBlock | Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "参数 'BaseDir' 不能为纯空白字符串*"
+            Should -Invoke -ModuleName IPAP Write-LogEntry -ParameterFilter { $Level -eq 'Error' } -Times 1 -Exactly
+            $script:NewItemCalls.Count | Should -Be 0
+        }
+
+        It 'BaseDir 含尾部 ASCII 空白应被拒绝（Win32 裁剪根因）' {
+            # 探针实证：该入参在末段位置产出裁剪空壳、在中间段位置产出真身，二者并存即目录分裂
+            $ScriptBlock = { New-ProjectStructure -BaseDir 'C:\Projects ' -ProjectName 'TestProject' }
+
+            $ScriptBlock | Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "参数 'BaseDir' 不能以空白字符开头或结尾*"
+            $script:NewItemCalls.Count | Should -Be 0
+        }
+
+        It 'BaseDir 以点结尾应被拒绝（实测尾部两点同样导致目录分裂）' {
+            $ScriptBlock = { New-ProjectStructure -BaseDir 'C:\Projects..' -ProjectName 'TestProject' }
+
+            $ScriptBlock | Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "参数 'BaseDir' 不能以点 (.) 结尾*"
+            $script:NewItemCalls.Count | Should -Be 0
+        }
+
+        It 'ProjectName 含前导空白应被拒绝' {
+            $ScriptBlock = { New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName ' TestProject' }
+
+            $ScriptBlock | Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "参数 'ProjectName' 不能以空白字符开头或结尾*"
+            $script:NewItemCalls.Count | Should -Be 0
+        }
+
+        It 'ProjectName 以 NBSP(U+00A0) 结尾应放行（实测不被裁剪且可正常寻址）' {
+            $Name = "TestProject$([char]0x00A0)"
+
+            $Result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName $Name
+
+            $Result | Should -BeExactly "C:\Projects\2026-01-01_$Name"
+            $script:NewItemCalls.Count | Should -Be 7
+        }
+
+        It 'ProjectName 以全角空格(U+3000) 结尾应放行（实测不被裁剪且可正常寻址）' {
+            $Name = "TestProject$([char]0x3000)"
+
+            $Result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName $Name
+
+            $Result | Should -BeExactly "C:\Projects\2026-01-01_$Name"
             $script:NewItemCalls.Count | Should -Be 7
         }
     }
