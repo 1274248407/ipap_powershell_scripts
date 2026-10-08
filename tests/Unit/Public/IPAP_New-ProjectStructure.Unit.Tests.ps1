@@ -18,12 +18,13 @@
     唯一可行手段是以 Start-Process -RedirectStandardInput 启动整个 pwsh 进程，
     不属于单元测试做法。该分支已登记至 doc/将来要改的地方.md（make it work / 重要且紧急）。
 
-    【临时】用例清单（均带 -Tag 'Temporary'，可用 Invoke-Pester -ExcludeTagFilter 'Temporary' 批量隔离）：
+    【临时】用例清单（带 -Tag 'Temporary'，可用 Invoke-Pester -ExcludeTagFilter 'Temporary' 批量隔离）：
     1. '【临时】空白字符串 BaseDir 不被 Mandatory 校验拦截，应进入函数体'
        钉住 BaseDir 纯空白串未被拒绝的缺陷现状；待源码补空白校验后须删除或改写为断言绑定期拒绝。
-    2. '【临时】Write-LogEntry 抛异常时真实中断类型为 RuntimeException'
-       钉住 Write-LogEntry Error 级中断的真实异常类型；待其回归纯日志函数后须删除。
-    两者的删除前提不同，不可一并处理，具体见各用例内注释与 doc/将来要改的地方.md。
+       该缺陷与补校验的实施步骤已登记至 doc/将来要改的地方.md（make it work / 重要但不紧急）。
+
+    备注：原第 2 项临时用例「Write-LogEntry 抛异常时真实中断类型为 RuntimeException」
+    已随 Write-LogEntry 回归纯日志函数（Error 级不再 throw）于本次删除。
 
     跨文件标记不一致（IPAP_Get-ImageInfo、IPAP_Invoke-ParallelUpscale 中的同类条件断言
     未加【临时】前缀与 Tag）已登记至 doc/将来要改的地方.md，本轮按裁决不改动那两个文件。
@@ -186,21 +187,6 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP' {
             $ScriptBlock | Should -Throw -ExceptionType ([System.IO.IOException]) -ExpectedMessage '创建项目目录失败: Access denied'
             $script:NewItemIndex | Should -Be 3
             Should -Invoke -ModuleName IPAP Write-LogEntry -ParameterFilter { $Level -eq 'Error' } -Times 1 -Exactly
-        }
-
-        It '【临时】Write-LogEntry 抛异常时真实中断类型为 RuntimeException' -Tag 'Temporary' {
-            # 忠实还原 Write-LogEntry 的 Error 级 throw 契约（source/Private/Write-LogEntry.ps1 第 105-107 行）。
-            # 此刻源码第 92 行的 [System.IO.IOException] 包装在真实运行中不可达，
-            # 实际抛出的是 Write-LogEntry 抛出的裸字符串 RuntimeException。
-            # 该行为已定随 Write-LogEntry 回归纯日志函数而消失，届时须删除本用例。
-            Mock Write-LogEntry -ModuleName IPAP {
-                param($Level, $Message)
-                if ($Level -eq 'Error') { throw $Message }
-            }
-            Mock New-Item -ModuleName IPAP { throw 'Access denied' }
-            $ScriptBlock = { New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'TestProject' }
-
-            $ScriptBlock | Should -Throw -ExceptionType ([System.Management.Automation.RuntimeException]) -ExpectedMessage '创建项目目录失败: Access denied'
         }
     }
 

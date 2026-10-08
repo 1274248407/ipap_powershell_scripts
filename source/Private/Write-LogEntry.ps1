@@ -4,7 +4,9 @@
 .DESCRIPTION
     提供统一的日志输出接口，支持 INFO / SUCCESS / WARNING / ERROR 四个级别。
     输出格式为：时间戳 | 级别 | 调用者信息 - 消息，不同级别使用不同终端颜色。
-    ERROR 级别输出日志后会抛出终止错误，保持与 $ErrorActionPreference = 'Stop' 的兼容性。
+    所有级别（含 Error）均为纯日志输出：只写终端，不抛出异常、不中断执行。
+    需要"记录并中断"时，应在调用 Write-LogEntry 之后显式 throw 强类型异常
+    （如 [System.IO.IOException]），日志与控制流分离。
     本函数已通过 Export-ModuleMember 导出，供模块外部（如 Main.ps1 入口脚本）记录启动事件。
     @see 移植自 FinalizeAndArchiveProject 项目 source/Private/Write-LogEntry.ps1
 .PARAMETER Level
@@ -101,9 +103,6 @@ function Write-LogEntry {
     # 换行
     Write-Host ''
 
-    # ERROR 级别抛出终止错误，保持错误传播链
-    if ($Level -eq 'Error') {
-        # 防御空消息：throw 不接受空字符串，需兜底为通用错误描述
-        throw ([string]::IsNullOrEmpty($Message) ? '未知错误（空消息）' : $Message)
-    }
+    # 所有级别（含 Error）到此结束：纯日志输出，不抛异常、不中断执行
+    # 需要"记录并中断"时由调用方在本函数之后显式 throw 强类型异常
 }

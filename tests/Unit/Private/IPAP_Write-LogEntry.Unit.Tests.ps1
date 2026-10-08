@@ -6,16 +6,15 @@
 .DESCRIPTION
     按 doc/单元测试方法论.md 五级要求编写：
     - Level1 正常流程：各级别输出 5 段完整日志（时间戳/级别/调用者/消息/换行）
-    - Level2 异常流程：Error 级别抛出终止错误通知上层
-    - Level3 边界数据：空串与 $null 消息兜底、非 Error 空消息、超长/多行/Unicode 消息
+    - Level2 异常流程：Error 级别不抛异常、不中断执行，输出仍为完整 5 段
+    - Level3 边界数据：空串与 $null 消息原样输出、非 Error 空消息、超长/多行/Unicode 消息
     - Level4 分支覆盖：级别颜色四分支、Error 消息红底白字、NoNewline 序列、CallerInfo 格式
     - Level5 输出字段：时间戳格式、级别文本宽度、颜色、NoNewline、文本逐字段验证
 
     既有契约备注：
-    - AGENTS.md 描述 Write-LogEntry"含 Error 级别不抛异常、不中断"，但源码 Error 级
-      throw 并以输出即抛错作为错误传播链（17 处调用点依赖），本测试以源码实际行为为契约。
-    - Error 级别 throw 为裸字符串（RuntimeException），不满足方法论 L2"自定义逻辑异常"
-      字面，作为模块既成契约保留断言消息文本。
+    - Write-LogEntry 四个级别均为纯日志函数：只写终端，不抛异常、不中断执行。
+      错误传播由调用方显式 throw 强类型异常负责（见 AGENTS.md 防御性编程条目）。
+      空消息与 $null 消息均原样输出，日志函数不改写调用方传入的内容。
     - Pester 容器内 Get-PSCallStack 深度恒 >= 31，源码恒走深栈分支 $CallStack[2]；
       浅栈分支（[1]）与无帧分支（'<unknown>:<unknown>:0>'）物理不可达，无法在单元测试
       中构造，故不设占位用例，此处注释说明。
@@ -174,9 +173,9 @@ Describe 'Write-LogEntry Unit Tests' -Tag 'Write-LogEntry', 'IPAP' {
         }
     }
 
-    Context 'Error 级别 - L2 异常契约' {
-        It 'Error 级别输出完整 5 段且消息为白字红底' {
-            { Write-LogEntry -Level Error -Message '测试错误消息' -ErrorAction Stop } | Should -Throw -ExpectedMessage '测试错误消息'
+    Context 'Error 级别 - L2 纯日志契约' {
+        It 'Error 级别输出完整 5 段且消息为白字红底，不抛异常' {
+            { Write-LogEntry -Level Error -Message '测试错误消息' -ErrorAction Stop } | Should -Not -Throw
             Assert-CompleteLogLine -WriteHostCalls $script:WriteHostCalls `
                 -ExpectedLevelSegment '| ERROR   | ' `
                 -ExpectedLevelColor $script:LevelColorMap['Error'] `
@@ -184,23 +183,32 @@ Describe 'Write-LogEntry Unit Tests' -Tag 'Write-LogEntry', 'IPAP' {
                 -ExpectedMessageBackgroundColor 'Red'
         }
 
-        It 'Error 级别抛出的异常消息与传入 Message 相同' {
-            { Write-LogEntry -Level Error -Message '致命错误ABC' -ErrorAction Stop } | Should -Throw -ExpectedMessage '致命错误ABC'
+        It 'Error 级别消息段与传入 Message 完全一致且不抛异常' {
+            $ErrorMessage = '致命错误ABC'
+            { Write-LogEntry -Level Error -Message $ErrorMessage -ErrorAction Stop } | Should -Not -Throw
+
+            $script:WriteHostCalls.Count | Should -Be 5
+            $script:WriteHostCalls[3].Text | Should -Be $ErrorMessage
         }
     }
 
-    Context 'Error 级别 - 空消息兜底（L3 边界，bug 修复验证）' {
-        It '空字符串消息输出空消息段并抛出兜底错误' {
-            { Write-LogEntry -Level Error -Message '' -ErrorAction Stop } | Should -Throw -ExpectedMessage '未知错误（空消息）'
+    Context 'Error 级别 - 空消息原样输出（L3 边界）' {
+        It '空字符串消息输出空消息段、不抛异常且不被改写为兜底文本' {
+            { Write-LogEntry -Level Error -Message '' -ErrorAction Stop } | Should -Not -Throw
             Assert-CompleteLogLine -WriteHostCalls $script:WriteHostCalls `
                 -ExpectedLevelSegment '| ERROR   | ' `
                 -ExpectedLevelColor $script:LevelColorMap['Error'] `
                 -ExpectedMessage '' `
                 -ExpectedMessageBackgroundColor 'Red'
+            $script:WriteHostCalls[3].Text | Should -Not -Be '未知错误（空消息）' -Because '日志函数不得改写调用方传入的消息'
         }
 
-        It 'null 消息抛出兜底错误而非崩溃' {
-            { Write-LogEntry -Level Error -Message $null -ErrorAction Stop } | Should -Throw -ExpectedMessage '未知错误（空消息）'
+        It 'null 消息输出空消息段、不抛异常且不被改写为兜底文本' {
+            { Write-LogEntry -Level Error -Message $null -ErrorAction Stop } | Should -Not -Throw
+
+            $script:WriteHostCalls.Count | Should -Be 5
+            $script:WriteHostCalls[3].Text | Should -Be ''
+            $script:WriteHostCalls[3].Text | Should -Not -Be '未知错误（空消息）' -Because '日志函数不得改写调用方传入的消息'
         }
     }
 

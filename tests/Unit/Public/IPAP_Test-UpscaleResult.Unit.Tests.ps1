@@ -5,8 +5,8 @@
     IPAP 模块 - Test-UpscaleResult 单元测试
 .DESCRIPTION
     测试 Test-UpscaleResult 函数的结果验证逻辑，包括边界条件和错误处理。
-    注意：源码新增 Test-Path 守卫，且 Write-LogEntry -Level Error -Message 具有真实 throw 语义，
-    因此"输出目录不存在"和"完全失败"场景会抛出终止错误。
+    注意：源码新增 Test-Path 守卫，"输出目录不存在"和"完全失败"场景由源码显式
+    throw 强类型异常抛出终止错误（Write-LogEntry 为纯日志函数，只记录不抛）。
 #>
 
 Describe 'Test-UpscaleResult Unit Tests' -Tag 'Test-UpscaleResult', 'IPAP' {

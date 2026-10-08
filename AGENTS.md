@@ -19,7 +19,7 @@ PowerShell 7 图像处理自动化项目（ipap_workflow）。修改任何 `.ps1
 - **PS7 新语法强制**：三元 `条件 ? 真 : 假`、Null 合并 `??` / `??=`、管道链 `&&` / `||`；禁止用旧语法替代。
 - **命名**：自定义变量/函数/参数一律 PascalCase；禁止 `$_`，一律使用 `$PSItem`。
   - 重构旧代码时主动修复不符合 PascalCase 或缺失类型声明的代码块。
-- **防御性编程**：IO 与网络操作必须包裹 try-catch；`Write-LogEntry` 仅 Info/Success/Warning 级别为纯日志输出（不抛异常），**Error 级别输出日志后 `throw` 终止错误、中断执行**（抛裸字符串即 RuntimeException，属模块既有契约，调用方依赖该中断传播）；需要"记录并中断"时先写日志再显式 `throw` 带类型异常（如 `[System.ArgumentException]`）；catch 记录后必须重抛，禁止吞异常。
+- **防御性编程**：IO 与网络操作必须包裹 try-catch；`Write-LogEntry` 四个级别均为**纯日志输出**（只写终端，不抛异常、不中断执行）；需要"记录并中断"时，先调用 `Write-LogEntry -Level Error` 记录现场，再在同一代码块内显式 `throw` 带类型异常（如 `[System.ArgumentException]`、`[System.IO.IOException]`），日志与控制流分离；catch 记录后必须重抛，禁止吞异常。
 - **帮助文档**：每个函数/类/类方法上方必须有完整 Help-Based Help 注释块，作者固定为 `lucas_gold`，使用简体中文。
 - **注释语言**：所有注释（单行 `#` 与块注释 `<#...#>`）必须使用简体中文；变量、函数名等标识符保持英文。
 - **测试（Pester v5，v5.3.0+）**：

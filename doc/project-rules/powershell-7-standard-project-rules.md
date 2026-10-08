@@ -42,8 +42,8 @@
   - 凡涉及 **网络请求**（如 `Invoke-RestMethod`, `Invoke-WebRequest`）的逻辑，必须包裹在 `try-catch` 结构中。
   - `catch` 块应包含明确的异常处理逻辑（如 `throw $PSItem`）。
 - **日志与控制流分离（Write-LogEntry 契约）**：
-  - `Write-LogEntry` 是**日志函数**：Info/Success/Warning 级别只记录，**不抛出异常、不中断执行**；**Error 级别输出日志后抛出终止错误（裸字符串即 RuntimeException）并中断执行**——Error 级中断为模块既有契约，调用方依赖该传播链，源码调用点均以 `Write-LogEntry -Level Error` 单独调用实现"记录并中断"。
-  - 需要"记录并中断"时：直接调用 `Write-LogEntry -Level Error` 记录现场并触发中断；若需**显式 throw 带明确类型的异常**（如 `[System.ArgumentException]`、`[System.IO.DirectoryNotFoundException]`、`[System.InvalidOperationException]`），应在 `catch` 块中捕获 Error 级中断后重新抛出类型化异常。
+  - `Write-LogEntry` 是**日志函数**：四个级别（含 Error）均只写终端，**不抛出异常、不中断执行**。日志函数不承担错误传播职责。
+  - 需要"记录并中断"时：先调用 `Write-LogEntry -Level Error` 记录现场，再在同一代码块内**显式 `throw` 带明确类型的异常**（如 `[System.ArgumentException]`、`[System.IO.DirectoryNotFoundException]`、`[System.InvalidOperationException]`、`[System.IO.IOException]`）。中断语义由显式 `throw` 提供，不得依赖日志函数触发。
   - `catch` 块记录上下文后必须重抛（`throw $PSItem` 或包装异常 `throw [System.IO.IOException]::new($消息, $PSItem.Exception)`），**禁止吞异常**；顶层保证进程退出码非零。
 
 ## 5. 强制 Help-Based Help 模板

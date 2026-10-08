@@ -107,12 +107,14 @@ Describe 'New-ProjectStructure 集成测试（真实文件系统协作）' -Tag 
 
     Context '失败路径' {
         It 'BaseDir 含 Windows 非法路径字符时应记录错误并抛出终止错误' {
-            # 项目错误语义基于 $ErrorActionPreference = 'Stop'（见 build.ps1 与 Write-LogEntry 设计说明）：
-            # Stop 环境下 New-Item 的非终止错误升级为终止错误，进入 catch 后由 Write-LogEntry -Level Error -Message 真实抛出
+            # 项目错误语义基于 $ErrorActionPreference = 'Stop'（见 build.ps1）：
+            # Stop 环境下 New-Item 的非终止错误升级为终止错误，进入 catch 后由源码的
+            # throw [System.IO.IOException] 抛出终止错误（Write-LogEntry 为纯日志函数，只记录不抛）
             [string]$BadBaseDir = Join-Path $Script:TestDriveRoot 'bad<>name'
 
             # 模块函数的 EAP 走模块作用域链（不受调用者局部 EAP 影响），必须设为全局才能传播进模块；
-            # Stop 环境下 New-Item 的非终止错误升级为终止错误，进入 catch 后由 Write-LogEntry -Level Error -Message 真实抛出
+            # Stop 环境下 New-Item 的非终止错误升级为终止错误，进入 catch 后由源码的
+            # throw [System.IO.IOException] 抛出终止错误（Write-LogEntry 为纯日志函数，只记录不抛）
             {
                 $Global:ErrorActionPreference = 'Stop'
                 try

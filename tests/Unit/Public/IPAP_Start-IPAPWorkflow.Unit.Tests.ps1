@@ -5,8 +5,9 @@
     IPAP 模块 - Start-IPAPWorkflow 单元测试
 .DESCRIPTION
     测试 Start-IPAPWorkflow 函数的工作流执行逻辑，包含全面的防御性测试用例。
-    注意：所有依赖函数均在 IPAP 模块内部替换为 Mock；Write-LogEntry -Level Error 模拟真实 throw 语义，
-    因此外层 catch 记录错误后会以"执行过程中发生错误: ..."抛出终止错误。
+    注意：所有依赖函数均在 IPAP 模块内部替换为 Mock；Write-LogEntry 为纯日志函数，
+    中断由源码显式 throw 强类型异常负责 —— 外层 catch 记录错误后重抛原始异常，
+    错误处理用例据此断言 '项目初始化失败*'。
 #>
 
 Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
