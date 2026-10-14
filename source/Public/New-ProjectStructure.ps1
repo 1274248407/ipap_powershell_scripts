@@ -94,16 +94,24 @@ function New-ProjectStructure {
     $projectDirName = "${today}_${ProjectName}"
     $projectDir = Join-Path -Path $BaseDir -ChildPath $projectDirName
 
-    # 使用 -LiteralPath 处理包含特殊字符的路径
-    if (Test-Path -LiteralPath $projectDir) {
-        # 当 -Force 指定时跳过确认提示
-        if (-not $Force -and -not $PSCmdlet.ShouldContinue('项目目录已存在，是否覆盖现有目录？', '确认操作')) {
-            Write-LogEntry -Level Info -Message '用户取消覆盖操作'
-            return $null
-        }
-    }
-
+    # 闸门顺序：必须先过 ShouldProcess，再进入覆盖确认。
+    # SupportsShouldProcess 的契约是 WhatIf 零副作用且零交互；旧实现把确认放在闸门之前，
+    # 导致 -WhatIf 仍会调用交互方法，实测抛出 MethodInvocationException（内含 NullReferenceException）。
     if ($PSCmdlet.ShouldProcess($projectDir, '创建项目目录结构')) {
+        # 使用 -LiteralPath 处理包含特殊字符的路径
+        # 覆盖确认：使用 Read-Host 而非 $PSCmdlet.ShouldContinue。
+        # ShouldContinue 是 PSCmdlet 的方法而非命令，而 Pester 只能 Mock 命令，无法拦截方法调用，
+        # 会使本分支在单元测试中永远不可达；Read-Host 是系统命令，可被 Mock。
+        if ((Test-Path -LiteralPath $projectDir) -and (-not $Force)) {
+            # 安全默认：仅显式 Y/y 视为覆盖；回车、EOF（Read-Host 返回 $null）与
+            # 其它任何输入一律视为取消，避免非交互环境下的死循环与误覆盖
+            $Response = Read-Host '项目目录已存在，是否覆盖现有目录？(Y/N)'
+            if (([string]$Response).Trim() -notin @('Y', 'y')) {
+                Write-LogEntry -Level Info -Message '用户取消覆盖操作'
+                return $null
+            }
+        }
+
         try {
             Write-LogEntry -Level Info -Message "正在创建项目目录: $projectDir"
 

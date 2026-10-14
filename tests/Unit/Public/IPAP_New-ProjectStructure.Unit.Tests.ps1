@@ -11,12 +11,14 @@
     L4 分支与循环    —— Context 'L4 目录已存在处理' / Context 'L4 ShouldProcess 与 WhatIf'
     L5 输出字段验证  —— Context 'L5 输出字段验证'
 
-    已知不可测分支（源码 ShouldContinue 判定处「用户取消覆盖 -> return $null」）：
-    $PSCmdlet.ShouldContinue 在 Pester 非交互宿主下抛出 MethodInvocationException
-    （内含 NullReferenceException，根因为 stdin 重定向）；真控制台下则阻塞等待输入；
-    $Host 为只读变量无法 Mock；-Confirm:$false 与 -WhatIf 均无法使其返回 $false。
-    唯一可行手段是以 Start-Process -RedirectStandardInput 启动整个 pwsh 进程，
-    不属于单元测试做法。该分支已登记至 doc/将来要改的地方.md（make it work / 重要且紧急）。
+    已解决分支（原「不可测」：源码 ShouldContinue 判定处「用户取消覆盖 -> return $null」）：
+    根因是 $PSCmdlet.ShouldContinue 为 PSCmdlet 的方法而非命令，Pester 只能 Mock 命令，
+    无法拦截方法调用，该分支因此在单元测试中永远不可达。它也不受 -Confirm、$ConfirmPreference
+    与 -WhatIf 影响：实测在 -WhatIf 且目录已存在且未带 -Force 时仍会调用它，抛出
+    MethodInvocationException（内含 NullReferenceException），违反 SupportsShouldProcess
+    的「WhatIf 零副作用且零交互」契约。
+    处置：源码改用 Read-Host（系统命令，可被 Mock），并把 ShouldProcess 前置为交互之前的唯一闸门。
+    覆盖用例见 Context 'L4 目录已存在处理' 与 Context 'L4 ShouldProcess 与 WhatIf'。
 
     备注：原【临时】用例清单已清空（当前本文件无 -Tag 'Temporary' 用例），两项历史处置如下：
     1. 「Write-LogEntry 抛异常时真实中断类型为 RuntimeException」已随 Write-LogEntry
@@ -63,6 +65,10 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP' {
         Mock New-Item -ModuleName IPAP {
             $script:NewItemCalls.Add([string]$Path) | Out-Null
         }
+
+        # Read-Host 是外部交互命令（可 Mock）。默认基线让它一被调用就失败，
+        # 用以钉住「不应交互的路径确实没有交互」（-WhatIf / -Force / 目录不存在）
+        Mock Read-Host -ModuleName IPAP { throw '不应调用 Read-Host' }
     }
 
     Context 'L1 正常执行路径' {
@@ -96,6 +102,51 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP' {
             $Result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'ExistingProject' -Force
 
             $Result | Should -BeExactly 'C:\Projects\2026-01-01_ExistingProject'
+        }
+
+        It '目录已存在且用户输入 N 时应取消覆盖、不创建目录并返回 $null' {
+            Mock Test-Path -ModuleName IPAP { return $true }
+            Mock Read-Host -ModuleName IPAP { return 'N' }
+
+            $Result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'ExistingProject'
+
+            $Result | Should -BeNullOrEmpty
+            Should -Invoke -ModuleName IPAP New-Item -Times 0 -Exactly
+            Should -Invoke -ModuleName IPAP Read-Host -Times 1 -Exactly
+            Should -Invoke -ModuleName IPAP Write-LogEntry `
+                -ParameterFilter { $Level -eq 'Info' -and $Message -eq '用户取消覆盖操作' } -Times 1 -Exactly
+        }
+
+        It '目录已存在且用户输入 Y 时应按覆盖路径创建全部 7 个目录' {
+            Mock Test-Path -ModuleName IPAP { return $true }
+            Mock Read-Host -ModuleName IPAP { return 'Y' }
+
+            $Result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'ExistingProject'
+
+            $Result | Should -BeExactly 'C:\Projects\2026-01-01_ExistingProject'
+            Should -Invoke -ModuleName IPAP New-Item -Times 7 -Exactly
+        }
+
+        It '用户输入带前导空格的小写 y 应视为确认覆盖（Trim 与大小写归一）' {
+            Mock Test-Path -ModuleName IPAP { return $true }
+            Mock Read-Host -ModuleName IPAP { return ' y ' }
+
+            $Result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'ExistingProject'
+
+            $Result | Should -BeExactly 'C:\Projects\2026-01-01_ExistingProject'
+            Should -Invoke -ModuleName IPAP New-Item -Times 7 -Exactly
+        }
+
+        It '用户输入为 $null（模拟 EOF）应视为取消覆盖且不创建目录' {
+            Mock Test-Path -ModuleName IPAP { return $true }
+            Mock Read-Host -ModuleName IPAP { return $null }
+
+            $Result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'ExistingProject'
+
+            $Result | Should -BeNullOrEmpty
+            Should -Invoke -ModuleName IPAP New-Item -Times 0 -Exactly
+            Should -Invoke -ModuleName IPAP Write-LogEntry `
+                -ParameterFilter { $Level -eq 'Info' -and $Message -eq '用户取消覆盖操作' } -Times 1 -Exactly
         }
     }
 
@@ -240,6 +291,18 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP' {
 
             $Result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'TestProject' -Force -WhatIf
 
+            Should -Invoke -ModuleName IPAP New-Item -Times 0 -Exactly
+            $Result | Should -BeNullOrEmpty
+        }
+
+        It '-WhatIf 且目录已存在且未指定 -Force 时不应交互、不应创建目录且无输出' {
+            # 钉住闸门顺序：ShouldProcess 必须位于覆盖确认之前，
+            # 否则 -WhatIf 仍会调用 Read-Host / ShouldContinue（旧实现的契约违规）
+            Mock Test-Path -ModuleName IPAP { return $true }
+
+            $Result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'TestProject' -WhatIf
+
+            Should -Invoke -ModuleName IPAP Read-Host -Times 0 -Exactly
             Should -Invoke -ModuleName IPAP New-Item -Times 0 -Exactly
             $Result | Should -BeNullOrEmpty
         }
