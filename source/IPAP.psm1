@@ -18,12 +18,10 @@ $script:IPAPConfigInstance = $null
 # 加载顺序：类 -> 私有函数 -> 公开函数（依赖顺序，不可调换）
 $loadOrder = @('Classes', 'Private', 'Public')
 
-foreach ($folder in $loadOrder)
-{
+foreach ($folder in $loadOrder) {
     # 构建子目录路径
     $folderPath = Join-Path -Path $PSScriptRoot -ChildPath $folder
-    if (-not (Test-Path -LiteralPath $folderPath))
-    {
+    if (-not (Test-Path -LiteralPath $folderPath)) {
         continue
     }
 

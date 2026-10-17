@@ -15,8 +15,7 @@
     Website: https://github.com/1274248407
 #>
 
-function Get-AppConfiguration
-{
+function Get-AppConfiguration {
     [CmdletBinding()]
     [OutputType('ApplicationConfiguration')]
     param()

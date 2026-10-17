@@ -25,8 +25,7 @@ Author: lucas_gold
 Website: https://github.com/1274248407
 #>
 
-function Get-ImageFile
-{
+function Get-ImageFile {
     [CmdletBinding()]
     [OutputType([System.IO.FileInfo])]
     param(

@@ -28,8 +28,7 @@
     Website: https://github.com/1274248407
 #>
 
-function Select-NonTextImage
-{
+function Select-NonTextImage {
     # 豁免 PSUseOutputTypeCorrectly：动态集合变量 return 的静态推断为 Object[]，
     # 与元素类型语义声明 [OutputType([System.IO.FileInfo])] 无法匹配（规则缺陷，官方 issue #1471）
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseOutputTypeCorrectly', '')]
@@ -45,8 +44,7 @@ function Select-NonTextImage
     )
 
     # 检查源目录是否存在
-    if (-not (Test-Path -LiteralPath $SourceDir))
-    {
+    if (-not (Test-Path -LiteralPath $SourceDir)) {
         # 记录错误现场后显式抛出强类型异常，中断本函数（Write-LogEntry 为纯日志函数）
         $ErrorMessage = "源目录不存在: $SourceDir"
         Write-LogEntry -Level Error -Message $ErrorMessage
@@ -54,12 +52,10 @@ function Select-NonTextImage
     }
 
     # 使用预排序图片或重新扫描
-    if ($PreSortedImages -and $PreSortedImages.Count -gt 0)
-    {
+    if ($PreSortedImages -and $PreSortedImages.Count -gt 0) {
         $allFiles = $PreSortedImages
     }
-    else
-    {
+    else {
         $allFiles = @(Get-ImageFile -Path $SourceDir -SupportedFormats $SupportedImageFormats | Sort-Object -Property { Get-NaturalSortKey $PSItem.Name })
     }
     $subFolders = @(Get-ChildItem -LiteralPath $SourceDir -Directory)
@@ -73,8 +69,7 @@ function Select-NonTextImage
     $options += '输入起始编号（如从第 N 张开始是无文字图）'
 
     # 只在有子文件夹时展示选项 2
-    if ($subFolders.Count -gt 0)
-    {
+    if ($subFolders.Count -gt 0) {
         $options += '选择子文件夹'
     }
 
@@ -85,14 +80,12 @@ function Select-NonTextImage
     Write-LogEntry -Level Info -Message '请选择无文字图来源：'
 
     # 展示选项
-    for ($i = 0; $i -lt $options.Count; $i++)
-    {
+    for ($i = 0; $i -lt $options.Count; $i++) {
         Write-LogEntry -Level Info -Message "  [$($i + 1)] $($options[$i])"
     }
 
     # 展示图片排序预览（前 5 张和后 5 张）
-    if ($allFiles.Count -gt 0)
-    {
+    if ($allFiles.Count -gt 0) {
         $previewCount = [math]::Min(5, $allFiles.Count)
         $firstNames = ($allFiles[0..($previewCount - 1)] | ForEach-Object { $PSItem.Name }) -join ', '
         $lastNames = ($allFiles[($allFiles.Count - $previewCount)..($allFiles.Count - 1)] | ForEach-Object { $PSItem.Name }) -join ', '
@@ -100,22 +93,18 @@ function Select-NonTextImage
         Write-LogEntry -Level Info -Message '图片排序预览（已按自然排序）：'
         Write-LogEntry -Level Info -Message "  前 $previewCount 张: $firstNames"
         # 所有的图片至少要大于10张
-        if ($allFiles.Count -gt $previewCount * 2)
-        {
+        if ($allFiles.Count -gt $previewCount * 2) {
             Write-LogEntry -Level Info -Message "  后 $previewCount 张: $lastNames"
         }
     }
 
     # 获取用户选择
     [int]$choice = 0
-    while ($choice -lt 1 -or $choice -gt $options.Count)
-    {
-        try
-        {
+    while ($choice -lt 1 -or $choice -gt $options.Count) {
+        try {
             [int]$choice = Read-Host "请输入选项 (1-$($options.Count))"
         }
-        catch
-        {
+        catch {
             Write-LogEntry -Level Warning -Message '请输入有效的数字'
         }
     }
@@ -123,22 +112,17 @@ function Select-NonTextImage
     $nonTextImages = @()
 
     # 模式 1：输入起始编号
-    if ($choice -eq 1)
-    {
+    if ($choice -eq 1) {
         [int]$startIndex = 0
-        while ($startIndex -lt 1 -or $startIndex -gt $allFiles.Count)
-        {
-            try
-            {
+        while ($startIndex -lt 1 -or $startIndex -gt $allFiles.Count) {
+            try {
                 [int]$startIndex = Read-Host "请输入从第几张开始是无文字图 (1-$($allFiles.Count)，输入 0 跳过)"
-                if ($startIndex -eq 0)
-                {
+                if ($startIndex -eq 0) {
                     Write-LogEntry -Level Info -Message '用户跳过无文字图处理'
                     return
                 }
             }
-            catch
-            {
+            catch {
                 Write-LogEntry -Level Warning -Message '请输入有效的数字'
             }
         }
@@ -148,13 +132,11 @@ function Select-NonTextImage
         Write-LogEntry -Level Info -Message "已选择从第 $startIndex 张开始的 $($nonTextImages.Count) 张作为无文字图"
     }
     # 模式 2：选择子文件夹
-    elseif ($choice -eq 2 -and $subFolders.Count -gt 0)
-    {
+    elseif ($choice -eq 2 -and $subFolders.Count -gt 0) {
         Write-LogEntry -Level Info -Message ''
         Write-LogEntry -Level Info -Message '可用的子文件夹：'
 
-        for ($i = 0; $i -lt $subFolders.Count; $i++)
-        {
+        for ($i = 0; $i -lt $subFolders.Count; $i++) {
             $folderPath = $subFolders[$i].FullName
             $folderImageCount = @(Get-ChildItem -LiteralPath $folderPath -File | Where-Object {
                     Test-SupportedImageFormat -File $PSItem -SupportedFormats $SupportedImageFormats
@@ -163,14 +145,11 @@ function Select-NonTextImage
         }
 
         [int]$folderChoice = 0
-        while ($folderChoice -lt 1 -or $folderChoice -gt $subFolders.Count)
-        {
-            try
-            {
+        while ($folderChoice -lt 1 -or $folderChoice -gt $subFolders.Count) {
+            try {
                 [int]$folderChoice = Read-Host "请选择无文字图文件夹 (1-$($subFolders.Count))"
             }
-            catch
-            {
+            catch {
                 Write-LogEntry -Level Warning -Message '请输入有效的数字'
             }
         }
@@ -180,14 +159,11 @@ function Select-NonTextImage
         Write-LogEntry -Level Info -Message "已选择文件夹: $selectedFolder，包含 $($nonTextImages.Count) 张无文字图"
     }
     # 模式 3：输入自定义路径
-    elseif ($choice -eq $options.Count - 1)
-    {
+    elseif ($choice -eq $options.Count - 1) {
         [string]$customPath = ''
-        while (-not $customPath -or -not (Test-Path -LiteralPath $customPath))
-        {
+        while (-not $customPath -or -not (Test-Path -LiteralPath $customPath)) {
             $customPath = Read-Host '请输入无文字图文件夹路径'
-            if (-not (Test-Path -LiteralPath $customPath))
-            {
+            if (-not (Test-Path -LiteralPath $customPath)) {
                 Write-LogEntry -Level Warning -Message "路径不存在: $customPath，请重新输入"
             }
         }
@@ -196,15 +172,13 @@ function Select-NonTextImage
         Write-LogEntry -Level Info -Message "已选择自定义路径: $customPath，包含 $($nonTextImages.Count) 张无文字图"
     }
     # 模式 4：跳过
-    else
-    {
+    else {
         Write-LogEntry -Level Info -Message '用户跳过无文字图处理'
         return
     }
 
     # 验证是否有图片
-    if ($nonTextImages.Count -eq 0)
-    {
+    if ($nonTextImages.Count -eq 0) {
         Write-LogEntry -Level Warning -Message '未找到任何无文字图'
         return
     }

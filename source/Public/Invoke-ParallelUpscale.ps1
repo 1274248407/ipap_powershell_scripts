@@ -37,8 +37,7 @@
     Website: https://github.com/1274248407
 #>
 
-function Invoke-ParallelUpscale
-{
+function Invoke-ParallelUpscale {
     [CmdletBinding()]
     [OutputType([hashtable])]
     param (
@@ -64,23 +63,20 @@ function Invoke-ParallelUpscale
 
     # 引擎路径解析（缺失时 Get-*Path 内部直接抛出终止错误）
     $FfmpegPath = $null
-    if ($Engine -eq 'FFmpeg')
-    {
+    if ($Engine -eq 'FFmpeg') {
         $FfmpegPath = Get-FfmpegPath
     }
 
     Write-LogEntry -Level Info -Message "开始并行图片处理，引擎: $Engine, 并发数: $MaxWorkers"
 
-    if (-not (Test-Path -LiteralPath $OutputDir))
-    {
+    if (-not (Test-Path -LiteralPath $OutputDir)) {
         New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
     }
 
     $successCount = 0
     $failedCount = 0
 
-    if ($Engine -eq 'RealCugan')
-    {
+    if ($Engine -eq 'RealCugan') {
         # Real-CUGAN 引擎：AI 超分（Level 2）
         $realCuganExePath = Get-RealCuganExePath
 
@@ -97,8 +93,7 @@ function Invoke-ParallelUpscale
             $fileName = [System.IO.Path]::GetFileNameWithoutExtension($image.FullName)
             $outputPath = Join-Path $outputDir "${fileName}.${outputFormat}"
 
-            try
-            {
+            try {
                 $realCuganArgs = @(
                     '-i', $image.FullName,
                     '-o', $outputPath,
@@ -111,35 +106,29 @@ function Invoke-ParallelUpscale
 
                 & $realCuganExePath @realCuganArgs
 
-                if (Test-Path -LiteralPath $outputPath)
-                {
+                if (Test-Path -LiteralPath $outputPath) {
                     return @{ Success = $true; Image = $image.Name }
                 }
-                else
-                {
+                else {
                     return @{ Success = $false; Image = $image.Name }
                 }
             }
-            catch
-            {
+            catch {
                 return @{ Success = $false; Image = $image.Name; Error = $PSItem.Exception.Message }
             }
         } -ThrottleLimit $MaxWorkers | ForEach-Object {
-            if ($PSItem.Success)
-            {
+            if ($PSItem.Success) {
                 Write-LogEntry -Level Info -Message "图片处理成功: $($PSItem.Image)"
                 $successCount++
             }
-            else
-            {
+            else {
                 # 单张图片失败不中断批次，降级为警告日志并计入失败数
                 Write-LogEntry -Level Warning -Message "图片处理失败: $($PSItem.Image)"
                 $failedCount++
             }
         }
     }
-    else
-    {
+    else {
         # FFmpeg 引擎：Lanczos 放大 + Unsharp Mask 锐化（Level 1）
         $FfmpegPath = Get-FfmpegPath
         $Images | ForEach-Object -Parallel {
@@ -157,8 +146,7 @@ function Invoke-ParallelUpscale
             $fileName = [System.IO.Path]::GetFileNameWithoutExtension($image.FullName)
             $outputPath = Join-Path $outputDir "${fileName}.${outputFormat}"
 
-            try
-            {
+            try {
                 # Lanczos 放大 1.2 倍 + USM 锐化
                 # 1. 基础输入输出参数
                 # -i $image.FullName: 指定输入文件。-i 代表 input，即原始图片的完整路径。
@@ -192,27 +180,22 @@ function Invoke-ParallelUpscale
                 )
                 $null = & $ffmpegPath @ffmpegArgs 2>&1
 
-                if ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $outputPath))
-                {
+                if ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $outputPath)) {
                     return @{ Success = $true; Image = $image.Name }
                 }
-                else
-                {
+                else {
                     return @{ Success = $false; Image = $image.Name }
                 }
             }
-            catch
-            {
+            catch {
                 return @{ Success = $false; Image = $image.Name; Error = $PSItem.Exception.Message }
             }
         } -ThrottleLimit $MaxWorkers | ForEach-Object {
-            if ($PSItem.Success)
-            {
+            if ($PSItem.Success) {
                 Write-LogEntry -Level Info -Message "图片处理成功: $($PSItem.Image)"
                 $successCount++
             }
-            else
-            {
+            else {
                 # 单张图片失败不中断批次，降级为警告日志并计入失败数
                 Write-LogEntry -Level Warning -Message "图片处理失败: $($PSItem.Image)"
                 $failedCount++

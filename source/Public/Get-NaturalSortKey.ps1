@@ -19,8 +19,7 @@
     Website: https://github.com/1274248407
 #>
 
-function Get-NaturalSortKey
-{
+function Get-NaturalSortKey {
     [CmdletBinding()]
     [OutputType([string])]
     param (
@@ -33,12 +32,10 @@ function Get-NaturalSortKey
 
     # 过滤空字符串，数字部分零填充（10位）
     $result = $parts | Where-Object { -not [string]::IsNullOrEmpty($PSItem) } | ForEach-Object {
-        if ($PSItem -match '^\d+$')
-        {
+        if ($PSItem -match '^\d+$') {
             $PSItem.PadLeft(10, '0')
         }
-        else
-        {
+        else {
             $PSItem
         }
     }

@@ -15,16 +15,14 @@
     Website: https://github.com/1274248407
 #>
 
-function Get-FfprobePath
-{
+function Get-FfprobePath {
     [CmdletBinding()]
     [OutputType([string])]
     param()
 
     # 从配置获取 FFprobe 路径
     $FfprobePath = (Get-Configuration).Tools.FfprobeExePath
-    if ($FfprobePath)
-    {
+    if ($FfprobePath) {
         return $FfprobePath
     }
 

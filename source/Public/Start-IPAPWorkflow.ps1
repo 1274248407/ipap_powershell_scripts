@@ -28,8 +28,7 @@
     Website: https://github.com/1274248407
 #>
 
-function Start-IPAPWorkflow
-{
+function Start-IPAPWorkflow {
     [CmdletBinding(SupportsShouldProcess)]
     [OutputType([void])]
     param (
@@ -38,27 +37,22 @@ function Start-IPAPWorkflow
         [string]$SourceDir = $null
     )
 
-    try
-    {
+    try {
         Write-LogEntry -Level Info -Message '正在初始化 IPAP 工作流...'
 
         # 获取配置实例
-        if (-not $Config)
-        {
-            if (-not (Test-ConfigurationInitialized))
-            {
+        if (-not $Config) {
+            if (-not (Test-ConfigurationInitialized)) {
                 throw [System.InvalidOperationException]::new('配置未初始化，请先调用 Get-Configuration')
             }
             $Config = Get-Configuration
         }
 
         # 参数优先级：函数参数 > 配置文件 > 交互式输入
-        if (-not $BaseDir)
-        {
+        if (-not $BaseDir) {
             $BaseDir = $Config.Paths.BaseProjectDir
         }
-        if (-not $BaseDir)
-        {
+        if (-not $BaseDir) {
             $BaseDir = Read-Host '请输入项目基础目录'
         }
 
@@ -66,19 +60,16 @@ function Start-IPAPWorkflow
         # 避免带尾部空白的入参传入 New-ProjectStructure 后造成目录分裂
         $BaseDir = ([string]$BaseDir).Trim()
 
-        if (-not $SourceDir)
-        {
+        if (-not $SourceDir) {
             $SourceDir = $Config.Paths.SourceDir
         }
-        if (-not $SourceDir)
-        {
+        if (-not $SourceDir) {
             $SourceDir = Read-Host '请输入源图片目录'
         }
         # 这里会对图片进行排序，确保按顺序处理
         $imageInfo = Get-ImageInfo -SourceDir $SourceDir
 
-        if ($imageInfo.Count -gt 0)
-        {
+        if ($imageInfo.Count -gt 0) {
             # 使用配置中的项目信息调用 Get-ProjectBriefInfo
             $briefText, $ProjectName = Get-ProjectBriefInfo `
                 -Author $Config.Project.Author `
@@ -87,12 +78,10 @@ function Start-IPAPWorkflow
                 -OriginalOverview $Config.Project.OriginalOverview `
                 -ChineseOverview $Config.Project.ChineseOverview
 
-            if ($PSCmdlet.ShouldProcess($ProjectName, '创建项目结构'))
-            {
+            if ($PSCmdlet.ShouldProcess($ProjectName, '创建项目结构')) {
                 $projectDir = New-ProjectStructure -BaseDir $BaseDir -ProjectName $ProjectName
 
-                if ($projectDir)
-                {
+                if ($projectDir) {
                     Write-LogEntry -Level Info -Message "项目初始化成功: $projectDir"
 
                     # 交互式选择无文字图（传入预排序图片避免重复排序）
@@ -100,13 +89,11 @@ function Start-IPAPWorkflow
 
                     # 分离有文字图和无文字图
                     $textImages = @()
-                    if ($nonTextImages.Count -gt 0)
-                    {
+                    if ($nonTextImages.Count -gt 0) {
                         $nonTextNames = @($nonTextImages | ForEach-Object { $PSItem.Name })
                         $textImages = @($imageInfo.Images | Where-Object { $nonTextNames -notcontains $PSItem.Name })
                     }
-                    else
-                    {
+                    else {
                         $textImages = @($imageInfo.Images)
                     }
 
@@ -114,16 +101,13 @@ function Start-IPAPWorkflow
                     $rawSourceDir = Join-Path -Path $projectDir -ChildPath '02_Preprocessing\raw_source'
                     Write-LogEntry -Level Info -Message "正在复制 $($textImages.Count) 张有文字图到 $rawSourceDir"
 
-                    try
-                    {
-                        foreach ($image in $textImages)
-                        {
+                    try {
+                        foreach ($image in $textImages) {
                             Copy-Item -LiteralPath $image.FullName -Destination $rawSourceDir -Force
                         }
                         Write-LogEntry -Level Info -Message "已复制 $($textImages.Count) 张有文字图到 raw_source 目录"
                     }
-                    catch
-                    {
+                    catch {
                         # 记录上下文后抛出包装异常并保留 InnerException（禁止吞异常）
                         $ErrorMessage = "复制有文字图失败: $($PSItem.Exception.Message)"
                         Write-LogEntry -Level Error -Message $ErrorMessage
@@ -145,8 +129,7 @@ function Start-IPAPWorkflow
                     $nonTextLevel2Levels = @()
                     $nonTextLevel1Images = @()
                     $nonTextLevel2Images = @()
-                    if ($nonTextImages.Count -gt 0)
-                    {
+                    if ($nonTextImages.Count -gt 0) {
                         $nonTextImageLevels = Get-ImageLevel -Images $nonTextImages
                         $nonTextLevel1Levels = @($nonTextImageLevels | Where-Object { $PSItem.Level -eq 1 })
                         $nonTextLevel2Levels = @($nonTextImageLevels | Where-Object { $PSItem.Level -eq 2 })
@@ -164,47 +147,39 @@ function Start-IPAPWorkflow
                     $maxWorkers = $Config.App.MaxWorkers
 
                     # 高清化有文字图
-                    if ($textLevel1Images.Count -gt 0)
-                    {
+                    if ($textLevel1Images.Count -gt 0) {
                         Write-LogEntry -Level Info -Message "有文字图 Level 1: 处理 $($textLevel1Images.Count) 张轻度模糊图片 (FFmpeg 锐化)"
                         $result1 = Invoke-ParallelUpscale -Images $textLevel1Images -OutputDir $preprocessingDir -Engine 'FFmpeg' -MaxWorkers $maxWorkers
                         Write-LogEntry -Level Info -Message "有文字图 Level 1 完成: 成功=$($result1.SuccessCount), 失败=$($result1.FailedCount)"
                     }
 
-                    if ($textLevel2Images.Count -gt 0)
-                    {
-                        if ($Config.Tools.RealCuganExePath)
-                        {
+                    if ($textLevel2Images.Count -gt 0) {
+                        if ($Config.Tools.RealCuganExePath) {
                             Write-LogEntry -Level Info -Message "有文字图 Level 2: 处理 $($textLevel2Images.Count) 张重度模糊图片 (Real-CUGAN)"
                             $modelPath = $Config.App.ModelSelect
                             $result2 = Invoke-ParallelUpscale -Images $textLevel2Images -OutputDir $preprocessingDir -Engine 'RealCugan' -MaxWorkers $maxWorkers -ModelPath $modelPath
                             Write-LogEntry -Level Info -Message "有文字图 Level 2 完成: 成功=$($result2.SuccessCount), 失败=$($result2.FailedCount)"
                         }
-                        else
-                        {
+                        else {
                             Write-LogEntry -Level Warning -Message "有文字图 Level 2: $($textLevel2Images.Count) 张图片需要 Real-CUGAN 处理，但未找到可执行文件"
                         }
                     }
 
                     # 高清化无文字图
-                    if ($nonTextLevel1Images.Count -gt 0)
-                    {
+                    if ($nonTextLevel1Images.Count -gt 0) {
                         Write-LogEntry -Level Info -Message "无文字图 Level 1: 处理 $($nonTextLevel1Images.Count) 张轻度模糊图片 (FFmpeg 锐化)"
                         $result3 = Invoke-ParallelUpscale -Images $nonTextLevel1Images -OutputDir $nonTextRawDir -Engine 'FFmpeg' -MaxWorkers $maxWorkers
                         Write-LogEntry -Level Info -Message "无文字图 Level 1 完成: 成功=$($result3.SuccessCount), 失败=$($result3.FailedCount)"
                     }
 
-                    if ($nonTextLevel2Images.Count -gt 0)
-                    {
-                        if ($Config.Tools.RealCuganExePath)
-                        {
+                    if ($nonTextLevel2Images.Count -gt 0) {
+                        if ($Config.Tools.RealCuganExePath) {
                             Write-LogEntry -Level Info -Message "无文字图 Level 2: 处理 $($nonTextLevel2Images.Count) 张重度模糊图片 (Real-CUGAN)"
                             $modelPath = $Config.App.ModelSelect
                             $result4 = Invoke-ParallelUpscale -Images $nonTextLevel2Images -OutputDir $nonTextRawDir -Engine 'RealCugan' -MaxWorkers $maxWorkers -ModelPath $modelPath
                             Write-LogEntry -Level Info -Message "无文字图 Level 2 完成: 成功=$($result4.SuccessCount), 失败=$($result4.FailedCount)"
                         }
-                        else
-                        {
+                        else {
                             Write-LogEntry -Level Warning -Message "无文字图 Level 2: $($nonTextLevel2Images.Count) 张图片需要 Real-CUGAN 处理，但未找到可执行文件"
                         }
                     }
@@ -212,24 +187,19 @@ function Start-IPAPWorkflow
                     # 复制不需要高清化的无文字图（Level 0）到目标目录
                     $nonTextLevel0Levels = @($nonTextImageLevels | Where-Object { $PSItem.Level -eq 0 })
                     $nonTextLevel0Images = @($nonTextLevel0Levels | ForEach-Object { $PSItem.Image })
-                    if ($nonTextLevel0Images.Count -gt 0)
-                    {
+                    if ($nonTextLevel0Images.Count -gt 0) {
                         Write-LogEntry -Level Info -Message "无文字图 Level 0: 复制 $($nonTextLevel0Images.Count) 张高清图片到 original_non_text_raw 目录"
 
-                        try
-                        {
-                            if (-not (Test-Path -LiteralPath $nonTextRawDir))
-                            {
+                        try {
+                            if (-not (Test-Path -LiteralPath $nonTextRawDir)) {
                                 New-Item -ItemType Directory -Path $nonTextRawDir -Force | Out-Null
                             }
-                            foreach ($image in $nonTextLevel0Images)
-                            {
+                            foreach ($image in $nonTextLevel0Images) {
                                 Copy-Item -LiteralPath $image.FullName -Destination $nonTextRawDir -Force
                             }
                             Write-LogEntry -Level Info -Message "已复制 $($nonTextLevel0Images.Count) 张 Level 0 无文字图到 original_non_text_raw 目录"
                         }
-                        catch
-                        {
+                        catch {
                             # 记录上下文后抛出包装异常并保留 InnerException（禁止吞异常）
                             Write-LogEntry -Level Error -Message "复制 Level 0 无文字图失败: $($PSItem.Exception.Message)"
                             throw [System.IO.IOException]::new("复制 Level 0 无文字图失败: $($PSItem.Exception.Message)", $PSItem.Exception)
@@ -238,24 +208,20 @@ function Start-IPAPWorkflow
 
                     # 验证有文字图处理结果
                     $textTotalProcessed = $textLevel1Images.Count + $textLevel2Images.Count
-                    if ($textTotalProcessed -gt 0)
-                    {
+                    if ($textTotalProcessed -gt 0) {
                         $null = Test-UpscaleResult -ExpectedCount $textTotalProcessed -OutputDir $preprocessingDir
                     }
-                    else
-                    {
+                    else {
                         Write-LogEntry -Level Info -Message '所有有文字图均为高清 (Level 0)，跳过预处理'
                     }
 
                     # 验证无文字图处理结果
                     $nonTextTotalProcessed = $nonTextLevel1Images.Count + $nonTextLevel2Images.Count
-                    if ($nonTextTotalProcessed -gt 0)
-                    {
+                    if ($nonTextTotalProcessed -gt 0) {
                         $null = Test-UpscaleResult -ExpectedCount $nonTextTotalProcessed -OutputDir $nonTextRawDir
                     }
                 }
-                else
-                {
+                else {
                     # 记录错误现场后显式抛出强类型异常，由外层 catch 捕获记录
                     $ErrorMessage = '项目初始化失败'
                     Write-LogEntry -Level Error -Message $ErrorMessage
@@ -263,13 +229,11 @@ function Start-IPAPWorkflow
                 }
             }
         }
-        else
-        {
+        else {
             Write-LogEntry -Level Warning -Message '源目录中没有图片，工作流终止'
         }
     }
-    catch
-    {
+    catch {
         # 顶层统一记录错误后重抛，保证进程退出码非零（供 CI/调度器感知失败）
         Write-LogEntry -Level Error -Message "执行过程中发生错误: $($PSItem.Exception.Message)"
         throw $PSItem

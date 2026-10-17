@@ -21,8 +21,7 @@
     Website: https://github.com/1274248407
 #>
 
-function Test-NeedUpscale
-{
+function Test-NeedUpscale {
     [CmdletBinding()]
     [OutputType([bool])]
     param (
@@ -31,20 +30,17 @@ function Test-NeedUpscale
         [Nullable[double]]$AverageSize
     )
 
-    if ($null -eq $AverageSize)
-    {
+    if ($null -eq $AverageSize) {
         throw [System.ArgumentNullException]::new('AverageSize', '平均文件大小不能为 null')
     }
 
     $threshold = 1000
 
-    if ($AverageSize -lt $threshold)
-    {
+    if ($AverageSize -lt $threshold) {
         Write-LogEntry -Level Info -Message "平均文件大小 $([math]::Round($AverageSize, 2)) KB < $threshold KB，需要高清化"
         return $true
     }
-    else
-    {
+    else {
         Write-LogEntry -Level Info -Message "平均文件大小 $([math]::Round($AverageSize, 2)) KB >= $threshold KB，跳过高清化"
         return $false
     }

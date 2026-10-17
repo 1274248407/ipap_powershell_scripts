@@ -33,8 +33,7 @@
     Website: https://github.com/1274248407
 #>
 
-function Get-ProjectBriefInfo
-{
+function Get-ProjectBriefInfo {
     # 豁免 PSUseOutputTypeCorrectly：双值元组 return 的静态推断为 Object[]，
     # 与元素类型语义声明 [OutputType([string])] 无法匹配（规则缺陷，官方 issue #1471）
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseOutputTypeCorrectly', '')]
@@ -65,22 +64,19 @@ function Get-ProjectBriefInfo
     Write-LogEntry -Level Info -Message '=== 项目信息输入 ==='
 
     # 输入作者名（参数为空时交互式获取）
-    if ([System.String]::IsNullOrWhiteSpace($Author))
-    {
+    if ([System.String]::IsNullOrWhiteSpace($Author)) {
         $Author = Read-Host '作者名'
         $Author = $Author.Trim()
     }
 
     # 输入原作品名（原文）（参数为空时交互式获取）
-    if ([System.String]::IsNullOrWhiteSpace($OriginalTitle))
-    {
+    if ([System.String]::IsNullOrWhiteSpace($OriginalTitle)) {
         $OriginalTitle = Read-Host '原作品名（原文）'
         $OriginalTitle = $OriginalTitle.Trim()
     }
 
     # 输入作品中文译名（参数为空时交互式获取）
-    if ([System.String]::IsNullOrWhiteSpace($ChineseTitle))
-    {
+    if ([System.String]::IsNullOrWhiteSpace($ChineseTitle)) {
         $ChineseTitle = Read-Host '作品中文译名'
         $ChineseTitle = $ChineseTitle.Trim()
     }
@@ -95,15 +91,13 @@ function Get-ProjectBriefInfo
     $authorChinese = "[${Author}] ${ChineseTitle}"
 
     # 输入原文简介（参数为空时交互式获取）
-    if ([System.String]::IsNullOrWhiteSpace($OriginalOverview))
-    {
+    if ([System.String]::IsNullOrWhiteSpace($OriginalOverview)) {
         $originalOverviewLines = Read-MultiLineInput -Prompt '请输入【原文简介】（按 Ctrl+D 结束）：'
         $OriginalOverview = $originalOverviewLines -join "`n"
     }
 
     # 输入中文简介（参数为空时交互式获取）
-    if ([System.String]::IsNullOrWhiteSpace($ChineseOverview))
-    {
+    if ([System.String]::IsNullOrWhiteSpace($ChineseOverview)) {
         $chineseOverviewLines = Read-MultiLineInput -Prompt '请输入【中文简介】（按 Ctrl+D 结束）：'
         $ChineseOverview = $chineseOverviewLines -join "`n"
     }

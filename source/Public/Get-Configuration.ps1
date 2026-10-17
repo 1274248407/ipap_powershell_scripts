@@ -24,8 +24,7 @@
     Website: https://github.com/1274248407
 #>
 
-function Get-Configuration
-{
+function Get-Configuration {
     [CmdletBinding()]
     [OutputType('IPAPConfiguration')]
     param(
@@ -33,22 +32,17 @@ function Get-Configuration
         [string]$ProjectRoot
     )
 
-    process
-    {
-        if ($script:IPAPConfigInstance -and [string]::IsNullOrWhiteSpace($ProjectRoot))
-        {
+    process {
+        if ($script:IPAPConfigInstance -and [string]::IsNullOrWhiteSpace($ProjectRoot)) {
             return $script:IPAPConfigInstance
         }
 
         $Root = $ProjectRoot
-        if ([string]::IsNullOrWhiteSpace($Root))
-        {
-            if ($script:IPAPConfigInstance)
-            {
+        if ([string]::IsNullOrWhiteSpace($Root)) {
+            if ($script:IPAPConfigInstance) {
                 $Root = $script:IPAPConfigInstance.Paths.ProjectRoot
             }
-            else
-            {
+            else {
                 throw [System.InvalidOperationException]::new('ProjectRoot 未指定，且配置实例未初始化')
             }
         }

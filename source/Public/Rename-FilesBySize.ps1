@@ -23,8 +23,7 @@
     Website: https://github.com/1274248407
 #>
 
-function Rename-FilesBySize
-{
+function Rename-FilesBySize {
     [CmdletBinding()]
     [OutputType([int])]
     param (
@@ -35,8 +34,7 @@ function Rename-FilesBySize
     )
 
     # 检查目录是否存在
-    if (-not (Test-Path -LiteralPath $Directory))
-    {
+    if (-not (Test-Path -LiteralPath $Directory)) {
         # 记录错误现场后显式抛出强类型异常，中断本函数（Write-LogEntry 为纯日志函数）
         $ErrorMessage = "目录不存在: $Directory"
         Write-LogEntry -Level Error -Message $ErrorMessage
@@ -46,8 +44,7 @@ function Rename-FilesBySize
     # 获取目录中所有图片文件
     $files = @(Get-ImageFile -Path $Directory)
 
-    if ($files.Count -eq 0)
-    {
+    if ($files.Count -eq 0) {
         Write-LogEntry -Level Info -Message "目录中没有图片文件: $Directory"
         return 0
     }
@@ -59,30 +56,25 @@ function Rename-FilesBySize
     $currentIndex = $StartIndex
 
     # 重命名文件
-    foreach ($file in $sortedFiles)
-    {
+    foreach ($file in $sortedFiles) {
         $newName = "${currentIndex}$($file.Extension)"
         $newPath = Join-Path -Path $Directory -ChildPath $newName
 
-        try
-        {
+        try {
             # 如果目标文件名已存在且不是当前文件，先删除
-            if ((Test-Path -LiteralPath $newPath) -and ($newPath -ne $file.FullName))
-            {
+            if ((Test-Path -LiteralPath $newPath) -and ($newPath -ne $file.FullName)) {
                 Remove-Item -LiteralPath $newPath -Force
             }
 
             # 重命名文件
-            if ($file.FullName -ne $newPath)
-            {
+            if ($file.FullName -ne $newPath) {
                 Rename-Item -LiteralPath $file.FullName -NewName $newName -Force
             }
 
             $renamedCount++
             $currentIndex++
         }
-        catch
-        {
+        catch {
             # 单个文件重命名失败不中断批次，降级为警告日志继续处理后续文件
             Write-LogEntry -Level Warning -Message "重命名文件失败: $($file.Name) -> $newName. 错误: $($PSItem.Exception.Message)"
         }

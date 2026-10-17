@@ -15,8 +15,7 @@
     Website: https://github.com/1274248407
 #>
 
-function Get-PathConfiguration
-{
+function Get-PathConfiguration {
     [CmdletBinding()]
     [OutputType('PathConfiguration')]
     param()

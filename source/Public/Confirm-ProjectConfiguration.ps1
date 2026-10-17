@@ -17,16 +17,14 @@
     Website: https://github.com/1274248407
 #>
 
-function Confirm-ProjectConfiguration
-{
+function Confirm-ProjectConfiguration {
     [CmdletBinding()]
     [OutputType('IPAPConfiguration')]
     param(
         [IPAPConfiguration]$Config = $null
     )
 
-    if (-not $Config)
-    {
+    if (-not $Config) {
         $Config = Get-Configuration
     }
 
@@ -49,13 +47,11 @@ function Confirm-ProjectConfiguration
     Write-LogEntry -Level Info -Message "  放大倍数: $($Config.App.UpscaleRatio)"
     Write-LogEntry -Level Info -Message "  模型选择: $($Config.App.ModelSelect)"
 
-    do
-    {
+    do {
         $response = Read-Host '是否应用当前配置？(Y/N)'
     } while ($response -ne 'Y' -and $response -ne 'y' -and $response -ne 'N' -and $response -ne 'n')
 
-    if ($response -eq 'Y' -or $response -eq 'y')
-    {
+    if ($response -eq 'Y' -or $response -eq 'y') {
         Write-LogEntry -Level Info -Message '应用当前配置'
         return $Config
     }
@@ -64,22 +60,18 @@ function Confirm-ProjectConfiguration
     Write-LogEntry -Level Info -Message '  1) 使用文本编辑器修改 config.toml（推荐）'
     Write-LogEntry -Level Info -Message '  2) 在控制台直接输入'
 
-    do
-    {
+    do {
         $choice = Read-Host '请选择 (1/2)'
     } while ($choice -ne '1' -and $choice -ne '2')
 
-    if ($choice -eq '1')
-    {
+    if ($choice -eq '1') {
         Write-LogEntry -Level Info -Message '正在打开配置文件...'
-        try
-        {
+        try {
             Start-Process -FilePath $Config.Paths.ConfigPath
             Write-LogEntry -Level Info -Message '配置文件已打开，请修改后保存。'
             $null = Read-Host '按 Enter 键继续...'
         }
-        catch
-        {
+        catch {
             # 打开配置文件失败属于可恢复场景：提示用户手动打开后继续流程
             Write-LogEntry -Level Warning -Message "无法自动打开配置文件，请手动打开: $($Config.Paths.ConfigPath)"
             $null = Read-Host '按 Enter 键继续...'
@@ -91,67 +83,56 @@ function Confirm-ProjectConfiguration
         $Config = Get-Configuration -ProjectRoot $projectRoot
         return Confirm-ProjectConfiguration -Config $Config
     }
-    else
-    {
+    else {
         Write-LogEntry -Level Warning -Message '请在控制台输入配置信息：'
 
         Write-LogEntry -Level Warning -Message '【路径配置】'
         $newSourceDir = Read-Host "源图片目录 [当前: $($Config.Paths.SourceDir)]"
-        if ($newSourceDir)
-        {
+        if ($newSourceDir) {
             $Config.Paths.SourceDir = $newSourceDir
         }
 
         Write-LogEntry -Level Warning -Message '【项目信息】'
         $newAuthor = Read-Host "作者 [当前: $($Config.Project.Author)]"
-        if ($newAuthor)
-        {
+        if ($newAuthor) {
             $Config.Project.Author = $newAuthor
         }
 
         $newOriginalTitle = Read-Host "原作品名 [当前: $($Config.Project.OriginalTitle)]"
-        if ($newOriginalTitle)
-        {
+        if ($newOriginalTitle) {
             $Config.Project.OriginalTitle = $newOriginalTitle
         }
 
         $newChineseTitle = Read-Host "中文译名 [当前: $($Config.Project.ChineseTitle)]"
-        if ($newChineseTitle)
-        {
+        if ($newChineseTitle) {
             $Config.Project.ChineseTitle = $newChineseTitle
         }
 
         Write-LogEntry -Level Warning -Message '原文简介（每行输入后按 Enter，输入空行结束）：'
         $newOriginalOverviewLines = @()
-        while ($true)
-        {
+        while ($true) {
             # ReadLine 返回空字符串（用户输入空行）或 $null（EOF：Windows 下为 Ctrl+Z 后按 Enter）时结束输入
             $line = $host.ui.ReadLine()
-            if (-not $line)
-            {
+            if (-not $line) {
                 break
             }
             $newOriginalOverviewLines += $line
         }
-        if ($newOriginalOverviewLines.Count -gt 0)
-        {
+        if ($newOriginalOverviewLines.Count -gt 0) {
             $Config.Project.OriginalOverview = $newOriginalOverviewLines -join "`n"
         }
 
         Write-LogEntry -Level Warning -Message '中文简介（每行输入后按 Enter，输入空行结束）：'
         $newChineseOverviewLines = @()
-        while ($true)
-        {
+        while ($true) {
             # ReadLine 返回空字符串（用户输入空行）或 $null（EOF：Windows 下为 Ctrl+Z 后按 Enter）时结束输入
             $line = $host.ui.ReadLine()
-            if (-not $line)
-            {
+            if (-not $line) {
                 break
             }
             $newChineseOverviewLines += $line
         }
-        if ($newChineseOverviewLines.Count -gt 0)
-        {
+        if ($newChineseOverviewLines.Count -gt 0) {
             $Config.Project.ChineseOverview = $newChineseOverviewLines -join "`n"
         }
 

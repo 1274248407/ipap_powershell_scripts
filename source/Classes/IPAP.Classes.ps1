@@ -23,8 +23,7 @@
     Website: https://github.com/1274248407
 #>
 
-class PathConfiguration
-{
+class PathConfiguration {
     # 项目根目录
     [string]$ProjectRoot
 
@@ -60,14 +59,11 @@ class PathConfiguration
         Author:  lucas_gold
         Website: https://github.com/1274248407
     #>
-    PathConfiguration([string]$ProjectRoot, [string]$BaseProjectDir = $null, [string]$SourceDir = $null)
-    {
-        if ([string]::IsNullOrWhiteSpace($ProjectRoot))
-        {
+    PathConfiguration([string]$ProjectRoot, [string]$BaseProjectDir = $null, [string]$SourceDir = $null) {
+        if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
             throw [System.ArgumentException]::new('ProjectRoot 不能为空')
         }
-        if (-not (Test-Path -LiteralPath $ProjectRoot))
-        {
+        if (-not (Test-Path -LiteralPath $ProjectRoot)) {
             throw [System.IO.DirectoryNotFoundException]::new("ProjectRoot 目录不存在: $ProjectRoot")
         }
         $this.ProjectRoot = $ProjectRoot
@@ -93,8 +89,7 @@ class PathConfiguration
     Website: https://github.com/1274248407
 #>
 
-class ToolConfiguration
-{
+class ToolConfiguration {
     # Real-CUGAN 可执行文件路径
     [string]$RealCuganExePath
 
@@ -125,8 +120,7 @@ class ToolConfiguration
         Author:  lucas_gold
         Website: https://github.com/1274248407
     #>
-    ToolConfiguration([PathConfiguration]$PathConfig, [hashtable]$Settings)
-    {
+    ToolConfiguration([PathConfiguration]$PathConfig, [hashtable]$Settings) {
         $this.PathConfig = $PathConfig
         $this.FfmpegExePath = $this.ResolveToolPath($Settings.paths.ffmpeg_exe, 'ffmpeg')
         $this.FfprobeExePath = $this.ResolveToolPath($Settings.paths.ffprobe_exe, 'ffprobe')
@@ -148,13 +142,11 @@ class ToolConfiguration
         Author:  lucas_gold
         Website: https://github.com/1274248407
     #>
-    hidden [string] ResolveToolPath([string]$ConfiguredPath, [string]$CommandName)
-    {
+    hidden [string] ResolveToolPath([string]$ConfiguredPath, [string]$CommandName) {
         # 空配置值直接置为 null，非空时拼成完整路径
         $FullPath = [string]::IsNullOrWhiteSpace($ConfiguredPath) ? $null : (Join-Path $this.PathConfig.ProjectRoot $ConfiguredPath)
         # 配置路径必须指向真实文件，指向目录等非文件目标时视为未命中
-        if ($FullPath -and (Test-Path -LiteralPath $FullPath -PathType Leaf))
-        {
+        if ($FullPath -and (Test-Path -LiteralPath $FullPath -PathType Leaf)) {
             return $FullPath
         }
 
@@ -176,13 +168,11 @@ class ToolConfiguration
         Author:  lucas_gold
         Website: https://github.com/1274248407
     #>
-    hidden [string] ResolveRealCuganPath([string]$ConfiguredPath)
-    {
+    hidden [string] ResolveRealCuganPath([string]$ConfiguredPath) {
         # 空配置值直接置为 null，非空时拼成完整路径
         $FullPath = [string]::IsNullOrWhiteSpace($ConfiguredPath) ? $null : (Join-Path $this.PathConfig.ProjectRoot $ConfiguredPath)
         # 配置路径必须指向真实文件，指向目录等非文件目标时视为未命中
-        if ($FullPath -and (Test-Path -LiteralPath $FullPath -PathType Leaf))
-        {
+        if ($FullPath -and (Test-Path -LiteralPath $FullPath -PathType Leaf)) {
             return $FullPath
         }
 
@@ -208,8 +198,7 @@ class ToolConfiguration
     Website: https://github.com/1274248407
 #>
 
-class ProjectConfiguration
-{
+class ProjectConfiguration {
     # 作者名
     [string]$Author
 
@@ -243,8 +232,7 @@ class ProjectConfiguration
         Author:  lucas_gold
         Website: https://github.com/1274248407
     #>
-    ProjectConfiguration([hashtable]$Settings)
-    {
+    ProjectConfiguration([hashtable]$Settings) {
         # 先初始化所有属性为空字符串
         $this.Author = ''
         $this.OriginalTitle = ''
@@ -253,13 +241,11 @@ class ProjectConfiguration
         $this.ChineseOverview = ''
 
         # 然后从配置读取值
-        if ($Settings -and $Settings.ContainsKey('project'))
-        {
+        if ($Settings -and $Settings.ContainsKey('project')) {
             $projectSettings = $Settings.project
 
             # 'project' 键存在但不是字典类型时，抛出逻辑异常，避免系统异常直接穿透给调用方
-            if ($projectSettings -isnot [System.Collections.IDictionary])
-            {
+            if ($projectSettings -isnot [System.Collections.IDictionary]) {
                 $actualType = $null -eq $projectSettings ? 'null' : $projectSettings.GetType().Name
                 throw [System.ArgumentException]::new("配置项 'project' 必须是 IDictionary 类型，当前值类型为 '$actualType'")
             }
@@ -288,8 +274,7 @@ class ProjectConfiguration
         Author:  lucas_gold
         Website: https://github.com/1274248407
     #>
-    [string] GetProjectName()
-    {
+    [string] GetProjectName() {
         # 作者与原作品名均非空时按 '[作者] 作品名' 格式化，否则仅返回原作品名（?: 三元表达式）
         $HasAuthorAndTitle = -not [string]::IsNullOrWhiteSpace($this.Author) -and -not [string]::IsNullOrWhiteSpace($this.OriginalTitle)
         return $HasAuthorAndTitle ? ('[{0}] {1}' -f $this.Author, $this.OriginalTitle) : $this.OriginalTitle
@@ -311,8 +296,7 @@ class ProjectConfiguration
     Website: https://github.com/1274248407
 #>
 
-class ApplicationConfiguration
-{
+class ApplicationConfiguration {
     # 支持的图片格式列表
     [string[]]$SupportedImageFormats
 
@@ -359,8 +343,7 @@ class ApplicationConfiguration
         Author:  lucas_gold
         Website: https://github.com/1274248407
     #>
-    ApplicationConfiguration([hashtable]$Settings)
-    {
+    ApplicationConfiguration([hashtable]$Settings) {
         $this.Settings = $Settings
 
         # 从配置读取值并钳制到有效值域（区块缺失回退空哈希表，值缺失回退默认值，[math]::Clamp 钳制上下限）
@@ -403,17 +386,14 @@ class ApplicationConfiguration
         Author:  lucas_gold
         Website: https://github.com/1274248407
     #>
-    hidden static [System.Collections.IDictionary] GetSettingsBlock([object]$Value, [string]$BlockName)
-    {
+    hidden static [System.Collections.IDictionary] GetSettingsBlock([object]$Value, [string]$BlockName) {
         # 区块缺失时回退空哈希表
-        if ($null -eq $Value)
-        {
+        if ($null -eq $Value) {
             return @{}
         }
 
         # 区块存在但不是字典类型时抛出逻辑异常，避免系统异常直接穿透给调用方
-        if ($Value -isnot [System.Collections.IDictionary])
-        {
+        if ($Value -isnot [System.Collections.IDictionary]) {
             $actualType = $Value.GetType().Name
             throw [System.ArgumentException]::new("配置项 '$BlockName' 必须是 IDictionary 类型，当前值类型为 '$actualType'")
         }
@@ -436,12 +416,10 @@ class ApplicationConfiguration
         Author:  lucas_gold
         Website: https://github.com/1274248407
     #>
-    hidden static [object] TryIntConvert([object]$Value, [string]$ParameterName)
-    {
+    hidden static [object] TryIntConvert([object]$Value, [string]$ParameterName) {
         if ($null -eq $Value) { return $null }
         $parsed = $null
-        if ([int]::TryParse([string]$Value, [ref]$parsed))
-        {
+        if ([int]::TryParse([string]$Value, [ref]$parsed)) {
             return $parsed
         }
         throw [System.ArgumentException]::new("配置项 '$ParameterName' 的值 '$Value' 不是有效的整数")
@@ -463,8 +441,7 @@ class ApplicationConfiguration
     Website: https://github.com/1274248407
 #>
 
-class IPAPConfiguration
-{
+class IPAPConfiguration {
     # 路径配置
     [PathConfiguration]$Paths
 
@@ -503,8 +480,7 @@ class IPAPConfiguration
         [ToolConfiguration]$Tools,
         [ApplicationConfiguration]$App,
         [ProjectConfiguration]$Project
-    )
-    {
+    ) {
         $this.Paths = $Paths
         $this.Tools = $Tools
         $this.App = $App
@@ -528,14 +504,12 @@ class IPAPConfiguration
         Author:  lucas_gold
         Website: https://github.com/1274248407
     #>
-    static [IPAPConfiguration] Load([string]$ProjectRoot)
-    {
+    static [IPAPConfiguration] Load([string]$ProjectRoot) {
         $loadedSettings = [IPAPConfiguration]::ReadConfigFile($ProjectRoot)
         # paths 分类可能整体缺失，?? 回退到空哈希表后可安全探测子键；子键存在与否用三元取值
         $pathsSettings = $loadedSettings['paths'] ?? @{}
         # 'paths' 键存在但不是字典类型时抛出逻辑异常，避免 ContainsKey 调用穿透系统异常（与 ProjectConfiguration 的处置一致）
-        if ($pathsSettings -isnot [System.Collections.IDictionary])
-        {
+        if ($pathsSettings -isnot [System.Collections.IDictionary]) {
             $actualType = $pathsSettings.GetType().Name
             throw [System.ArgumentException]::new("配置项 'paths' 必须是 IDictionary 类型，当前值类型为 '$actualType'")
         }
@@ -562,8 +536,7 @@ class IPAPConfiguration
         Author:  lucas_gold
         Website: https://github.com/1274248407
     #>
-    hidden static [hashtable] ReadConfigFile([string]$ProjectRoot)
-    {
+    hidden static [hashtable] ReadConfigFile([string]$ProjectRoot) {
         $configPath = Join-Path $ProjectRoot 'config.toml'
         $defaultSettings = @{
             paths        = @{ base_project_dir = ''; source_dir = ''; ffmpeg_exe = ''; ffprobe_exe = ''; realcugan_exe = '' }
@@ -573,49 +546,40 @@ class IPAPConfiguration
             webp         = @{ enabled = $true; lossless = $true; quality = 100 }
         }
 
-        if (-not (Test-Path -LiteralPath $configPath))
-        {
+        if (-not (Test-Path -LiteralPath $configPath)) {
             Write-LogEntry -Level Info -Message "配置文件不存在: $configPath，使用默认配置"
             return $defaultSettings
         }
 
-        try
-        {
+        try {
             # 按优先级搜索 PSToml 模块：发布包 RequiredModules -> 构建输出 -> 全局已安装
             $PSTomlCandidates = @(
                 (Join-Path $ProjectRoot 'RequiredModules\PSToml'),
                 (Join-Path $ProjectRoot 'output\RequiredModules\PSToml')
             )
-            foreach ($PSTomlPath in $PSTomlCandidates)
-            {
+            foreach ($PSTomlPath in $PSTomlCandidates) {
                 # 找到首个存在的 PSToml 副本即导入
-                if (Test-Path -LiteralPath $PSTomlPath)
-                {
+                if (Test-Path -LiteralPath $PSTomlPath) {
                     Import-Module $PSTomlPath -Force -Scope Local
                     break
                 }
             }
 
-            if (Get-Command 'ConvertFrom-Toml' -ErrorAction SilentlyContinue)
-            {
+            if (Get-Command 'ConvertFrom-Toml' -ErrorAction SilentlyContinue) {
                 $content = Get-Content -LiteralPath $configPath -Raw -Encoding UTF8
                 $parsedSettings = $null
                 $parseError = $null
-                try
-                {
+                try {
                     $parsedSettings = ConvertFrom-Toml -InputObject $content -ErrorAction Stop
                 }
-                catch
-                {
+                catch {
                     $parseError = $PSItem
                 }
 
                 # 如果解析失败且错误与字符串转义有关，尝试自动修复 Windows 路径转义
-                if (-not $parsedSettings -and $parseError -and $parseError.Exception.Message -match 'Unexpected escape character')
-                {
+                if (-not $parsedSettings -and $parseError -and $parseError.Exception.Message -match 'Unexpected escape character') {
                     Write-LogEntry -Level Warning -Message 'TOML 解析失败，检测到可能是 Windows 路径反斜杠转义问题，正在尝试自动修复...'
-                    try
-                    {
+                    try {
                         # 将双引号字符串中的单个反斜杠替换为双反斜杠（排除已正确转义的 \\\\、\\"、\\n 等）
                         # 自动修复双引号字符串中的 Windows 路径反斜杠：
                         # 1) 临时保护已正确转义的序列（\\、\"、\n、\t 等）
@@ -631,26 +595,22 @@ class IPAPConfiguration
                             '\\b' = "`u{E0005}"
                             '\\f' = "`u{E0006}"
                         }
-                        foreach ($escape in $escapeMap.Keys)
-                        {
+                        foreach ($escape in $escapeMap.Keys) {
                             $protectedContent = $protectedContent.Replace($escape, $escapeMap[$escape])
                         }
 
                         $fixedContent = $protectedContent.Replace('\', '\\')
-                        foreach ($escape in $escapeMap.Keys)
-                        {
+                        foreach ($escape in $escapeMap.Keys) {
                             $fixedContent = $fixedContent.Replace($escapeMap[$escape], $escape)
                         }
                         $parsedSettings = ConvertFrom-Toml -InputObject $fixedContent -ErrorAction Stop
                         Write-LogEntry -Level Warning -Message "自动修复成功。建议将 config.toml 中的 Windows 路径改为单引号字面量字符串，例如 source_dir = 'C:\\path\\to\\dir'"
                     }
-                    catch
-                    {
+                    catch {
                         throw [System.InvalidOperationException]::new("无法解析 config.toml: $($parseError.Exception.Message)。常见原因：Windows 路径使用了双引号但未正确转义反斜杠。请将路径改为单引号字面量字符串，例如 source_dir = 'C:\\path\\to\\dir'")
                     }
                 }
-                elseif ($parseError)
-                {
+                elseif ($parseError) {
                     throw [System.InvalidOperationException]::new("无法解析 config.toml: $($parseError.Exception.Message)")
                 }
 
@@ -661,23 +621,19 @@ class IPAPConfiguration
                 # 就把它“脱壳”换成哈希表，确保数据格式统一。
                 # 注意：必须先复制 Keys 再循环，避免在枚举过程中修改集合。
                 $topLevelKeys = @($parsedHashtable.Keys)
-                foreach ($key in $topLevelKeys)
-                {
-                    if ($parsedHashtable[$key] -is [System.Collections.Specialized.OrderedDictionary])
-                    {
+                foreach ($key in $topLevelKeys) {
+                    if ($parsedHashtable[$key] -is [System.Collections.Specialized.OrderedDictionary]) {
                         $parsedHashtable[$key] = [hashtable]$parsedHashtable[$key]
                     }
                 }
                 return [IPAPConfiguration]::MergeSettings($parsedHashtable, $defaultSettings)
             }
-            else
-            {
+            else {
                 Write-LogEntry -Level Info -Message 'PSToml 模块未找到，使用默认配置'
                 return $defaultSettings
             }
         }
-        catch
-        {
+        catch {
             throw $PSItem
         }
     }
@@ -697,36 +653,28 @@ class IPAPConfiguration
         Author:  lucas_gold
         Website: https://github.com/1274248407
     #>
-    hidden static [hashtable] MergeSettings([hashtable]$ParsedSettings, [hashtable]$DefaultSettings)
-    {
+    hidden static [hashtable] MergeSettings([hashtable]$ParsedSettings, [hashtable]$DefaultSettings) {
         $merged = $DefaultSettings.Clone()
 
         # 如果用户配置和默认配置都有这个分类（比如 paths），且它们里面都嵌套着小配置项（哈希表），就进入第二层循环，逐个对比小项。
         # 这叫浅合并。比如默认配置里 paths 有 A、B、C 三个路径，用户只配了 A。这段代码会只把 A 替换成用户的，保留默认的 B 和 C。
-        foreach ($key in $ParsedSettings.Keys)
-        {
-            if ($merged.ContainsKey($key))
-            {
-                if ($merged[$key] -is [hashtable] -and $ParsedSettings[$key] -is [hashtable])
-                {
+        foreach ($key in $ParsedSettings.Keys) {
+            if ($merged.ContainsKey($key)) {
+                if ($merged[$key] -is [hashtable] -and $ParsedSettings[$key] -is [hashtable]) {
                     $parsedSubTable = [hashtable]$ParsedSettings[$key]
-                    foreach ($subKey in $parsedSubTable.Keys)
-                    {
-                        if ($merged[$key].ContainsKey($subKey))
-                        {
+                    foreach ($subKey in $parsedSubTable.Keys) {
+                        if ($merged[$key].ContainsKey($subKey)) {
                             $merged[$key][$subKey] = $parsedSubTable[$subKey]
                         }
                     }
                 }
                 # 如果当前键在默认配置里存在，但它不是嵌套的哈希表（比如只是一个数字或字符串），直接用用户的值覆盖默认值
-                else
-                {
+                else {
                     $merged[$key] = $ParsedSettings[$key]
                 }
             }
             # 如果用户写了一个默认配置里根本没有的键，直接把它加进合并表
-            else
-            {
+            else {
                 $merged[$key] = $ParsedSettings[$key]
             }
         }

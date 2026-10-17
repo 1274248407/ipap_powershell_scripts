@@ -14,8 +14,7 @@
 param()
 
 # 校验 PowerShell 版本（本工具强依赖 PS7 新语法）
-if ($PSVersionTable.PSVersion.Major -lt 7)
-{
+if ($PSVersionTable.PSVersion.Major -lt 7) {
     Write-Error '错误: 需要 PowerShell 7 或更高版本'
     exit 1
 }
@@ -31,19 +30,16 @@ $ManifestCandidates = @(
 
 # 遍历候选路径，导入首个存在的模块清单
 $IpapManifest = $null
-foreach ($Candidate in $ManifestCandidates)
-{
+foreach ($Candidate in $ManifestCandidates) {
     # 找到首个存在的清单文件即导入
-    if (Test-Path -LiteralPath $Candidate)
-    {
+    if (Test-Path -LiteralPath $Candidate) {
         $IpapManifest = $Candidate
         break
     }
 }
 
 # 校验模块清单必须存在
-if ($null -eq $IpapManifest)
-{
+if ($null -eq $IpapManifest) {
     Write-Error '未找到 IPAP 模块清单（source\IPAP.psd1 或 IPAP\IPAP.psd1），请先运行 .\build.ps1 -Task Build'
     exit 1
 }

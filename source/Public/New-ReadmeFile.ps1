@@ -43,8 +43,7 @@
     Website: `https://github.com/1274248407`
 #>
 
-function New-ReadmeFile
-{
+function New-ReadmeFile {
     [CmdletBinding(SupportsShouldProcess)]
     [OutputType([void])]
     param (
@@ -65,16 +64,14 @@ function New-ReadmeFile
 
     $readmePath = Join-Path $ProjectDir 'README.md'
 
-    if ($PSCmdlet.ShouldProcess($readmePath, '创建 README.md 文件'))
-    {
+    if ($PSCmdlet.ShouldProcess($readmePath, '创建 README.md 文件')) {
         $today = Get-Date -Format 'yyyy-MM-dd'
         $upscaleStatus = $NeedUpscale ? 'X' : ' '
         $upscaleRatioText = $NeedUpscale ? $UpscaleRatio.ToString() : 'N/A'
 
         # 构建项目简介段落
         $briefSection = ''
-        if ($BriefText)
-        {
+        if ($BriefText) {
             $briefSection = @"
 
 ## 项目信息
@@ -84,44 +81,38 @@ $BriefText
 
         # 构建高清化详情段落
         $upscaleDetailSection = ''
-        if ($Level1ImageLevels.Count -gt 0 -or $Level2ImageLevels.Count -gt 0 -or $NonTextLevel1ImageLevels.Count -gt 0 -or $NonTextLevel2ImageLevels.Count -gt 0)
-        {
+        if ($Level1ImageLevels.Count -gt 0 -or $Level2ImageLevels.Count -gt 0 -or $NonTextLevel1ImageLevels.Count -gt 0 -or $NonTextLevel2ImageLevels.Count -gt 0) {
             $upscaleDetailLines = [System.Text.StringBuilder]::new()
             [void]$upscaleDetailLines.AppendLine()
             [void]$upscaleDetailLines.AppendLine('## 高清化处理详情')
 
             # 有文字图详情
-            if ($Level1ImageLevels.Count -gt 0 -or $Level2ImageLevels.Count -gt 0)
-            {
+            if ($Level1ImageLevels.Count -gt 0 -or $Level2ImageLevels.Count -gt 0) {
                 [void]$upscaleDetailLines.AppendLine()
                 [void]$upscaleDetailLines.AppendLine('### 有文字图')
 
                 # Level 1 详情
-                if ($Level1ImageLevels.Count -gt 0)
-                {
+                if ($Level1ImageLevels.Count -gt 0) {
 
                     [void]$upscaleDetailLines.AppendLine()
                     [void]$upscaleDetailLines.AppendLine("#### Level 1 (FFmpeg 锐化) - $($Level1ImageLevels.Count) 张")
                     [void]$upscaleDetailLines.AppendLine()
                     [void]$upscaleDetailLines.AppendLine('| 文件名 | 长边分辨率 | YDIF |')
                     [void]$upscaleDetailLines.AppendLine('|--------|-----------|------|')
-                    foreach ($level in $Level1ImageLevels)
-                    {
+                    foreach ($level in $Level1ImageLevels) {
                         $fileName = [System.IO.Path]::GetFileName($level.Image.FullName)
                         [void]$upscaleDetailLines.AppendLine("| $fileName | $($level.LongEdge)px | $($level.YDIF) |")
                     }
                 }
 
                 # Level 2 详情
-                if ($Level2ImageLevels.Count -gt 0)
-                {
+                if ($Level2ImageLevels.Count -gt 0) {
                     [void]$upscaleDetailLines.AppendLine()
                     [void]$upscaleDetailLines.AppendLine("#### Level 2 (Real-CUGAN AI 超分) - $($Level2ImageLevels.Count) 张")
                     [void]$upscaleDetailLines.AppendLine()
                     [void]$upscaleDetailLines.AppendLine('| 文件名 | 长边分辨率 | YDIF |')
                     [void]$upscaleDetailLines.AppendLine('|--------|-----------|------|')
-                    foreach ($level in $Level2ImageLevels)
-                    {
+                    foreach ($level in $Level2ImageLevels) {
                         $fileName = [System.IO.Path]::GetFileName($level.Image.FullName)
                         [void]$upscaleDetailLines.AppendLine("| $fileName | $($level.LongEdge)px | $($level.YDIF) |")
                     }
@@ -129,36 +120,31 @@ $BriefText
             }
 
             # 无文字图详情
-            if ($NonTextLevel1ImageLevels.Count -gt 0 -or $NonTextLevel2ImageLevels.Count -gt 0)
-            {
+            if ($NonTextLevel1ImageLevels.Count -gt 0 -or $NonTextLevel2ImageLevels.Count -gt 0) {
                 [void]$upscaleDetailLines.AppendLine()
                 [void]$upscaleDetailLines.AppendLine('### 无文字图')
 
                 # 无文字图 Level 1 详情
-                if ($NonTextLevel1ImageLevels.Count -gt 0)
-                {
+                if ($NonTextLevel1ImageLevels.Count -gt 0) {
                     [void]$upscaleDetailLines.AppendLine()
                     [void]$upscaleDetailLines.AppendLine("#### Level 1 (FFmpeg 锐化) - $($NonTextLevel1ImageLevels.Count) 张")
                     [void]$upscaleDetailLines.AppendLine()
                     [void]$upscaleDetailLines.AppendLine('| 文件名 | 长边分辨率 | YDIF |')
                     [void]$upscaleDetailLines.AppendLine('|--------|-----------|------|')
-                    foreach ($level in $NonTextLevel1ImageLevels)
-                    {
+                    foreach ($level in $NonTextLevel1ImageLevels) {
                         $fileName = [System.IO.Path]::GetFileName($level.Image.FullName)
                         [void]$upscaleDetailLines.AppendLine("| $fileName | $($level.LongEdge)px | $($level.YDIF) |")
                     }
                 }
 
                 # 无文字图 Level 2 详情
-                if ($NonTextLevel2ImageLevels.Count -gt 0)
-                {
+                if ($NonTextLevel2ImageLevels.Count -gt 0) {
                     [void]$upscaleDetailLines.AppendLine()
                     [void]$upscaleDetailLines.AppendLine("#### Level 2 (Real-CUGAN AI 超分) - $($NonTextLevel2ImageLevels.Count) 张")
                     [void]$upscaleDetailLines.AppendLine()
                     [void]$upscaleDetailLines.AppendLine('| 文件名 | 长边分辨率 | YDIF |')
                     [void]$upscaleDetailLines.AppendLine('|--------|-----------|------|')
-                    foreach ($level in $NonTextLevel2ImageLevels)
-                    {
+                    foreach ($level in $NonTextLevel2ImageLevels) {
                         $fileName = [System.IO.Path]::GetFileName($level.Image.FullName)
                         [void]$upscaleDetailLines.AppendLine("| $fileName | $($level.LongEdge)px | $($level.YDIF) |")
                     }
@@ -198,14 +184,12 @@ ${upscaleDetailSection}
 ${briefSection}
 "@
 
-        try
-        {
+        try {
             $readmePath = Join-Path $ProjectDir 'README.md'
             Write-LogEntry -Level Info -Message "正在写入 README.md 文件到 $readmePath"
 
             # 确保项目目录存在（使用 -LiteralPath 处理特殊字符）
-            if (-not (Test-Path -LiteralPath $ProjectDir))
-            {
+            if (-not (Test-Path -LiteralPath $ProjectDir)) {
                 # 记录错误现场后显式抛出强类型异常（Write-LogEntry 为纯日志函数）
                 $ErrorMessage = "项目目录不存在: $ProjectDir"
                 Write-LogEntry -Level Error -Message $ErrorMessage
@@ -215,20 +199,17 @@ ${briefSection}
             # 使用 Out-File -LiteralPath 写入文件，避免 PowerShell 通配符问题
             $content | Out-File -LiteralPath $readmePath -Encoding utf8 -NoNewline
 
-            if (Test-Path -LiteralPath $readmePath)
-            {
+            if (Test-Path -LiteralPath $readmePath) {
                 Write-LogEntry -Level Info -Message 'README.md 文件创建/覆盖成功'
             }
-            else
-            {
+            else {
                 # 记录错误现场后显式抛出强类型异常（Write-LogEntry 为纯日志函数）
                 $ErrorMessage = '无法验证 README.md 文件创建'
                 Write-LogEntry -Level Error -Message $ErrorMessage
                 throw [System.InvalidOperationException]::new($ErrorMessage)
             }
         }
-        catch
-        {
+        catch {
             # 记录上下文后抛出包装异常并保留 InnerException（禁止吞异常）
             Write-LogEntry -Level Error -Message "创建/覆盖 README.md 文件失败: $($PSItem.Exception.Message)"
             throw [System.IO.IOException]::new("创建/覆盖 README.md 文件失败: $($PSItem.Exception.Message)", $PSItem.Exception)

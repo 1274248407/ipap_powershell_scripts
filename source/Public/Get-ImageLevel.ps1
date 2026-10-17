@@ -19,8 +19,7 @@
     Website: https://github.com/1274248407
 #>
 
-function Get-ImageLevel
-{
+function Get-ImageLevel {
     [CmdletBinding()]
     [OutputType([PSCustomObject])]
     param (
@@ -37,8 +36,7 @@ function Get-ImageLevel
 
 
     # 并行分析所有图片（保留原始顺序）
-    $indexedImages = for ($i = 0; $i -lt $Images.Count; $i++)
-    {
+    $indexedImages = for ($i = 0; $i -lt $Images.Count; $i++) {
         [PSCustomObject]@{ Index = $i; Image = $Images[$i] }
     }
 
@@ -53,8 +51,7 @@ function Get-ImageLevel
         $longEdge = 0
         $ydif = 0.0
 
-        try
-        {
+        try {
             # 1. 通过 FFprobe 获取分辨率
             # -v error: 设置日志级别为 error。FFprobe 默认会输出大量版本、元数据等冗余信息，设为 error 可以屏蔽这些干扰，只在出错时才打印信息，方便脚本解析输出。
             # -select_streams v:0: 选择第 0 个视频流（v 代表 Video）。因为某些文件可能包含多个流（如音频、字幕、封面图等），这确保我们只分析主视频/图片流。
@@ -66,8 +63,7 @@ function Get-ImageLevel
             $ffprobeArgs = @('-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=s=x:p=0', $image.FullName)
             $ffprobeOut = & $ffprobePath @ffprobeArgs 2>&1
 
-            if ($LASTEXITCODE -eq 0 -and $ffprobeOut -match '(\d+)x(\d+)')
-            {
+            if ($LASTEXITCODE -eq 0 -and $ffprobeOut -match '(\d+)x(\d+)') {
                 $width = [int]$Matches[1]
                 $height = [int]$Matches[2]
                 $longEdge = [math]::Max($width, $height)
@@ -86,26 +82,22 @@ function Get-ImageLevel
                 # 滤镜把图片变成黑白，并极力强化了边缘和细节。
                 # 细节越丰富的图片，保存为 PNG 时压缩率越低，文件体积就越大。
                 # 因此，临时输出的 PNG 文件越大（$fileSizeKB），说明原图的高频细节越多（$ydif 越大）。
-                if ($LASTEXITCODE -eq 0 -and (Test-Path $tempOutput))
-                {
+                if ($LASTEXITCODE -eq 0 -and (Test-Path $tempOutput)) {
                     $fileInfo = Get-Item $tempOutput
                     $fileSizeKB = $fileInfo.Length / 1KB
                     $ydif = [math]::Round($fileSizeKB, 2)
 
                     Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
                 }
-                else
-                {
+                else {
                     $ydif = 5.0  # 默认中间值
                 }
             }
-            else
-            {
+            else {
                 $ydif = 5.0  # 默认中间值
             }
         }
-        catch
-        {
+        catch {
             $ydif = 5.0  # 出错时使用默认值
         }
 
@@ -113,16 +105,13 @@ function Get-ImageLevel
         # Level 0: 长边 >= 1920 且 YDIF >= 6.0 -> 高清，跳过
         # Level 1: 长边 >= 1100 或 YDIF >= 3.0 -> 中等模糊，FFmpeg 锐化
         # Level 2: 其他情况 -> 重度模糊，需要 Real-CUGAN
-        if ($longEdge -ge 1920 -and $ydif -ge 6.0)
-        {
+        if ($longEdge -ge 1920 -and $ydif -ge 6.0) {
             $level = 0
         }
-        elseif ($longEdge -ge 1100 -or $ydif -ge 3.0)
-        {
+        elseif ($longEdge -ge 1100 -or $ydif -ge 3.0) {
             $level = 1
         }
-        else
-        {
+        else {
             $level = 2
         }
 

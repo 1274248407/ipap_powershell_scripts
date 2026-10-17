@@ -28,8 +28,7 @@
     Website: https://github.com/1274248407
 #>
 
-function Test-SupportedImageFormat
-{
+function Test-SupportedImageFormat {
     [CmdletBinding()]
     [OutputType([bool])]
     param (
@@ -39,27 +38,22 @@ function Test-SupportedImageFormat
         [string[]]$SupportedFormats = $null
     )
 
-    begin
-    {
+    begin {
         # 只在调用者未提供 SupportedFormats 时从配置读取
-        if (-not $SupportedFormats)
-        {
+        if (-not $SupportedFormats) {
             $SupportedFormats = Get-SupportedImageFormat
         }
     }
 
-    process
-    {
+    process {
         # 检查输入对象是否包含 Extension 属性
-        if (-not $File.PSObject.Properties['Extension'])
-        {
+        if (-not $File.PSObject.Properties['Extension']) {
             Write-LogEntry -Level Warning -Message '输入对象缺少 Extension 属性'
             return $false
         }
 
         # 检查 Extension 值是否为 null 或空
-        if (-not $File.Extension)
-        {
+        if (-not $File.Extension) {
             return $false
         }
 

@@ -15,16 +15,14 @@
     Website: https://github.com/1274248407
 #>
 
-function Get-RealCuganExePath
-{
+function Get-RealCuganExePath {
     [CmdletBinding()]
     [OutputType([string])]
     param()
 
     # 从配置获取 Real-CUGAN 路径
     $RealCuganPath = (Get-Configuration).Tools.RealCuganExePath
-    if ($RealCuganPath)
-    {
+    if ($RealCuganPath) {
         return $RealCuganPath
     }
 

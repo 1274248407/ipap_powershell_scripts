@@ -15,8 +15,7 @@
     Website: https://github.com/1274248407
 #>
 
-function Get-SupportedImageFormat
-{
+function Get-SupportedImageFormat {
     [CmdletBinding()]
     [OutputType([string])]
     param()

@@ -15,16 +15,14 @@
     Website: https://github.com/1274248407
 #>
 
-function Get-FfmpegPath
-{
+function Get-FfmpegPath {
     [CmdletBinding()]
     [OutputType([string])]
     param()
 
     # 从配置获取 FFmpeg 路径
     $FfmpegPath = (Get-Configuration).Tools.FfmpegExePath
-    if ($FfmpegPath)
-    {
+    if ($FfmpegPath) {
         return $FfmpegPath
     }
 

@@ -10,14 +10,12 @@
     Website: https://github.com/1274248407
 #>
 
-function Reset-Configuration
-{
+function Reset-Configuration {
     [CmdletBinding(SupportsShouldProcess = $true)]
     [OutputType([void])]
     param()
 
-    if ($PSCmdlet.ShouldProcess('全局配置实例', '重置'))
-    {
+    if ($PSCmdlet.ShouldProcess('全局配置实例', '重置')) {
         $script:IPAPConfigInstance = $null
     }
 }

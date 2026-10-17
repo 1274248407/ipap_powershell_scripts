@@ -14,8 +14,7 @@
     Website: https://github.com/1274248407
 #>
 
-function Test-ConfigurationInitialized
-{
+function Test-ConfigurationInitialized {
     [CmdletBinding()]
     [OutputType([bool])]
     param()
