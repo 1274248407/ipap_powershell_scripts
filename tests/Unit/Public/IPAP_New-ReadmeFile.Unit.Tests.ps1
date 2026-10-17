@@ -68,8 +68,7 @@ Describe 'New-ReadmeFile Unit Tests' -Tag 'New-ReadmeFile', 'IPAP' {
     }
 
     AfterEach {
-        if (Test-Path -LiteralPath $Script:TestProjectDir)
-        {
+        if (Test-Path -LiteralPath $Script:TestProjectDir) {
             Remove-Item -LiteralPath $Script:TestProjectDir -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
@@ -103,12 +102,10 @@ Describe 'New-ReadmeFile Unit Tests' -Tag 'New-ReadmeFile', 'IPAP' {
             $Params.ProjectDir = 'TestDrive:\no_such_dir'
             $Thrown = $null
 
-            try
-            {
+            try {
                 New-ReadmeFile @Params
             }
-            catch
-            {
+            catch {
                 $Thrown = $PSItem
             }
 
@@ -125,12 +122,10 @@ Describe 'New-ReadmeFile Unit Tests' -Tag 'New-ReadmeFile', 'IPAP' {
             Mock -ModuleName IPAP Out-File { throw 'Disk full' }
             $Thrown = $null
 
-            try
-            {
+            try {
                 New-ReadmeFile @Script:BaseParams
             }
-            catch
-            {
+            catch {
                 $Thrown = $PSItem
             }
 
@@ -144,12 +139,10 @@ Describe 'New-ReadmeFile Unit Tests' -Tag 'New-ReadmeFile', 'IPAP' {
             Mock -ModuleName IPAP Test-Path { param($LiteralPath) return ($LiteralPath -eq $Script:TestProjectDir) }
             $Thrown = $null
 
-            try
-            {
+            try {
                 New-ReadmeFile @Script:BaseParams
             }
-            catch
-            {
+            catch {
                 $Thrown = $PSItem
             }
 
