@@ -6,6 +6,7 @@
     支持多种无文字图来源：起始编号、子文件夹选择、自定义路径或跳过。
     仅负责选择，不负责复制或处理。
     若提供 PreSortedImages 参数，则直接使用已排序的图片列表，避免重复排序。
+    非交互环境（stdin 已 EOF）下，所有输入点均按「跳过」处理，不会无限重问。
 .PARAMETER SourceDir
     (string, Mandatory) 源图片目录路径。
 .PARAMETER SupportedImageFormats
@@ -101,8 +102,14 @@ function Select-NonTextImage {
     # 获取用户选择
     [int]$choice = 0
     while ($choice -lt 1 -or $choice -gt $options.Count) {
+        [string]$RawInput = Read-Host "请输入选项 (1-$($options.Count))"
+        # 非交互环境（stdin 已 EOF）下 Read-Host 恒返回 $null：按跳过处理，避免无限重问
+        if ([string]::IsNullOrWhiteSpace($RawInput)) {
+            Write-LogEntry -Level Warning -Message '未读到输入（非交互环境），按跳过处理'
+            return
+        }
         try {
-            [int]$choice = Read-Host "请输入选项 (1-$($options.Count))"
+            [int]$choice = $RawInput
         }
         catch {
             Write-LogEntry -Level Warning -Message '请输入有效的数字'
@@ -115,8 +122,14 @@ function Select-NonTextImage {
     if ($choice -eq 1) {
         [int]$startIndex = 0
         while ($startIndex -lt 1 -or $startIndex -gt $allFiles.Count) {
+            [string]$RawInput = Read-Host "请输入从第几张开始是无文字图 (1-$($allFiles.Count)，输入 0 跳过)"
+            # 非交互环境（stdin 已 EOF）下 Read-Host 恒返回 $null：按跳过处理，避免无限重问
+            if ([string]::IsNullOrWhiteSpace($RawInput)) {
+                Write-LogEntry -Level Warning -Message '未读到输入（非交互环境），按跳过处理'
+                return
+            }
             try {
-                [int]$startIndex = Read-Host "请输入从第几张开始是无文字图 (1-$($allFiles.Count)，输入 0 跳过)"
+                [int]$startIndex = $RawInput
                 if ($startIndex -eq 0) {
                     Write-LogEntry -Level Info -Message '用户跳过无文字图处理'
                     return
@@ -146,8 +159,14 @@ function Select-NonTextImage {
 
         [int]$folderChoice = 0
         while ($folderChoice -lt 1 -or $folderChoice -gt $subFolders.Count) {
+            [string]$RawInput = Read-Host "请选择无文字图文件夹 (1-$($subFolders.Count))"
+            # 非交互环境（stdin 已 EOF）下 Read-Host 恒返回 $null：按跳过处理，避免无限重问
+            if ([string]::IsNullOrWhiteSpace($RawInput)) {
+                Write-LogEntry -Level Warning -Message '未读到输入（非交互环境），按跳过处理'
+                return
+            }
             try {
-                [int]$folderChoice = Read-Host "请选择无文字图文件夹 (1-$($subFolders.Count))"
+                [int]$folderChoice = $RawInput
             }
             catch {
                 Write-LogEntry -Level Warning -Message '请输入有效的数字'
@@ -162,7 +181,13 @@ function Select-NonTextImage {
     elseif ($choice -eq $options.Count - 1) {
         [string]$customPath = ''
         while (-not $customPath -or -not (Test-Path -LiteralPath $customPath)) {
-            $customPath = Read-Host '请输入无文字图文件夹路径'
+            [string]$RawInput = Read-Host '请输入无文字图文件夹路径'
+            # 非交互环境（stdin 已 EOF）下 Read-Host 恒返回 $null：按跳过处理，避免无限重问
+            if ([string]::IsNullOrWhiteSpace($RawInput)) {
+                Write-LogEntry -Level Warning -Message '未读到输入（非交互环境），按跳过处理'
+                return
+            }
+            $customPath = $RawInput
             if (-not (Test-Path -LiteralPath $customPath)) {
                 Write-LogEntry -Level Warning -Message "路径不存在: $customPath，请重新输入"
             }
