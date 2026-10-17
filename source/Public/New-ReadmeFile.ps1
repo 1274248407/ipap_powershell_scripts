@@ -54,7 +54,6 @@ function New-ReadmeFile
         [string]$ProjectName,
         [Parameter(Mandatory = $true)]
         [int]$ImageCount,
-        [Parameter(Mandatory = $true)]
         [switch]$NeedUpscale,
         [int]$UpscaleRatio = 2,
         [string]$BriefText = $null,
@@ -214,7 +213,7 @@ ${briefSection}
             }
 
             # 使用 Out-File -LiteralPath 写入文件，避免 PowerShell 通配符问题
-            $content | Out-File -LiteralPath $readmePath -Encoding utf8
+            $content | Out-File -LiteralPath $readmePath -Encoding utf8 -NoNewline
 
             if (Test-Path -LiteralPath $readmePath)
             {
