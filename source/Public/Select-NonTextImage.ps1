@@ -99,45 +99,27 @@ function Select-NonTextImage {
         }
     }
 
-    # 获取用户选择
-    [int]$choice = 0
-    while ($choice -lt 1 -or $choice -gt $options.Count) {
-        [string]$RawInput = Read-Host "请输入选项 (1-$($options.Count))"
-        # 非交互环境（stdin 已 EOF）下 Read-Host 恒返回 $null：按跳过处理，避免无限重问
-        if ([string]::IsNullOrWhiteSpace($RawInput)) {
-            Write-LogEntry -Level Warning -Message '未读到输入（非交互环境），按跳过处理'
-            return
-        }
-        try {
-            [int]$choice = $RawInput
-        }
-        catch {
-            Write-LogEntry -Level Warning -Message '请输入有效的数字'
-        }
+    # 获取用户选择（非数字与越界输入均由 Read-NumberInRange 提示后重问）
+    [Nullable[int]]$choice = Read-NumberInRange -Prompt "请输入选项 (1-$($options.Count))" -Min 1 -Max $options.Count
+    # EOF：不再重问，按跳过处理
+    if ($null -eq $choice) {
+        Write-LogEntry -Level Warning -Message '未读到输入（非交互环境），按跳过处理'
+        return
     }
 
     $nonTextImages = @()
 
     # 模式 1：输入起始编号
     if ($choice -eq 1) {
-        [int]$startIndex = 0
-        while ($startIndex -lt 1 -or $startIndex -gt $allFiles.Count) {
-            [string]$RawInput = Read-Host "请输入从第几张开始是无文字图 (1-$($allFiles.Count)，输入 0 跳过)"
-            # 非交互环境（stdin 已 EOF）下 Read-Host 恒返回 $null：按跳过处理，避免无限重问
-            if ([string]::IsNullOrWhiteSpace($RawInput)) {
-                Write-LogEntry -Level Warning -Message '未读到输入（非交互环境），按跳过处理'
-                return
-            }
-            try {
-                [int]$startIndex = $RawInput
-                if ($startIndex -eq 0) {
-                    Write-LogEntry -Level Info -Message '用户跳过无文字图处理'
-                    return
-                }
-            }
-            catch {
-                Write-LogEntry -Level Warning -Message '请输入有效的数字'
-            }
+        # 合法范围为 0..Count：0 表示跳过
+        [Nullable[int]]$startIndex = Read-NumberInRange -Prompt "请输入从第几张开始是无文字图 (1-$($allFiles.Count)，输入 0 跳过)" -Min 0 -Max $allFiles.Count
+        if ($null -eq $startIndex) {
+            Write-LogEntry -Level Warning -Message '未读到输入（非交互环境），按跳过处理'
+            return
+        }
+        if ($startIndex -eq 0) {
+            Write-LogEntry -Level Info -Message '用户跳过无文字图处理'
+            return
         }
 
         # 取第 startIndex 张及之后的图片（1-based 索引）
@@ -157,20 +139,10 @@ function Select-NonTextImage {
             Write-LogEntry -Level Info -Message "  [$($i + 1)] $($subFolders[$i].Name)/ (包含 $folderImageCount 张图片)"
         }
 
-        [int]$folderChoice = 0
-        while ($folderChoice -lt 1 -or $folderChoice -gt $subFolders.Count) {
-            [string]$RawInput = Read-Host "请选择无文字图文件夹 (1-$($subFolders.Count))"
-            # 非交互环境（stdin 已 EOF）下 Read-Host 恒返回 $null：按跳过处理，避免无限重问
-            if ([string]::IsNullOrWhiteSpace($RawInput)) {
-                Write-LogEntry -Level Warning -Message '未读到输入（非交互环境），按跳过处理'
-                return
-            }
-            try {
-                [int]$folderChoice = $RawInput
-            }
-            catch {
-                Write-LogEntry -Level Warning -Message '请输入有效的数字'
-            }
+        [Nullable[int]]$folderChoice = Read-NumberInRange -Prompt "请选择无文字图文件夹 (1-$($subFolders.Count))" -Min 1 -Max $subFolders.Count
+        if ($null -eq $folderChoice) {
+            Write-LogEntry -Level Warning -Message '未读到输入（非交互环境），按跳过处理'
+            return
         }
 
         $selectedFolder = $subFolders[$folderChoice - 1].FullName
