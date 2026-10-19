@@ -233,6 +233,9 @@ Describe 'Select-NonTextImage Unit Tests' -Tag 'Select-NonTextImage', 'IPAP' {
 
             @($Result).Count | Should -Be 1
             $Result.Name | Should -BeExactly '10.jpg'
+            # 提示里的上限应反映「传入的两项」而不是目录里的三张
+            Should -Invoke -ModuleName IPAP Write-LogEntry `
+                -ParameterFilter { $Level -eq 'Warning' -and $Message -eq '请输入 0 到 2 之间的数字' } -Times 1 -Exactly
         }
     }
 
@@ -267,7 +270,7 @@ Describe 'Select-NonTextImage Unit Tests' -Tag 'Select-NonTextImage', 'IPAP' {
             @($Result)[0].Name | Should -BeExactly '5.jpg'
         }
 
-        It '选项输入越界（0 与 99）时应各重问一次' {
+        It '选项输入越界（0 与 99）时应各提示一次并重问' {
             $Script:InputQueue.Enqueue('0')
             $Script:InputQueue.Enqueue('99')
             $Script:InputQueue.Enqueue('3')
@@ -276,6 +279,9 @@ Describe 'Select-NonTextImage Unit Tests' -Tag 'Select-NonTextImage', 'IPAP' {
 
             ($null -eq $Result) | Should -BeTrue
             Should -Invoke -ModuleName IPAP Read-Host -Times 3 -Exactly
+            # 越界不是「静默重问」：每一次越界都必须给出提示
+            Should -Invoke -ModuleName IPAP Write-LogEntry `
+                -ParameterFilter { $Level -eq 'Warning' -and $Message -like '请输入 * 到 * 之间的数字' } -Times 2 -Exactly
         }
 
         It '模式 1 输入 0 应跳过并记录 Info 日志' {
@@ -289,7 +295,7 @@ Describe 'Select-NonTextImage Unit Tests' -Tag 'Select-NonTextImage', 'IPAP' {
                 -ParameterFilter { $Message -eq '用户跳过无文字图处理' } -Times 1 -Exactly
         }
 
-        It '模式 1 起始编号越界时应重问' {
+        It '模式 1 起始编号越界时应提示并重问' {
             $Script:InputQueue.Enqueue('1')
             $Script:InputQueue.Enqueue('99')
             $Script:InputQueue.Enqueue('2')
@@ -297,9 +303,12 @@ Describe 'Select-NonTextImage Unit Tests' -Tag 'Select-NonTextImage', 'IPAP' {
             $Result = Select-NonTextImage -SourceDir $Script:SourceDir -SupportedImageFormats $Script:Formats
 
             @($Result).Count | Should -Be 2
+            # 起始编号的合法范围是 0..Count（0 表示跳过）
+            Should -Invoke -ModuleName IPAP Write-LogEntry `
+                -ParameterFilter { $Level -eq 'Warning' -and $Message -eq '请输入 0 到 3 之间的数字' } -Times 1 -Exactly
         }
 
-        It '模式 2 文件夹选择越界时应重问' {
+        It '模式 2 文件夹选择越界时应提示并重问' {
             [string]$SubDir = New-Item -ItemType Directory -Path (Join-Path $Script:SourceDir 'sub') -Force |
                 Select-Object -ExpandProperty FullName
             New-Item -ItemType File -Path (Join-Path $SubDir 'a.jpg') -Force | Out-Null
@@ -310,6 +319,9 @@ Describe 'Select-NonTextImage Unit Tests' -Tag 'Select-NonTextImage', 'IPAP' {
             $Result = Select-NonTextImage -SourceDir $Script:SourceDir -SupportedImageFormats $Script:Formats
 
             @($Result).Count | Should -Be 1
+            # 只有一个子文件夹，0 越界
+            Should -Invoke -ModuleName IPAP Write-LogEntry `
+                -ParameterFilter { $Level -eq 'Warning' -and $Message -eq '请输入 1 到 1 之间的数字' } -Times 1 -Exactly
         }
 
         It '选中的子文件夹没有图片时应警告并返回 $null' {
