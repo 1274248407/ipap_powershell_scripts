@@ -322,8 +322,8 @@ Describe 'Select-NonTextImage Unit Tests' -Tag 'Select-NonTextImage', 'IPAP' {
         }
 
         It '选中的子文件夹没有图片时应警告并返回 $null' {
-            [string]$EmptySubDir = New-Item -ItemType Directory -Path (Join-Path $Script:SourceDir 'emptysub') -Force |
-                Select-Object -ExpandProperty FullName
+            # 建一个空子文件夹：它使菜单扩为 4 项，选中后应因「0 张图」而警告
+            New-Item -ItemType Directory -Path (Join-Path $Script:SourceDir 'emptysub') -Force | Out-Null
             $Script:InputQueue.Enqueue('2')
             $Script:InputQueue.Enqueue('1')
 
