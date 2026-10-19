@@ -253,9 +253,11 @@ Describe 'Select-NonTextImage Unit Tests' -Tag 'Select-NonTextImage', 'IPAP' {
         }
 
         It '存在子文件夹时编号后移：输入 3 应进入自定义路径模式' {
-            [string]$SubDir = New-Item -ItemType Directory -Path (Join-Path $Script:SourceDir 'sub') -Force |
+            # 让函数发现一个子文件夹，从而让菜单中的“自定义路径”选项编号变成 3。
+            # 删掉后，测试输入 3 会选到“跳过”
+            New-Item -ItemType Directory -Path (Join-Path $Script:SourceDir 'sub') -Force |
                 Select-Object -ExpandProperty FullName
-            New-Item -ItemType File -Path (Join-Path $SubDir 'a.jpg') -Force | Out-Null
+            # New-Item -ItemType File -Path (Join-Path $SubDir 'a.jpg') -Force | Out-Null
             $Script:InputQueue.Enqueue('3')
             $Script:InputQueue.Enqueue($Script:CustomDir)
 
