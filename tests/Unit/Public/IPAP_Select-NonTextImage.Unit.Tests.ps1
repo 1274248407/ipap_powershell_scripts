@@ -385,7 +385,9 @@ Describe 'Select-NonTextImage Unit Tests' -Tag 'Select-NonTextImage', 'IPAP' {
             $Result = @(Select-NonTextImage -SourceDir $Script:SourceDir -SupportedImageFormats $Script:Formats)
 
             $Result.Count | Should -Be 3
-            $Result[0] | Should -BeOfType ([System.IO.FileInfo])
+            foreach ($File in $Result) {
+                $File | Should -BeOfType ([System.IO.FileInfo])
+            }
         }
 
         It '应按自然序输出 3 项，且每项的 Name 与 Extension 精确' {
@@ -409,6 +411,8 @@ Describe 'Select-NonTextImage Unit Tests' -Tag 'Select-NonTextImage', 'IPAP' {
 
             $Result = @(Select-NonTextImage -SourceDir $Script:SourceDir -SupportedImageFormats $Script:Formats)
 
+            # 数量守卫：避免结果为空时 foreach 一条断言都不执行而假通过
+            $Result.Count | Should -Be 2
             foreach ($File in $Result) {
                 (Test-Path -LiteralPath $File.FullName) | Should -BeTrue
                 (Split-Path -Parent $File.FullName) | Should -BeExactly $Script:SourceDir
