@@ -388,26 +388,19 @@ Describe 'Select-NonTextImage Unit Tests' -Tag 'Select-NonTextImage', 'IPAP' {
             $Result[0] | Should -BeOfType ([System.IO.FileInfo])
         }
 
-        It '每一项的 Name 与 Extension 应精确' {
+        It '应按自然序输出 3 项，且每项的 Name 与 Extension 精确' {
             $Script:InputQueue.Enqueue('1')
             $Script:InputQueue.Enqueue('1')
 
             $Result = @(Select-NonTextImage -SourceDir $Script:SourceDir -SupportedImageFormats $Script:Formats)
 
+            # 固定下标同时钉住内容与顺序：若按词法排序会变成 1, 10, 2
             $Result[0].Name | Should -BeExactly '1.jpg'
             $Result[0].Extension | Should -BeExactly '.jpg'
-            $Result[2].Name | Should -BeExactly '10.jpg'
-        }
-
-        It '应按自然排序输出 1.jpg、2.jpg、10.jpg' {
-            $Script:InputQueue.Enqueue('1')
-            $Script:InputQueue.Enqueue('1')
-
-            $Result = @(Select-NonTextImage -SourceDir $Script:SourceDir -SupportedImageFormats $Script:Formats)
-
-            $Result[0].Name | Should -BeExactly '1.jpg'
             $Result[1].Name | Should -BeExactly '2.jpg'
+            $Result[1].Extension | Should -BeExactly '.jpg'
             $Result[2].Name | Should -BeExactly '10.jpg'
+            $Result[2].Extension | Should -BeExactly '.jpg'
         }
 
         It '每一项的 FullName 应真实存在且位于源目录下' {
