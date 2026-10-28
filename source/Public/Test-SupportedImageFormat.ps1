@@ -9,7 +9,8 @@
     (object, Mandatory) 文件对象，需要包含 Extension 属性。
     支持 System.IO.FileInfo 和任何具有 Extension 属性的对象。
 .PARAMETER SupportedFormats
-    (string[], Optional) 支持的图片格式列表，若未指定则从配置读取。
+    (string[], Optional) 支持的图片格式列表，若未指定则从配置读取；
+    显式传空数组（@()）表示不支持任何格式，不会回退到配置。
 .EXAMPLE
     Get-ChildItem -Path "C:\Images" -File | Test-SupportedImageFormat
     通过管道批量检查目录中所有文件是否为支持的图片格式。
@@ -39,8 +40,9 @@ function Test-SupportedImageFormat {
     )
 
     begin {
-        # 只在调用者未提供 SupportedFormats 时从配置读取
-        if (-not $SupportedFormats) {
+        # 只有调用者未提供该参数时才从配置读取；
+        # 显式传空数组（@()）表示「不支持任何格式」，不能回退到配置
+        if (-not $PSBoundParameters.ContainsKey('SupportedFormats')) {
             $SupportedFormats = Get-SupportedImageFormat
         }
     }
@@ -50,6 +52,13 @@ function Test-SupportedImageFormat {
         if (-not $File.PSObject.Properties['Extension']) {
             Write-LogEntry -Level Warning -Message '输入对象缺少 Extension 属性'
             return $false
+        }
+
+        # 扩展名必须是字符串；非 null 的其它类型属于契约违规，显式失败而不是让 ToLower() 崩
+        if ($null -ne $File.Extension -and $File.Extension -isnot [string]) {
+            $ErrorMessage = "File.Extension 必须是字符串，实际为 $($File.Extension.GetType().Name)"
+            Write-LogEntry -Level Error -Message $ErrorMessage
+            throw [System.ArgumentException]::new($ErrorMessage, 'File')
         }
 
         # 检查 Extension 值是否为 null 或空

@@ -36,8 +36,15 @@ function Get-ImageFile {
         [string[]]$SupportedFormats = $null
     )
 
+    # 只有调用者提供了非空格式列表时才透传；空数组 / $null 均视为「未指定」，
+    # 由 Test-SupportedImageFormat 回退到配置（保持 Get-ImageFile 的既有契约）
+    $testParams = @{}
+    if ($SupportedFormats) {
+        $testParams['SupportedFormats'] = $SupportedFormats
+    }
+
     # 获取图片文件：按支持格式筛选，不排序（排序由调用方决定）
     Get-ChildItem -LiteralPath $Path -File | Where-Object {
-        Test-SupportedImageFormat -File $PSItem -SupportedFormats $SupportedFormats
+        Test-SupportedImageFormat -File $PSItem @testParams
     }
 }
