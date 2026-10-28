@@ -21,7 +21,6 @@
         'Get-AppConfiguration',
         'Get-PathConfiguration',
         'Get-ImageInfo',
-        'Test-NeedUpscale',
         'Get-ImageLevel',
         'Invoke-ParallelUpscale',
         'Rename-FilesBySize',
