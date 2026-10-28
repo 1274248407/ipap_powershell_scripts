@@ -4,7 +4,7 @@
 .DESCRIPTION
     检查输出目录中的图片数量是否与预期相符。
 .PARAMETER ExpectedCount
-    (int) 预期输出图片数量。
+    (int, Mandatory) 预期输出图片数量，必须大于 0。
 .PARAMETER OutputDir
     (string) 输出目录路径。
 .EXAMPLE
@@ -27,6 +27,13 @@ function Test-UpscaleResult {
         [Parameter(Mandatory = $true)]
         [string]$OutputDir
     )
+
+    # 参数契约：ExpectedCount 必须为正数（生产调用点只在 > 0 时调用本函数）
+    if ($ExpectedCount -lt 1) {
+        $ErrorMessage = "ExpectedCount 必须大于 0（当前值: $ExpectedCount）"
+        Write-LogEntry -Level Error -Message $ErrorMessage
+        throw [System.ArgumentException]::new($ErrorMessage, 'ExpectedCount')
+    }
 
     if (-not (Test-Path -LiteralPath $OutputDir)) {
         # 记录错误现场后显式抛出强类型异常，中断本函数（Write-LogEntry 为纯日志函数）
