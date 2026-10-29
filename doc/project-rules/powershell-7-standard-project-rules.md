@@ -192,7 +192,7 @@ class ClassName
 
 - **测试文件命名**：测试文件必须以 `.Tests.ps1` 结尾。
 - **文件路径结构**：测试文件应放置在项目根目录下的 `tests` 目录中：
-  - 单元测试：`tests/Unit/Public/*.Unit.Tests.ps1`
+  - 单元测试：`tests/Unit/{Public,Classes,Private}/*.Unit.Tests.ps1`（按被测源码所在目录镜像）
   - 集成测试：`tests/Integration/*.Integration.Tests.ps1`
 - **命名模式**：`{ModuleName}_{FunctionName}.{Scope}.Tests.ps1`
   - 单元测试示例：`IPAP_Get-ImageInfo.Unit.Tests.ps1`
