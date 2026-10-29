@@ -292,6 +292,77 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
         }
     }
 
+    Context '静态方法 Load - PSToml 候选路径导入' {
+        It '候选 PSToml 目录存在时应导入该路径' {
+            InModuleScope IPAP {
+                $p = Join-Path $TestDrive 'MockProject'
+                New-Item -Path $p -ItemType Directory -Force | Out-Null
+                $configToml = Join-Path $p 'config.toml'
+                New-Item -Path $configToml -ItemType File -Force | Out-Null
+                # 造一个「存在」的候选目录；Import-Module 被 Mock，不会真的去导入空目录
+                New-Item -Path (Join-Path $p 'RequiredModules\PSToml') -ItemType Directory -Force | Out-Null
+
+                Mock -CommandName Write-LogEntry { }
+                Mock -CommandName Import-Module { }
+                # ConvertFrom-Toml 探测落空，走「PSToml 未找到」分支；不影响对导入调用的断言
+                Mock -CommandName Get-Command { return $null }
+
+                [IPAPConfiguration]::Load($p) | Out-Null
+
+                Should -Invoke -CommandName Import-Module `
+                    -ParameterFilter { $Name -like '*RequiredModules\PSToml' } -Times 1 -Exactly
+            }
+        }
+
+        It '候选 PSToml 导入失败时应记录 Warning 并继续' {
+            InModuleScope IPAP {
+                $p = Join-Path $TestDrive 'MockProject'
+                New-Item -Path $p -ItemType Directory -Force | Out-Null
+                $configToml = Join-Path $p 'config.toml'
+                New-Item -Path $configToml -ItemType File -Force | Out-Null
+                New-Item -Path (Join-Path $p 'RequiredModules\PSToml') -ItemType Directory -Force | Out-Null
+
+                Mock -CommandName Write-LogEntry { }
+                Mock -CommandName Import-Module { throw 'not a module' }
+                Mock -CommandName Get-Command { return $null }
+
+                $config = [IPAPConfiguration]::Load($p)
+
+                # 导入失败不应中断流程：继续走「PSToml 未找到」→ 默认配置
+                $config.App.MaxWorkers | Should -Be 8
+                Should -Invoke -CommandName Write-LogEntry -ParameterFilter {
+                    $Level -eq 'Warning' -and $Message -like '*PSToml 模块导入失败*'
+                }
+            }
+        }
+    }
+
+    Context '静态方法 Load - 空配置文件' {
+        It 'config.toml 为空文件时应回退默认配置并记录 Info 日志' {
+            InModuleScope IPAP {
+                $p = Join-Path $TestDrive 'MockProject'
+                New-Item -Path $p -ItemType Directory -Force | Out-Null
+                $configToml = Join-Path $p 'config.toml'
+                New-Item -Path $configToml -ItemType File -Force | Out-Null   # 0 字节
+
+                Mock -CommandName Write-LogEntry { }
+                Mock -CommandName Get-Command { return $null }
+                # 让 ConvertFrom-Toml 探测可用，才会进入读文件分支并命中空内容守卫
+                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
+                    return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
+                }
+
+                $config = [IPAPConfiguration]::Load($p)
+
+                $config.App.MaxWorkers | Should -Be 8
+                $config.App.ModelSelect | Should -Be 'models-se'
+                Should -Invoke -CommandName Write-LogEntry -ParameterFilter {
+                    $Level -eq 'Info' -and $Message -like '*配置文件为空*'
+                }
+            }
+        }
+    }
+
     Context '静态方法 Load - TOML 解析成功' {
         It '应正确解析并合并用户配置' {
             if (-not $script:PSTomlAvailable) {
@@ -370,7 +441,7 @@ source_dir = "D:/images"
                 Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
                     return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
                 }
-                Mock -CommandName Get-Content { return '' }
+                Mock -CommandName Get-Content { return '# 占位内容，解析结果由 ConvertFrom-Toml 的 Mock 决定' }
                 Mock -CommandName Import-Module { }
                 Mock -CommandName ConvertFrom-Toml {
                     throw [System.Exception]::new('Unexpected token')
@@ -396,7 +467,7 @@ source_dir = "D:/images"
                 Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
                     return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
                 }
-                Mock -CommandName Get-Content { return '' }
+                Mock -CommandName Get-Content { return '# 占位内容，解析结果由 ConvertFrom-Toml 的 Mock 决定' }
                 Mock -CommandName Import-Module { }
 
                 $script:tomlCallCount = 0
@@ -426,7 +497,7 @@ source_dir = "D:/images"
                 Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
                     return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
                 }
-                Mock -CommandName Get-Content { return '' }
+                Mock -CommandName Get-Content { return '# 占位内容，解析结果由 ConvertFrom-Toml 的 Mock 决定' }
                 Mock -CommandName Import-Module { }
 
                 $script:tomlCallCount = 0
@@ -562,7 +633,7 @@ author = "Lucas\\G\"old"
                 Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
                     return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
                 }
-                Mock -CommandName Get-Content { return '' }
+                Mock -CommandName Get-Content { return '# 占位内容，解析结果由 ConvertFrom-Toml 的 Mock 决定' }
                 Mock -CommandName Import-Module { }
                 Mock -CommandName ConvertFrom-Toml {
                     return @{ app_settings = @{ model_select = 'custom-model' } }
@@ -615,7 +686,7 @@ author = "Lucas\\G\"old"
                 Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
                     return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
                 }
-                Mock -CommandName Get-Content { return '' }
+                Mock -CommandName Get-Content { return '# 占位内容，解析结果由 ConvertFrom-Toml 的 Mock 决定' }
                 Mock -CommandName Import-Module { }
                 Mock -CommandName ConvertFrom-Toml {
                     return @{ webp = @{ quality = 75 } }
@@ -645,7 +716,7 @@ author = "Lucas\\G\"old"
                 Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
                     return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
                 }
-                Mock -CommandName Get-Content { return '' }
+                Mock -CommandName Get-Content { return '# 占位内容，解析结果由 ConvertFrom-Toml 的 Mock 决定' }
                 Mock -CommandName Import-Module { }
                 Mock -CommandName ConvertFrom-Toml { return @{} }
 
@@ -707,7 +778,7 @@ source_dir = "real_source"
                 Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
                     return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
                 }
-                Mock -CommandName Get-Content { return '' }
+                Mock -CommandName Get-Content { return '# 占位内容，解析结果由 ConvertFrom-Toml 的 Mock 决定' }
                 Mock -CommandName Import-Module { }
                 Mock -CommandName ConvertFrom-Toml {
                     return @{
@@ -743,7 +814,7 @@ source_dir = "real_source"
                 Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
                     return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
                 }
-                Mock -CommandName Get-Content { return '' }
+                Mock -CommandName Get-Content { return '# 占位内容，解析结果由 ConvertFrom-Toml 的 Mock 决定' }
                 Mock -CommandName Import-Module { }
                 Mock -CommandName ConvertFrom-Toml {
                     return @{ project = @{ author = '鲁迅' } }
@@ -775,7 +846,7 @@ source_dir = "real_source"
                 Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
                     return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
                 }
-                Mock -CommandName Get-Content { return '' }
+                Mock -CommandName Get-Content { return '# 占位内容，解析结果由 ConvertFrom-Toml 的 Mock 决定' }
                 Mock -CommandName Import-Module { }
                 # 'paths' 键存在但值为 null，MergeSettings 会用 null 整体覆盖默认区块
                 Mock -CommandName ConvertFrom-Toml { return @{ paths = $null } }
@@ -803,7 +874,7 @@ source_dir = "real_source"
                 Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
                     return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
                 }
-                Mock -CommandName Get-Content { return '' }
+                Mock -CommandName Get-Content { return '# 占位内容，解析结果由 ConvertFrom-Toml 的 Mock 决定' }
                 Mock -CommandName Import-Module { }
                 Mock -CommandName ConvertFrom-Toml { return @{ paths = 'not_a_dict' } }
 
