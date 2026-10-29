@@ -140,6 +140,32 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
                 $config.UpscaleTimeoutSec | Should -Be 1
             }
         }
+
+        It 'supported_image_formats 为 $null（显式）时应回退到默认值' {
+            InModuleScope IPAP {
+                $settings = @{
+                    app_settings = @{
+                        supported_image_formats = $null
+                    }
+                }
+                $config = [ApplicationConfiguration]::new($settings)
+
+                $config.SupportedImageFormats | Should -Be @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
+            }
+        }
+
+        It 'model_select 为非字符串值时应转换为字符串' {
+            InModuleScope IPAP {
+                $settings = @{
+                    app_settings = @{
+                        model_select = 123
+                    }
+                }
+                $config = [ApplicationConfiguration]::new($settings)
+
+                $config.ModelSelect | Should -BeExactly '123'
+            }
+        }
     }
 
     Context '构造函数 - upscale 默认值回退' {
@@ -347,6 +373,41 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
         }
     }
 
+    Context '构造函数 - 布尔值转换（Level 3 边界）' {
+        It "webp.enabled 为字符串 'false' 时应转换为 `$false" {
+            InModuleScope IPAP {
+                $config = [ApplicationConfiguration]::new(@{ webp = @{ enabled = 'false' } })
+
+                $config.WebpEnabled | Should -Be $false
+            }
+        }
+
+        It "webp.lossless 为字符串 'False'（大写）时应转换为 `$false" {
+            InModuleScope IPAP {
+                $config = [ApplicationConfiguration]::new(@{ webp = @{ lossless = 'False' } })
+
+                $config.WebpLossless | Should -Be $false
+            }
+        }
+
+        It 'webp.enabled 为数字 0 或 1 时应分别转换为 $false / $true' {
+            InModuleScope IPAP {
+                $configZero = [ApplicationConfiguration]::new(@{ webp = @{ enabled = 0 } })
+                $configOne = [ApplicationConfiguration]::new(@{ webp = @{ enabled = 1 } })
+
+                $configZero.WebpEnabled | Should -Be $false
+                $configOne.WebpEnabled | Should -Be $true
+            }
+        }
+
+        It "webp.enabled 为非法字符串 'no' 时应抛出 ArgumentException" {
+            InModuleScope IPAP {
+                { [ApplicationConfiguration]::new(@{ webp = @{ enabled = 'no' } }) } |
+                    Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage '*enabled*不是有效的布尔值*'
+            }
+        }
+    }
+
     Context '构造函数 - MaxWorkers 动态计算' {
         It 'max_workers 显式指定非零值时应直接使用' {
             InModuleScope IPAP {
@@ -550,6 +611,20 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
         It 'webp 键存在但不是字典类型时应抛出 ArgumentException' {
             InModuleScope IPAP {
                 { [ApplicationConfiguration]::new(@{ webp = 'not_a_dict' }) } | Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "配置项 'webp' 必须是 IDictionary 类型，当前值类型为 'String'"
+            }
+        }
+
+        It "webp quality 为带小数点的字符串 '2.5' 时应抛出 ArgumentException" {
+            InModuleScope IPAP {
+                { [ApplicationConfiguration]::new(@{ webp = @{ quality = '2.5' } }) } |
+                    Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage '*quality*不是有效的整数*'
+            }
+        }
+
+        It 'max_workers 为布尔值时应抛出 ArgumentException' {
+            InModuleScope IPAP {
+                { [ApplicationConfiguration]::new(@{ app_settings = @{ max_workers = $true } }) } |
+                    Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage '*max_workers*不是有效的整数*'
             }
         }
     }
