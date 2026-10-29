@@ -594,15 +594,27 @@ class IPAPConfiguration {
                 (Join-Path $ProjectRoot 'output\RequiredModules\PSToml')
             )
             foreach ($PSTomlPath in $PSTomlCandidates) {
-                # 找到首个存在的 PSToml 副本即导入
-                if (Test-Path -LiteralPath $PSTomlPath) {
-                    Import-Module $PSTomlPath -Force -Scope Local
+                # 找到首个存在的 PSToml 副本即导入；该副本损坏时跳过，继续尝试下一个候选
+                if (-not (Test-Path -LiteralPath $PSTomlPath)) {
+                    continue
+                }
+                try {
+                    Import-Module $PSTomlPath -Force -Scope Local -ErrorAction Stop
                     break
+                }
+                catch {
+                    Write-LogEntry -Level Warning -Message "PSToml 模块导入失败，跳过候选路径: $PSTomlPath"
+                    continue
                 }
             }
 
             if (Get-Command 'ConvertFrom-Toml' -ErrorAction SilentlyContinue) {
                 $content = Get-Content -LiteralPath $configPath -Raw -Encoding UTF8
+                # 空文件（新建但未填写）等同于无配置：直接回退默认表，避免把 null 传给解析器
+                if ([string]::IsNullOrWhiteSpace($content)) {
+                    Write-LogEntry -Level Info -Message "配置文件为空: $configPath，使用默认配置"
+                    return $defaultSettings
+                }
                 $parsedSettings = $null
                 $parseError = $null
                 try {
