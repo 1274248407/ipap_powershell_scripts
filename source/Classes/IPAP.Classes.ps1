@@ -360,8 +360,8 @@ class ApplicationConfiguration {
         $this.NoiseLevel = [int][math]::Clamp([ApplicationConfiguration]::TryIntConvert($upscaleSettings.noise_level, 'noise_level') ?? 0, -1, 3)      # Real-CUGAN -n: -1~3
 
         $webpSettings = [ApplicationConfiguration]::GetSettingsBlock($Settings.webp, 'webp')
-        $this.WebpEnabled = [bool]($webpSettings.enabled ?? $true)
-        $this.WebpLossless = [bool]($webpSettings.lossless ?? $true)
+        $this.WebpEnabled = [ApplicationConfiguration]::TryBoolConvert($webpSettings.enabled ?? $true, 'enabled')
+        $this.WebpLossless = [ApplicationConfiguration]::TryBoolConvert($webpSettings.lossless ?? $true, 'lossless')
         $this.WebpQuality = [int][math]::Clamp([ApplicationConfiguration]::TryIntConvert($webpSettings.quality, 'quality') ?? 100, 0, 100)            # cwebp -q: 0~100
 
         # MaxWorkers 不大于 0 时（0 = 自动检测，负数 = 无效值），按 CPU 核心数动态计算
@@ -423,6 +423,42 @@ class ApplicationConfiguration {
             return $parsed
         }
         throw [System.ArgumentException]::new("配置项 '$ParameterName' 的值 '$Value' 不是有效的整数")
+    }
+
+    <#
+    .SYNOPSIS
+        安全布尔转换
+    .DESCRIPTION
+        将配置值安全转换为 [bool]，失败时抛出逻辑异常，避免静默给出相反结果。
+        布尔值直接返回；字符串走 [bool]::TryParse（仅接受 True/False，大小写不敏感）；
+        数字按 0 = $false、非 0 = $true 处理（与 PowerShell 语义一致）。
+    .PARAMETER Value
+        待转换的配置值
+    .PARAMETER ParameterName
+        配置项名称，用于构造友好的错误信息
+    .OUTPUTS
+        bool
+    .NOTES
+        Author:  lucas_gold
+        Website: https://github.com/1274248407
+    #>
+    hidden static [bool] TryBoolConvert([object]$Value, [string]$ParameterName) {
+        # 布尔值直接返回
+        if ($Value -is [bool]) {
+            return $Value
+        }
+
+        # 字符串只接受 True/False（大小写不敏感），其余视为配置错误
+        if ($Value -is [string]) {
+            $parsed = $false
+            if ([bool]::TryParse($Value, [ref]$parsed)) {
+                return $parsed
+            }
+            throw [System.ArgumentException]::new("配置项 '$ParameterName' 的值 '$Value' 不是有效的布尔值（应为 true/false）")
+        }
+
+        # 数字按 0 = $false、非 0 = $true
+        return [bool]$Value
     }
 
 }
