@@ -6,8 +6,8 @@
 .DESCRIPTION
     测试 IPAPConfiguration 聚合类的构造函数、静态 Load 方法、
     ReadConfigFile（TOML 读取与 Windows 路径转义修复）和 MergeSettings（浅合并逻辑）。
-    使用真实目录和文件替代全局 Mock Test-Path，避免干扰
-    PathConfiguration 构造函数中的目录验证。
+    共享夹具（§7.2）：BeforeEach 统一创建 MockProject 目录与 0 字节 config.toml，AfterEach 清理；
+    模块内依赖统一在 BeforeEach 用 -ModuleName IPAP Mock（§7.5），各用例只覆盖自己的差异。
     ReadConfigFile 与 MergeSettings 是模块内的隐藏静态方法，在 InModuleScope 中可直接调用，无需反射。
 #>
 
@@ -39,13 +39,40 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
         Remove-Module 'PSToml' -ErrorAction SilentlyContinue
     }
 
+    BeforeEach {
+        # 共享夹具（§7.2）：项目目录 + 0 字节 config.toml；「配置文件不存在」组会在自己的 BeforeEach 中删掉它
+        $script:TestProjectDir = Join-Path $TestDrive 'MockProject'
+        New-Item -Path $script:TestProjectDir -ItemType Directory -Force | Out-Null
+        New-Item -Path (Join-Path $script:TestProjectDir 'config.toml') -ItemType File -Force | Out-Null
+
+        # 模块内依赖统一在此 Mock（§7.5）：-ModuleName 指定注入到 IPAP 模块作用域
+        Mock -CommandName Write-LogEntry -ModuleName IPAP { }
+        Mock -CommandName Import-Module -ModuleName IPAP { }
+        # 默认视为「文件有内容且可解析」，各用例按需覆盖为具体 TOML 或空字符串
+        Mock -CommandName Get-Content -ModuleName IPAP {
+            return '# 占位内容，解析结果由 ConvertFrom-Toml 的 Mock 决定'
+        }
+        # 默认视为「ConvertFrom-Toml 可用、其余命令缺席」；需要「PSToml 不可用」的组在 Context 级覆盖
+        Mock -CommandName Get-Command -ModuleName IPAP {
+            param($Name)
+            if ($Name -eq 'ConvertFrom-Toml') {
+                return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
+            }
+            return $null
+        }
+    }
+
+    AfterEach {
+        # 清理本用例产生的临时目录（§7.7）；$TestDrive 由 Pester 兜底清空
+        if (Test-Path -LiteralPath $script:TestProjectDir) {
+            Remove-Item -LiteralPath $script:TestProjectDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
     Context '构造函数 - 正常路径' {
         It '应正确聚合四个子配置对象' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-
-                Mock -CommandName Get-Command { return $null }
 
                 $pathConfig = [PathConfiguration]::new($p, $null, $null)
                 $toolConfig = [ToolConfiguration]::new($pathConfig, @{ paths = @{} })
@@ -64,9 +91,6 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
         It '每个子配置应为正确的类型' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-
-                Mock -CommandName Get-Command { return $null }
 
                 $pathConfig = [PathConfiguration]::new($p, $null, $null)
                 $toolConfig = [ToolConfiguration]::new($pathConfig, @{ paths = @{} })
@@ -84,13 +108,14 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
     }
 
     Context '静态方法 Load - 配置文件不存在' {
+        BeforeEach {
+            # 本组验证「无配置文件」分支，移除默认夹具中的 config.toml
+            Remove-Item -LiteralPath (Join-Path $script:TestProjectDir 'config.toml') -Force
+        }
+
         It 'config.toml 不存在时应使用默认配置创建实例' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Get-Command { return $null }
 
                 $config = [IPAPConfiguration]::Load($p)
 
@@ -107,10 +132,6 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
         It 'config.toml 不存在时应记录 Info 日志' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Get-Command { return $null }
 
                 [IPAPConfiguration]::Load($p) | Out-Null
 
@@ -123,10 +144,6 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
         It 'config.toml 不存在时应使用默认 app_settings' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Get-Command { return $null }
 
                 $config = [IPAPConfiguration]::Load($p)
 
@@ -141,10 +158,6 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
         It 'config.toml 不存在时应使用默认 upscale 与 webp 配置' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Get-Command { return $null }
 
                 $config = [IPAPConfiguration]::Load($p)
 
@@ -159,10 +172,6 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
         It 'config.toml 不存在时 Project 配置应为默认值' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Get-Command { return $null }
 
                 $config = [IPAPConfiguration]::Load($p)
 
@@ -177,12 +186,8 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
         It 'config.toml 不存在时路径与工具配置应为默认值' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
 
-                Mock -CommandName Write-LogEntry { }
-                # Get-Command 被 Mock 为 $null，工具路径的 PATH 回退分支必然落空
-                Mock -CommandName Get-Command { return $null }
-
+                # Get-Command 对 ffmpeg 等工具命令默认返回 $null，PATH 回退分支必然落空
                 $config = [IPAPConfiguration]::Load($p)
 
                 $config.Paths.ProjectRoot | Should -Be $p
@@ -199,9 +204,6 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
         It 'config.toml 不存在时默认配置的 19 个键应全部取约定默认值' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-
-                Mock -CommandName Write-LogEntry { }
 
                 # 直接调用隐藏静态方法读取文件不存在分支返回的默认配置表
                 $rawSettings = [IPAPConfiguration]::ReadConfigFile($p)
@@ -240,16 +242,14 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
     }
 
     Context '静态方法 Load - PSToml 模块未找到' {
+        BeforeEach {
+            # 本组聚焦「PSToml 不可用」路径，覆盖默认的「ConvertFrom-Toml 可用」探测
+            Mock -CommandName Get-Command -ModuleName IPAP { return $null }
+        }
+
         It 'PSToml 不可用时应使用默认配置' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-                $configToml = Join-Path $p 'config.toml'
-                New-Item -Path $configToml -ItemType File -Force | Out-Null
-
-                Mock -CommandName Write-LogEntry { }
-                # Get-Command 被 Mock 为 $null，ConvertFrom-Toml 探测必然落空，ReadConfigFile 走 else 分支
-                Mock -CommandName Get-Command { return $null }
 
                 # 该分支与「配置文件不存在」分支返回源码中同一张 $defaultSettings，故此处按原始表断言
                 $rawSettings = [IPAPConfiguration]::ReadConfigFile($p)
@@ -275,13 +275,6 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
         It 'PSToml 不可用时应记录 Info 日志' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-                $configToml = Join-Path $p 'config.toml'
-                New-Item -Path $configToml -ItemType File -Force | Out-Null
-
-                Mock -CommandName Write-LogEntry { }
-                # Get-Command 被 Mock 为 $null，ConvertFrom-Toml 探测必然落空，ReadConfigFile 走 else 分支
-                Mock -CommandName Get-Command { return $null }
 
                 [IPAPConfiguration]::Load($p) | Out-Null
 
@@ -293,19 +286,16 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
     }
 
     Context '静态方法 Load - PSToml 候选路径导入' {
+        BeforeEach {
+            # 本组聚焦「候选导入」分支，探测保持不可用以免后续真的走解析
+            Mock -CommandName Get-Command -ModuleName IPAP { return $null }
+        }
+
         It '候选 PSToml 目录存在时应导入该路径' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-                $configToml = Join-Path $p 'config.toml'
-                New-Item -Path $configToml -ItemType File -Force | Out-Null
                 # 造一个「存在」的候选目录；Import-Module 被 Mock，不会真的去导入空目录
                 New-Item -Path (Join-Path $p 'RequiredModules\PSToml') -ItemType Directory -Force | Out-Null
-
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Import-Module { }
-                # ConvertFrom-Toml 探测落空，走「PSToml 未找到」分支；不影响对导入调用的断言
-                Mock -CommandName Get-Command { return $null }
 
                 [IPAPConfiguration]::Load($p) | Out-Null
 
@@ -317,14 +307,9 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
         It '候选 PSToml 导入失败时应记录 Warning 并继续' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-                $configToml = Join-Path $p 'config.toml'
-                New-Item -Path $configToml -ItemType File -Force | Out-Null
                 New-Item -Path (Join-Path $p 'RequiredModules\PSToml') -ItemType Directory -Force | Out-Null
 
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Import-Module { throw 'not a module' }
-                Mock -CommandName Get-Command { return $null }
+                Mock -CommandName Import-Module -ModuleName IPAP { throw 'not a module' }
 
                 $config = [IPAPConfiguration]::Load($p)
 
@@ -341,16 +326,9 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
         It 'config.toml 为空文件时应回退默认配置并记录 Info 日志' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-                $configToml = Join-Path $p 'config.toml'
-                New-Item -Path $configToml -ItemType File -Force | Out-Null   # 0 字节
 
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Get-Command { return $null }
-                # 让 ConvertFrom-Toml 探测可用，才会进入读文件分支并命中空内容守卫
-                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
-                    return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
-                }
+                # 夹具中的 config.toml 是 0 字节；显式返回空字符串，命中空内容守卫
+                Mock -CommandName Get-Content -ModuleName IPAP { return '' }
 
                 $config = [IPAPConfiguration]::Load($p)
 
@@ -371,21 +349,12 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
             }
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-                $configToml = Join-Path $p 'config.toml'
-                New-Item -Path $configToml -ItemType File -Force | Out-Null
 
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Get-Command { return $null }
-                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
-                    return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
-                }
                 # 真实 TOML：双引号内无 Windows 路径，无需转义；ConvertFrom-Toml 不做 Mock，走真实解析
-                Mock -CommandName Get-Content { return @'
+                Mock -CommandName Get-Content -ModuleName IPAP { return @'
 [app_settings]
 model_select = "models-pro"
 '@ }
-                Mock -CommandName Import-Module { }
 
                 $config = [IPAPConfiguration]::Load($p)
 
@@ -403,22 +372,13 @@ model_select = "models-pro"
             }
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-                $configToml = Join-Path $p 'config.toml'
-                New-Item -Path $configToml -ItemType File -Force | Out-Null
 
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Get-Command { return $null }
-                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
-                    return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
-                }
                 # 真实 TOML：路径中不含反斜杠，无需转义；ConvertFrom-Toml 不做 Mock，走真实解析
-                Mock -CommandName Get-Content { return @'
+                Mock -CommandName Get-Content -ModuleName IPAP { return @'
 [paths]
 base_project_dir = "D:/documents/translation/01_Projects_Active"
 source_dir = "D:/images"
 '@ }
-                Mock -CommandName Import-Module { }
 
                 $config = [IPAPConfiguration]::Load($p)
 
@@ -432,18 +392,8 @@ source_dir = "D:/images"
         It '解析失败且非转义问题时应抛出 InvalidOperationException 且不触发修复重试' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-                $configToml = Join-Path $p 'config.toml'
-                New-Item -Path $configToml -ItemType File -Force | Out-Null
 
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Get-Command { return $null }
-                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
-                    return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
-                }
-                Mock -CommandName Get-Content { return '# 占位内容，解析结果由 ConvertFrom-Toml 的 Mock 决定' }
-                Mock -CommandName Import-Module { }
-                Mock -CommandName ConvertFrom-Toml {
+                Mock -CommandName ConvertFrom-Toml -ModuleName IPAP {
                     throw [System.Exception]::new('Unexpected token')
                 }
 
@@ -458,20 +408,9 @@ source_dir = "D:/images"
         It '检测到反斜杠转义问题时应尝试自动修复' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-                $configToml = Join-Path $p 'config.toml'
-                New-Item -Path $configToml -ItemType File -Force | Out-Null
-
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Get-Command { return $null }
-                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
-                    return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
-                }
-                Mock -CommandName Get-Content { return '# 占位内容，解析结果由 ConvertFrom-Toml 的 Mock 决定' }
-                Mock -CommandName Import-Module { }
 
                 $script:tomlCallCount = 0
-                Mock -CommandName ConvertFrom-Toml {
+                Mock -CommandName ConvertFrom-Toml -ModuleName IPAP {
                     $script:tomlCallCount++
                     if ($script:tomlCallCount -eq 1) {
                         throw [System.Exception]::new('Unexpected escape character in string')
@@ -488,20 +427,9 @@ source_dir = "D:/images"
         It '转义修复成功后应记录 Warning 日志' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-                $configToml = Join-Path $p 'config.toml'
-                New-Item -Path $configToml -ItemType File -Force | Out-Null
-
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Get-Command { return $null }
-                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
-                    return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
-                }
-                Mock -CommandName Get-Content { return '# 占位内容，解析结果由 ConvertFrom-Toml 的 Mock 决定' }
-                Mock -CommandName Import-Module { }
 
                 $script:tomlCallCount = 0
-                Mock -CommandName ConvertFrom-Toml {
+                Mock -CommandName ConvertFrom-Toml -ModuleName IPAP {
                     $script:tomlCallCount++
                     if ($script:tomlCallCount -eq 1) {
                         throw [System.Exception]::new('Unexpected escape character')
@@ -520,21 +448,12 @@ source_dir = "D:/images"
         It '转义修复后仍解析失败时应抛出带排查提示的 InvalidOperationException' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-                $configToml = Join-Path $p 'config.toml'
-                New-Item -Path $configToml -ItemType File -Force | Out-Null
 
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Get-Command { return $null }
-                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
-                    return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
-                }
                 # 自动修复会重新读取原始内容，因此需返回真实可修复的文本
-                Mock -CommandName Get-Content { return 'source_dir = "C:\images"' }
-                Mock -CommandName Import-Module { }
+                Mock -CommandName Get-Content -ModuleName IPAP { return 'source_dir = "C:\images"' }
 
                 $script:tomlCallCount = 0
-                Mock -CommandName ConvertFrom-Toml {
+                Mock -CommandName ConvertFrom-Toml -ModuleName IPAP {
                     $script:tomlCallCount++
                     if ($script:tomlCallCount -eq 1) {
                         throw [System.Exception]::new('Unexpected escape character in string')
@@ -555,24 +474,15 @@ source_dir = "D:/images"
             }
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-                $configToml = Join-Path $p 'config.toml'
-                New-Item -Path $configToml -ItemType File -Force | Out-Null
 
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Get-Command { return $null }
-                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
-                    return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
-                }
                 # 真实坏 TOML：双引号内单反斜杠未转义，真实 ConvertFrom-Toml 必然抛 Unexpected escape character
                 # ConvertFrom-Toml 不做 Mock，修复链路由真实解析器完整走通
-                Mock -CommandName Get-Content { return @'
+                Mock -CommandName Get-Content -ModuleName IPAP { return @'
 [paths]
 source_dir = "C:\Users\test\images"
 [app_settings]
 model_select = "models-pro"
 '@ }
-                Mock -CommandName Import-Module { }
 
                 $config = [IPAPConfiguration]::Load($p)
 
@@ -592,23 +502,14 @@ model_select = "models-pro"
             }
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-                $configToml = Join-Path $p 'config.toml'
-                New-Item -Path $configToml -ItemType File -Force | Out-Null
 
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Get-Command { return $null }
-                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
-                    return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
-                }
                 # 混合场景：坏路径触发修复，author 含已正确转义的 \\ 与 \"，验证保护机制不误伤
-                Mock -CommandName Get-Content { return @'
+                Mock -CommandName Get-Content -ModuleName IPAP { return @'
 [paths]
 source_dir = "C:\Users\someone\images"
 [project]
 author = "Lucas\\G\"old"
 '@ }
-                Mock -CommandName Import-Module { }
 
                 $config = [IPAPConfiguration]::Load($p)
 
@@ -624,18 +525,8 @@ author = "Lucas\\G\"old"
         It '用户配置覆盖默认值时应使用用户值' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-                $configToml = Join-Path $p 'config.toml'
-                New-Item -Path $configToml -ItemType File -Force | Out-Null
 
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Get-Command { return $null }
-                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
-                    return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
-                }
-                Mock -CommandName Get-Content { return '# 占位内容，解析结果由 ConvertFrom-Toml 的 Mock 决定' }
-                Mock -CommandName Import-Module { }
-                Mock -CommandName ConvertFrom-Toml {
+                Mock -CommandName ConvertFrom-Toml -ModuleName IPAP {
                     return @{ app_settings = @{ model_select = 'custom-model' } }
                 }
 
@@ -677,18 +568,8 @@ author = "Lucas\\G\"old"
         It '用户配置覆盖嵌套哈希表的子键时应只影响被覆盖的子键' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-                $configToml = Join-Path $p 'config.toml'
-                New-Item -Path $configToml -ItemType File -Force | Out-Null
 
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Get-Command { return $null }
-                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
-                    return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
-                }
-                Mock -CommandName Get-Content { return '# 占位内容，解析结果由 ConvertFrom-Toml 的 Mock 决定' }
-                Mock -CommandName Import-Module { }
-                Mock -CommandName ConvertFrom-Toml {
+                Mock -CommandName ConvertFrom-Toml -ModuleName IPAP {
                     return @{ webp = @{ quality = 75 } }
                 }
 
@@ -707,18 +588,8 @@ author = "Lucas\\G\"old"
         It 'config.toml 存在时应尝试读取文件内容' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-                $configToml = Join-Path $p 'config.toml'
-                New-Item -Path $configToml -ItemType File -Force | Out-Null
 
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Get-Command { return $null }
-                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
-                    return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
-                }
-                Mock -CommandName Get-Content { return '# 占位内容，解析结果由 ConvertFrom-Toml 的 Mock 决定' }
-                Mock -CommandName Import-Module { }
-                Mock -CommandName ConvertFrom-Toml { return @{} }
+                Mock -CommandName ConvertFrom-Toml -ModuleName IPAP { return @{} }
 
                 [IPAPConfiguration]::Load($p) | Out-Null
 
@@ -736,22 +607,13 @@ author = "Lucas\\G\"old"
             }
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-                $configToml = Join-Path $p 'config.toml'
-                New-Item -Path $configToml -ItemType File -Force | Out-Null
 
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Get-Command { return $null }
-                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
-                    return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
-                }
                 # 真实 TOML：PSToml 解析出的子配置块天然是 OrderedDictionary，故此处无 Mock，验证真实解析
-                Mock -CommandName Get-Content { return @'
+                Mock -CommandName Get-Content -ModuleName IPAP { return @'
 [paths]
 base_project_dir = "real_base"
 source_dir = "real_source"
 '@ }
-                Mock -CommandName Import-Module { }
 
                 # 直接调用隐藏静态方法，检查 MergeSettings 之前的真实返回值类型
                 $rawSettings = [IPAPConfiguration]::ReadConfigFile($p)
@@ -769,18 +631,8 @@ source_dir = "real_source"
         It '所有配置区块都存在时应正确合并' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-                $configToml = Join-Path $p 'config.toml'
-                New-Item -Path $configToml -ItemType File -Force | Out-Null
 
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Get-Command { return $null }
-                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
-                    return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
-                }
-                Mock -CommandName Get-Content { return '# 占位内容，解析结果由 ConvertFrom-Toml 的 Mock 决定' }
-                Mock -CommandName Import-Module { }
-                Mock -CommandName ConvertFrom-Toml {
+                Mock -CommandName ConvertFrom-Toml -ModuleName IPAP {
                     return @{
                         paths        = @{ source_dir = 'custom_source' }
                         project      = @{ author = '鲁迅'; original_title = '呐喊' }
@@ -805,18 +657,8 @@ source_dir = "real_source"
         It '仅有 project 配置时其他子配置应为默认值' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-                $configToml = Join-Path $p 'config.toml'
-                New-Item -Path $configToml -ItemType File -Force | Out-Null
 
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Get-Command { return $null }
-                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
-                    return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
-                }
-                Mock -CommandName Get-Content { return '# 占位内容，解析结果由 ConvertFrom-Toml 的 Mock 决定' }
-                Mock -CommandName Import-Module { }
-                Mock -CommandName ConvertFrom-Toml {
+                Mock -CommandName ConvertFrom-Toml -ModuleName IPAP {
                     return @{ project = @{ author = '鲁迅' } }
                 }
 
@@ -837,19 +679,9 @@ source_dir = "real_source"
         It '配置文件中 paths 为 null 时应回退为空字典并保留默认路径行为' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-                $configToml = Join-Path $p 'config.toml'
-                New-Item -Path $configToml -ItemType File -Force | Out-Null
 
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Get-Command { return $null }
-                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
-                    return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
-                }
-                Mock -CommandName Get-Content { return '# 占位内容，解析结果由 ConvertFrom-Toml 的 Mock 决定' }
-                Mock -CommandName Import-Module { }
                 # 'paths' 键存在但值为 null，MergeSettings 会用 null 整体覆盖默认区块
-                Mock -CommandName ConvertFrom-Toml { return @{ paths = $null } }
+                Mock -CommandName ConvertFrom-Toml -ModuleName IPAP { return @{ paths = $null } }
 
                 $config = [IPAPConfiguration]::Load($p)
 
@@ -865,18 +697,8 @@ source_dir = "real_source"
         It 'paths 键存在但不是字典类型时应抛出 ArgumentException' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-                $configToml = Join-Path $p 'config.toml'
-                New-Item -Path $configToml -ItemType File -Force | Out-Null
 
-                Mock -CommandName Write-LogEntry { }
-                Mock -CommandName Get-Command { return $null }
-                Mock -CommandName Get-Command -ParameterFilter { $Name -eq 'ConvertFrom-Toml' } {
-                    return [PSCustomObject]@{ Name = 'ConvertFrom-Toml' }
-                }
-                Mock -CommandName Get-Content { return '# 占位内容，解析结果由 ConvertFrom-Toml 的 Mock 决定' }
-                Mock -CommandName Import-Module { }
-                Mock -CommandName ConvertFrom-Toml { return @{ paths = 'not_a_dict' } }
+                Mock -CommandName ConvertFrom-Toml -ModuleName IPAP { return @{ paths = 'not_a_dict' } }
 
                 { [IPAPConfiguration]::Load($p) } | Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "配置项 'paths' 必须是 IDictionary 类型，当前值类型为 'String'"
             }
@@ -887,9 +709,6 @@ source_dir = "real_source"
         It '修改一个实例不应影响另一个实例' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
-                New-Item -Path $p -ItemType Directory -Force | Out-Null
-
-                Mock -CommandName Get-Command { return $null }
 
                 $pathConfig = [PathConfiguration]::new($p, $null, $null)
                 $toolConfig = [ToolConfiguration]::new($pathConfig, @{ paths = @{} })

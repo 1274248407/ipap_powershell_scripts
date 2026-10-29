@@ -7,6 +7,8 @@
     测试 ApplicationConfiguration 类的构造函数、三层嵌套配置读取逻辑、
     默认值回退、MaxWorkers 动态计算和静态工厂方法 Load。
     覆盖 app_settings、upscale、webp 三个配置区块的完整边界情况。
+    本文件是纯类测试：不 Mock、不做文件 IO、不共享跨用例状态，因此不设 BeforeEach 共享夹具，
+    §7.7 的清理要求也因不产生测试数据而天然满足。
 #>
 
 Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 'IPAP', 'Classes' {
