@@ -44,7 +44,7 @@ class PathConfiguration {
         创建路径配置实例
     .DESCRIPTION
         构造函数验证并初始化路径配置。
-        验证 ProjectRoot 不为空且目录存在。
+        先规范化 ProjectRoot（去除首尾空白），再验证其非空且为已存在的目录（指向文件也拒绝）。
     .PARAMETER ProjectRoot
         项目根目录路径
     .PARAMETER BaseProjectDir
@@ -60,16 +60,20 @@ class PathConfiguration {
         Website: https://github.com/1274248407
     #>
     PathConfiguration([string]$ProjectRoot, [string]$BaseProjectDir = $null, [string]$SourceDir = $null) {
-        if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
+        # 先规范化：Windows 会把尾部空格当无意义，存下来会导致 ProjectRoot 与 BinPath 字符串不一致
+        # 注意：类方法内不能给与属性同名的参数赋值（会被解析成属性赋值），故用局部变量
+        [string]$NormalizedRoot = $ProjectRoot.Trim()
+        if ([string]::IsNullOrWhiteSpace($NormalizedRoot)) {
             throw [System.ArgumentException]::new('ProjectRoot 不能为空')
         }
-        if (-not (Test-Path -LiteralPath $ProjectRoot)) {
-            throw [System.IO.DirectoryNotFoundException]::new("ProjectRoot 目录不存在: $ProjectRoot")
+        # -PathType Container：指向文件时 Test-Path 也为真，必须显式要求目录
+        if (-not (Test-Path -LiteralPath $NormalizedRoot -PathType Container)) {
+            throw [System.IO.DirectoryNotFoundException]::new("ProjectRoot 目录不存在或不是目录: $NormalizedRoot")
         }
-        $this.ProjectRoot = $ProjectRoot
+        $this.ProjectRoot = $NormalizedRoot
         $this.BaseProjectDir = $BaseProjectDir
-        $this.BinPath = Join-Path $ProjectRoot 'bin'
-        $this.ConfigPath = Join-Path $ProjectRoot 'config.toml'
+        $this.BinPath = Join-Path $NormalizedRoot 'bin'
+        $this.ConfigPath = Join-Path $NormalizedRoot 'config.toml'
         $this.SourceDir = $SourceDir
     }
 
