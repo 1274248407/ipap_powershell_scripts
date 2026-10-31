@@ -112,6 +112,7 @@ class ToolConfiguration {
     .DESCRIPTION
         构造函数初始化工具路径解析器。
         根据配置设置和 PATH 环境变量解析工具路径。
+        PathConfig 为空时抛出 ArgumentException；'paths' 区块存在但不是字典类型时抛出 ArgumentException。
     .PARAMETER PathConfig
         路径配置实例
     .PARAMETER Settings
@@ -125,10 +126,24 @@ class ToolConfiguration {
         Website: https://github.com/1274248407
     #>
     ToolConfiguration([PathConfiguration]$PathConfig, [hashtable]$Settings) {
+        # PathConfig 是所有工具路径的解析基准；为空时无法 Join-Path 或定位 bin 目录
+        if ($null -eq $PathConfig) {
+            throw [System.ArgumentException]::new('PathConfig 不能为空')
+        }
         $this.PathConfig = $PathConfig
-        $this.FfmpegExePath = $this.ResolveToolPath($Settings.paths.ffmpeg_exe, 'ffmpeg')
-        $this.FfprobeExePath = $this.ResolveToolPath($Settings.paths.ffprobe_exe, 'ffprobe')
-        $this.RealCuganExePath = $this.ResolveRealCuganPath($Settings.paths.realcugan_exe)
+
+        # 与 ProjectConfiguration/ApplicationConfiguration 一致：paths 区块类型非法时抛逻辑异常
+        [object]$pathsValue = $Settings.paths ?? @{}
+        if ($pathsValue -isnot [System.Collections.IDictionary]) {
+            [string]$actualType = $pathsValue.GetType().Name
+            throw [System.ArgumentException]::new("配置项 'paths' 必须是 IDictionary 类型，当前值类型为 '$actualType'")
+        }
+        # 有序字典等非 Hashtable 的字典实现脱壳为 Hashtable，后续才能安全读取键值
+        [hashtable]$pathsSettings = $pathsValue -is [hashtable] ? $pathsValue : [hashtable]$pathsValue
+
+        $this.FfmpegExePath = $this.ResolveToolPath($pathsSettings.ffmpeg_exe, 'ffmpeg')
+        $this.FfprobeExePath = $this.ResolveToolPath($pathsSettings.ffprobe_exe, 'ffprobe')
+        $this.RealCuganExePath = $this.ResolveRealCuganPath($pathsSettings.realcugan_exe)
     }
 
     <#
