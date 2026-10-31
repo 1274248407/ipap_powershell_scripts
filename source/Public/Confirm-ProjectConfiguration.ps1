@@ -3,6 +3,8 @@
     确认项目配置
 .DESCRIPTION
     显示当前配置信息，询问用户是否应用配置。如果用户选择不应用，提供两种方式修改配置：使用文本编辑器或控制台直接输入。
+    交互输入采用安全默认：仅显式 Y/y 视为应用；EOF/非交互环境保持当前配置不变。
+    简介输入使用 Read-MultiLineInput，按 Ctrl+D 结束。
 .PARAMETER Config
     IPAPConfiguration 实例（可选），如果未指定则使用全局配置实例。
 .EXAMPLE
@@ -47,11 +49,14 @@ function Confirm-ProjectConfiguration {
     Write-LogEntry -Level Info -Message "  放大倍数: $($Config.App.UpscaleRatio)"
     Write-LogEntry -Level Info -Message "  模型选择: $($Config.App.ModelSelect)"
 
-    do {
-        $response = Read-Host '是否应用当前配置？(Y/N)'
-    } while ($response -ne 'Y' -and $response -ne 'y' -and $response -ne 'N' -and $response -ne 'n')
-
-    if ($response -eq 'Y' -or $response -eq 'y') {
+    # 安全默认：仅显式 Y/y 视为应用；回车、EOF 与其它任何输入一律视为不应用
+    $response = Read-Host '是否应用当前配置？(Y/N)'
+    # 非交互环境（stdin 结束）：直接返回当前配置，避免旧实现的死循环
+    if ([string]::IsNullOrWhiteSpace($response)) {
+        Write-LogEntry -Level Warning -Message '未读到输入（非交互环境），保持当前配置不变'
+        return $Config
+    }
+    if (([string]$response).Trim() -in @('Y', 'y')) {
         Write-LogEntry -Level Info -Message '应用当前配置'
         return $Config
     }
@@ -60,11 +65,14 @@ function Confirm-ProjectConfiguration {
     Write-LogEntry -Level Info -Message '  1) 使用文本编辑器修改 config.toml（推荐）'
     Write-LogEntry -Level Info -Message '  2) 在控制台直接输入'
 
-    do {
-        $choice = Read-Host '请选择 (1/2)'
-    } while ($choice -ne '1' -and $choice -ne '2')
+    # 安全默认：仅显式 1 打开编辑器；EOF 直接返回，其它值按控制台输入处理
+    $choice = Read-Host '请选择 (1/2)'
+    if ([string]::IsNullOrWhiteSpace($choice)) {
+        Write-LogEntry -Level Warning -Message '未读到输入（非交互环境），保持当前配置不变'
+        return $Config
+    }
 
-    if ($choice -eq '1') {
+    if (([string]$choice).Trim() -eq '1') {
         Write-LogEntry -Level Info -Message '正在打开配置文件...'
         try {
             Start-Process -FilePath $Config.Paths.ConfigPath
@@ -108,30 +116,14 @@ function Confirm-ProjectConfiguration {
             $Config.Project.ChineseTitle = $newChineseTitle
         }
 
-        Write-LogEntry -Level Warning -Message '原文简介（每行输入后按 Enter，输入空行结束）：'
-        $newOriginalOverviewLines = @()
-        while ($true) {
-            # ReadLine 返回空字符串（用户输入空行）或 $null（EOF：Windows 下为 Ctrl+Z 后按 Enter）时结束输入
-            $line = $host.ui.ReadLine()
-            if (-not $line) {
-                break
-            }
-            $newOriginalOverviewLines += $line
-        }
+        # 多行输入复用 Read-MultiLineInput（Ctrl+D 结束），便于单元测试 Mock
+        $newOriginalOverviewLines = @(Read-MultiLineInput -Prompt '原文简介（Ctrl+D 结束输入）')
         if ($newOriginalOverviewLines.Count -gt 0) {
             $Config.Project.OriginalOverview = $newOriginalOverviewLines -join "`n"
         }
 
-        Write-LogEntry -Level Warning -Message '中文简介（每行输入后按 Enter，输入空行结束）：'
-        $newChineseOverviewLines = @()
-        while ($true) {
-            # ReadLine 返回空字符串（用户输入空行）或 $null（EOF：Windows 下为 Ctrl+Z 后按 Enter）时结束输入
-            $line = $host.ui.ReadLine()
-            if (-not $line) {
-                break
-            }
-            $newChineseOverviewLines += $line
-        }
+        # 多行输入复用 Read-MultiLineInput（Ctrl+D 结束），便于单元测试 Mock
+        $newChineseOverviewLines = @(Read-MultiLineInput -Prompt '中文简介（Ctrl+D 结束输入）')
         if ($newChineseOverviewLines.Count -gt 0) {
             $Config.Project.ChineseOverview = $newChineseOverviewLines -join "`n"
         }
