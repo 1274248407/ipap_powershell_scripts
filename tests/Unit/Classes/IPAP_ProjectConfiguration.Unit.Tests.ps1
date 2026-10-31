@@ -4,8 +4,10 @@
 .SYNOPSIS
     IPAP 模块 - ProjectConfiguration 单元测试
 .DESCRIPTION
-    测试 ProjectConfiguration 类的构造函数、属性初始化和 GetProjectName 方法。
-    覆盖正常路径、缺失键、非法配置值、空字典与有序字典边界，以及 GetProjectName 的各种组合边界。
+    按 doc/单元测试方法论.md 覆盖 ProjectConfiguration 构造函数：
+    L1 正常流程、L2 非法 project 值、L3 缺失键/空值/有序字典边界、
+    L4 分支（含非空 settings 缺 project 键）、L5 5 个属性逐一断言。
+    本文件是纯类测试：不 Mock、不做文件 IO、不共享跨用例状态；输入即测试数据，故不设共享夹具。
 #>
 
 Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 'Classes' {
@@ -57,7 +59,8 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
 
         It 'settings 不含 project 键时所有属性应为空字符串' {
             InModuleScope IPAP {
-                $config = [ProjectConfiguration]::new(@{})
+                # 非空 settings 才能让 -and 的右操作数真正求值；空哈希表 @{} 会在左操作数短路
+                $config = [ProjectConfiguration]::new(@{ paths = @{} })
 
                 $config.Author | Should -Be ''
                 $config.OriginalTitle | Should -Be ''
@@ -127,14 +130,20 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
             InModuleScope IPAP {
                 $settings = @{
                     project = @{
-                        author         = ''
-                        original_title = ''
+                        author            = ''
+                        original_title    = ''
+                        chinese_title     = ''
+                        original_overview = ''
+                        chinese_overview  = ''
                     }
                 }
                 $config = [ProjectConfiguration]::new($settings)
 
                 $config.Author | Should -Be ''
                 $config.OriginalTitle | Should -Be ''
+                $config.ChineseTitle | Should -Be ''
+                $config.OriginalOverview | Should -Be ''
+                $config.ChineseOverview | Should -Be ''
             }
         }
 
@@ -142,8 +151,11 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
             InModuleScope IPAP {
                 $settings = @{
                     project = @{
-                        author         = $null
-                        original_title = $null
+                        author            = $null
+                        original_title    = $null
+                        chinese_title     = $null
+                        original_overview = $null
+                        chinese_overview  = $null
                     }
                 }
                 $config = [ProjectConfiguration]::new($settings)
@@ -151,7 +163,9 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
                 # [string] 属性会将 $null 强制转换为空字符串
                 $config.Author | Should -Be ''
                 $config.OriginalTitle | Should -Be ''
-                $config.GetProjectName() | Should -Be ''
+                $config.ChineseTitle | Should -Be ''
+                $config.OriginalOverview | Should -Be ''
+                $config.ChineseOverview | Should -Be ''
             }
         }
     }
@@ -160,42 +174,29 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
         It 'project 为 null 时应抛出逻辑异常而非系统异常' {
             InModuleScope IPAP {
                 { [ProjectConfiguration]::new(@{ project = $null }) } |
-                    Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "*配置项 'project' 必须是 IDictionary 类型*"
+                    Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "配置项 'project' 必须是 IDictionary 类型，当前值类型为 'null'"
             }
         }
 
         It 'project 为字符串时应抛出逻辑异常而非系统异常' {
             InModuleScope IPAP {
                 { [ProjectConfiguration]::new(@{ project = '呐喊' }) } |
-                    Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "*配置项 'project' 必须是 IDictionary 类型*"
+                    Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "配置项 'project' 必须是 IDictionary 类型，当前值类型为 'String'"
             }
         }
 
         It 'project 为数组时应抛出逻辑异常' {
             InModuleScope IPAP {
+                # 消息含 '[]'，-ExpectedMessage 按通配符解析，方括号必须用反引号转义
                 { [ProjectConfiguration]::new(@{ project = @('呐喊') }) } |
-                    Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "*配置项 'project' 必须是 IDictionary 类型*"
+                    Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "配置项 'project' 必须是 IDictionary 类型，当前值类型为 'Object``[``]'"
             }
         }
 
         It 'project 为整数时应抛出逻辑异常' {
             InModuleScope IPAP {
                 { [ProjectConfiguration]::new(@{ project = 42 }) } |
-                    Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "*配置项 'project' 必须是 IDictionary 类型*"
-            }
-        }
-
-        It 'project 为 null 时异常消息中的类型名应显示为 null（三元真分支）' {
-            InModuleScope IPAP {
-                { [ProjectConfiguration]::new(@{ project = $null }) } |
-                    Should -Throw -ExpectedMessage "*当前值类型为 'null'*"
-            }
-        }
-
-        It '异常消息应包含实际的类型名以便排查' {
-            InModuleScope IPAP {
-                { [ProjectConfiguration]::new(@{ project = '呐喊' }) } |
-                    Should -Throw -ExpectedMessage "*当前值类型为 'String'*"
+                    Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "配置项 'project' 必须是 IDictionary 类型，当前值类型为 'Int32'"
             }
         }
     }
@@ -210,7 +211,6 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
                 $config.ChineseTitle | Should -Be ''
                 $config.OriginalOverview | Should -Be ''
                 $config.ChineseOverview | Should -Be ''
-                $config.GetProjectName() | Should -Be ''
             }
         }
 
@@ -223,7 +223,6 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
                 $config.ChineseTitle | Should -Be ''
                 $config.OriginalOverview | Should -Be ''
                 $config.ChineseOverview | Should -Be ''
-                $config.GetProjectName() | Should -Be ''
             }
         }
     }
@@ -264,190 +263,6 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
                 $config.ChineseTitle | Should -Be '呐喊'
                 $config.OriginalOverview | Should -Be ''
                 $config.ChineseOverview | Should -Be ''
-                $config.GetProjectName() | Should -Be ''
-            }
-        }
-
-        It '有序字典应能正确计算项目名' {
-            InModuleScope IPAP {
-                $settings = @{
-                    project = [ordered]@{
-                        author         = '鲁迅'
-                        original_title = '呐喊'
-                    }
-                }
-                $config = [ProjectConfiguration]::new($settings)
-
-                $config.GetProjectName() | Should -Be '[鲁迅] 呐喊'
-            }
-        }
-    }
-
-    Context 'GetProjectName 方法 - 正常路径' {
-        It '作者和标题都存在时应返回 [作者] 标题 格式' {
-            InModuleScope IPAP {
-                $settings = @{
-                    project = @{
-                        author         = '鲁迅'
-                        original_title = '呐喊'
-                    }
-                }
-                $config = [ProjectConfiguration]::new($settings)
-
-                $config.GetProjectName() | Should -Be '[鲁迅] 呐喊'
-            }
-        }
-
-        It '作者和标题都不同时应正确拼接' {
-            InModuleScope IPAP {
-                $settings = @{
-                    project = @{
-                        author         = 'TestAuthor'
-                        original_title = 'TestTitle'
-                    }
-                }
-                $config = [ProjectConfiguration]::new($settings)
-
-                $config.GetProjectName() | Should -Be '[TestAuthor] TestTitle'
-            }
-        }
-    }
-
-    Context 'GetProjectName 方法 - 边界情况' {
-        It '作者为空时应仅返回标题' {
-            InModuleScope IPAP {
-                $settings = @{
-                    project = @{
-                        author         = ''
-                        original_title = '呐喊'
-                    }
-                }
-                $config = [ProjectConfiguration]::new($settings)
-
-                $config.GetProjectName() | Should -Be '呐喊'
-            }
-        }
-
-        It '标题为空时应仅返回空字符串（作者不满足非空白条件）' {
-            InModuleScope IPAP {
-                $settings = @{
-                    project = @{
-                        author         = '鲁迅'
-                        original_title = ''
-                    }
-                }
-                $config = [ProjectConfiguration]::new($settings)
-
-                $config.GetProjectName() | Should -Be ''
-            }
-        }
-
-        It '作者为 null 时应仅返回标题' {
-            InModuleScope IPAP {
-                $settings = @{
-                    project = @{
-                        original_title = '呐喊'
-                    }
-                }
-                $config = [ProjectConfiguration]::new($settings)
-
-                $config.GetProjectName() | Should -Be '呐喊'
-            }
-        }
-
-        It '标题为 null 时应仅返回空字符串' {
-            InModuleScope IPAP {
-                $settings = @{
-                    project = @{
-                        author = '鲁迅'
-                    }
-                }
-                $config = [ProjectConfiguration]::new($settings)
-
-                # original_title 未在 settings 中，构造函数已将其初始化为空字符串（而非 null）
-                # GetProjectName 中 IsNullOrWhiteSpace('') 为 true，回退到 return $this.OriginalTitle（''）
-                $config.GetProjectName() | Should -Be ''
-            }
-        }
-
-        It '作者和标题都为空时应返回空字符串' {
-            InModuleScope IPAP {
-                $settings = @{
-                    project = @{
-                        author         = ''
-                        original_title = ''
-                    }
-                }
-                $config = [ProjectConfiguration]::new($settings)
-
-                $config.GetProjectName() | Should -Be ''
-            }
-        }
-
-        It '作者和标题都为 null 时应返回空字符串' {
-            InModuleScope IPAP {
-                $config = [ProjectConfiguration]::new(@{})
-
-                $config.GetProjectName() | Should -Be ''
-            }
-        }
-
-        It '作者为空白字符串时应仅返回标题' {
-            InModuleScope IPAP {
-                $settings = @{
-                    project = @{
-                        author         = '   '
-                        original_title = '呐喊'
-                    }
-                }
-                $config = [ProjectConfiguration]::new($settings)
-
-                $config.GetProjectName() | Should -Be '呐喊'
-            }
-        }
-
-        It '标题为空白字符串时应返回该空白字符串（作者满足但标题不满足非空白条件）' {
-            InModuleScope IPAP {
-                $settings = @{
-                    project = @{
-                        author         = '鲁迅'
-                        original_title = '   '
-                    }
-                }
-                $config = [ProjectConfiguration]::new($settings)
-
-                # GetProjectName: IsNullOrWhiteSpace('   ') 为 true，回退到 return $this.OriginalTitle
-                $config.GetProjectName() | Should -Be '   '
-            }
-        }
-    }
-
-    Context 'GetProjectName 方法 - 特殊字符' {
-        It '作者和标题含中文特殊字符时应正确拼接' {
-            InModuleScope IPAP {
-                $settings = @{
-                    project = @{
-                        author         = '作者（测试）'
-                        original_title = '标题【测试】'
-                    }
-                }
-                $config = [ProjectConfiguration]::new($settings)
-
-                $config.GetProjectName() | Should -Be '[作者（测试）] 标题【测试】'
-            }
-        }
-
-        It '标题含空格时应保留空格' {
-            InModuleScope IPAP {
-                $settings = @{
-                    project = @{
-                        author         = 'Author'
-                        original_title = 'My Title'
-                    }
-                }
-                $config = [ProjectConfiguration]::new($settings)
-
-                $config.GetProjectName() | Should -Be '[Author] My Title'
             }
         }
     }
@@ -499,8 +314,10 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
                 $config1 = [ProjectConfiguration]::new($settings1)
                 $config2 = [ProjectConfiguration]::new($settings2)
 
-                $config1.GetProjectName() | Should -Be '[作者A] 标题A'
-                $config2.GetProjectName() | Should -Be '[作者B] 标题B'
+                $config1.Author | Should -Be '作者A'
+                $config1.OriginalTitle | Should -Be '标题A'
+                $config2.Author | Should -Be '作者B'
+                $config2.OriginalTitle | Should -Be '标题B'
             }
         }
     }
