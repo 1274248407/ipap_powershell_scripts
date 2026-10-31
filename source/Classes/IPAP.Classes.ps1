@@ -264,26 +264,6 @@ class ProjectConfiguration {
             if ($projectSettings.ContainsKey('chinese_overview')) { $this.ChineseOverview = $projectSettings.chinese_overview }
         }
     }
-
-    <#
-    .SYNOPSIS
-        生成项目名称
-    .DESCRIPTION
-        根据作者和原作品名生成项目名称，格式为 [作者] 原作品名。
-    .OUTPUTS
-        string
-    .EXAMPLE
-        $projectName = $projectConfig.GetProjectName()
-    .NOTES
-        Author:  lucas_gold
-        Website: https://github.com/1274248407
-    #>
-    [string] GetProjectName() {
-        # 作者与原作品名均非空时按 '[作者] 作品名' 格式化，否则仅返回原作品名（?: 三元表达式）
-        $HasAuthorAndTitle = -not [string]::IsNullOrWhiteSpace($this.Author) -and -not [string]::IsNullOrWhiteSpace($this.OriginalTitle)
-        return $HasAuthorAndTitle ? ('[{0}] {1}' -f $this.Author, $this.OriginalTitle) : $this.OriginalTitle
-    }
-
 }
 
 

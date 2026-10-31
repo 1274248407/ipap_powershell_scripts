@@ -7,7 +7,7 @@
 - **标准架构**：所有函数必须包含 `[CmdletBinding()]` 和 `[OutputType()]` 属性，并统一使用 `param()` 块定义参数。
   - **元素类型语义**：`[OutputType()]` 声明单个输出对象的类型，不声明集合类型。示例：输出多个文件的函数声明 `[OutputType([System.IO.FileInfo])]` 而非 `[OutputType([System.IO.FileInfo[]])]`（与 PowerShell 官方惯例及 `PSUseOutputTypeCorrectly` 检查逻辑一致）。
   - **无输出函数**：显式声明 `[OutputType([void])]`。
-  - **类方法豁免**：PowerShell 类方法不支持 `[OutputType()]` 属性，返回契约由方法签名的静态返回类型承担（如 `[string] GetProjectName()`）。
+  - **类方法豁免**：PowerShell 类方法不支持 `[OutputType()]` 属性，返回契约由方法签名的静态返回类型承担（如 `hidden [string] ResolveToolPath([string]$ConfiguredPath, [string]$CommandName)`）。
   - **自定义类返回值**：函数返回模块内自定义类的实例时，必须使用**字符串形式**声明 `[OutputType('ClassName')]`。类型字面量形式（`[OutputType([ClassName])]`）的实参在调用者上下文解析，模块类在全局会话状态不可见，将导致运行时 `Unable to find type` 终止错误。内置类型（string、hashtable、bool 等）仍使用类型字面量形式。
   - **一致性要求**：`[OutputType()]` 声明、Help 块 `.OUTPUTS` 与函数实际 return 行为三者必须一致。
   - **自动检查**：`build.ps1` 的 Analyze task 含 AST 契约检查（`Invoke-OutputTypeAudit`），缺失声明将阻断构建。
