@@ -237,4 +237,43 @@ Describe 'Write-LogEntry Unit Tests' -Tag 'Write-LogEntry', 'IPAP' {
             $script:WriteHostCalls[3].Text | Should -Be $UnicodeMessage
         }
     }
+
+    Context '调用栈深度 - L3 浅栈边界' {
+        It '调用栈只有 2 帧时应取第 2 帧作为调用者' {
+            Mock -CommandName Get-PSCallStack -ModuleName IPAP {
+                return @(
+                    [PSCustomObject]@{ ScriptName = ''; FunctionName = ''; ScriptLineNumber = 0 },
+                    [PSCustomObject]@{
+                        ScriptName       = 'C:\Modules\TestModule\TestModule.psm1'
+                        FunctionName     = 'Test-Function'
+                        ScriptLineNumber = 42
+                    }
+                )
+            }
+
+            Write-LogEntry -Level Info -Message '浅栈测试'
+
+            $script:WriteHostCalls.Count | Should -Be 5
+            $script:WriteHostCalls[2].Text | Should -Be 'TestModule:Test-Function:42 - '
+            Assert-CompleteLogLine -WriteHostCalls $script:WriteHostCalls `
+                -ExpectedLevelSegment '| INFO    | ' `
+                -ExpectedLevelColor $script:LevelColorMap['Info'] `
+                -ExpectedMessage '浅栈测试'
+        }
+
+        It '调用栈只有 1 帧时应回退为 unknown 调用者' {
+            Mock -CommandName Get-PSCallStack -ModuleName IPAP {
+                return @([PSCustomObject]@{ ScriptName = ''; FunctionName = ''; ScriptLineNumber = 0 })
+            }
+
+            Write-LogEntry -Level Info -Message '单帧测试'
+
+            $script:WriteHostCalls.Count | Should -Be 5
+            $script:WriteHostCalls[2].Text | Should -Be '<unknown>:<unknown>:0 - '
+            Assert-CompleteLogLine -WriteHostCalls $script:WriteHostCalls `
+                -ExpectedLevelSegment '| INFO    | ' `
+                -ExpectedLevelColor $script:LevelColorMap['Info'] `
+                -ExpectedMessage '单帧测试'
+        }
+    }
 }
