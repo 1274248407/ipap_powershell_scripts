@@ -216,6 +216,24 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP' {
             $script:NewItemCalls.Count | Should -Be 0
         }
 
+        It 'ProjectName 为纯空白应被拒绝' {
+            $ScriptBlock = { New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName '   ' }
+
+            $ScriptBlock | Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "参数 'ProjectName' 不能为纯空白字符串*"
+            Should -Invoke -ModuleName IPAP Write-LogEntry `
+                -ParameterFilter { $Level -eq 'Error' -and $Message -like '*ProjectName*纯空白*' } -Times 1 -Exactly
+            $script:NewItemCalls.Count | Should -Be 0
+        }
+
+        It 'ProjectName 以点结尾应被拒绝' {
+            $ScriptBlock = { New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'TestProject.' }
+
+            $ScriptBlock | Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "参数 'ProjectName' 不能以点 (.) 结尾*"
+            Should -Invoke -ModuleName IPAP Write-LogEntry `
+                -ParameterFilter { $Level -eq 'Error' -and $Message -like '*ProjectName*点 (.) 结尾*' } -Times 1 -Exactly
+            $script:NewItemCalls.Count | Should -Be 0
+        }
+
         It 'ProjectName 以 NBSP(U+00A0) 结尾应放行（实测不被裁剪且可正常寻址）' {
             $Name = "TestProject$([char]0x00A0)"
 

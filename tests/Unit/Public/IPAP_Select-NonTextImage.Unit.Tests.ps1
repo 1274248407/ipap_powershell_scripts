@@ -353,6 +353,28 @@ Describe 'Select-NonTextImage Unit Tests' -Tag 'Select-NonTextImage', 'IPAP' {
                 -ParameterFilter { $Message -eq '未读到输入（非交互环境），按跳过处理' } -Times 1 -Exactly
         }
 
+        It '模式 1 起始编号处遇到 EOF 应按跳过处理' {
+            $Script:InputQueue.Enqueue('1')
+
+            $Result = Select-NonTextImage -SourceDir $Script:SourceDir -SupportedImageFormats $Script:Formats
+
+            ($null -eq $Result) | Should -BeTrue
+            Should -Invoke -ModuleName IPAP Write-LogEntry `
+                -ParameterFilter { $Message -eq '未读到输入（非交互环境），按跳过处理' } -Times 1 -Exactly
+        }
+
+        It '模式 2 文件夹选择处遇到 EOF 应按跳过处理' {
+            # 建一个子文件夹，使菜单包含模式 2
+            New-Item -ItemType Directory -Path (Join-Path $Script:SourceDir 'sub') -Force | Out-Null
+            $Script:InputQueue.Enqueue('2')
+
+            $Result = Select-NonTextImage -SourceDir $Script:SourceDir -SupportedImageFormats $Script:Formats
+
+            ($null -eq $Result) | Should -BeTrue
+            Should -Invoke -ModuleName IPAP Write-LogEntry `
+                -ParameterFilter { $Message -eq '未读到输入（非交互环境），按跳过处理' } -Times 1 -Exactly
+        }
+
         It '图片多于预览两倍时应输出后 5 张预览' {
             [string]$ManyDir = New-Item -ItemType Directory -Path (Join-Path $Script:WorkRoot 'many') -Force |
                 Select-Object -ExpandProperty FullName

@@ -1,4 +1,4 @@
-﻿#Requires -Modules Pester
+#Requires -Modules Pester
 
 <#
 .SYNOPSIS
@@ -297,6 +297,60 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
                 -ParameterFilter { $Level -eq 'Warning' -and $Message -like '*未找到可执行文件*' } -Times 1 -Exactly
         }
 
+        It '无文字图 Level 2 且 Real-CUGAN 可用时应调用 RealCugan 引擎' {
+            Mock -ModuleName IPAP Select-NonTextImage { return $Script:Image2 }
+            $Script:LevelByImage = @{ '1.jpg' = 0; '2.jpg' = 2 }
+
+            Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
+
+            Should -Invoke -ModuleName IPAP Invoke-ParallelUpscale `
+                -ParameterFilter {
+                    $Engine -eq 'RealCugan' -and
+                    $OutputDir -like '*original_non_text_raw' -and
+                    $ModelPath -eq 'models-se' -and
+                    @($Images).Count -eq 1
+                } -Times 1 -Exactly
+        }
+
+        It '无文字图 Level 2 且缺少 Real-CUGAN 时应警告而不处理' {
+            $Config = InModuleScope IPAP -Parameters @{ Root = $Script:ConfigRoot } -ScriptBlock {
+                param($Root)
+                $paths = [PathConfiguration]::new($Root, 'C:\Projects', 'C:\Images')
+                $tools = [ToolConfiguration]::new($paths, @{})
+                $app = [ApplicationConfiguration]::new(@{})
+                $app.MaxWorkers = 8
+                $project = [ProjectConfiguration]::new(@{})
+                [IPAPConfiguration]::new($paths, $tools, $app, $project)
+            }
+            Mock -ModuleName IPAP Select-NonTextImage { return $Script:Image2 }
+            $Script:LevelByImage = @{ '1.jpg' = 0; '2.jpg' = 2 }
+
+            Start-IPAPWorkflow -Config $Config -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
+
+            Should -Invoke -ModuleName IPAP Invoke-ParallelUpscale -Times 0 -Exactly
+            Should -Invoke -ModuleName IPAP Write-LogEntry `
+                -ParameterFilter { $Level -eq 'Warning' -and $Message -like '*无文字图 Level 2*未找到可执行文件*' } -Times 1 -Exactly
+        }
+
+        It '复制无文字图 Level 0 失败时应包装为 IOException 并保留内层异常' {
+            Mock -ModuleName IPAP Select-NonTextImage { return $Script:Image2 }
+            Mock -ModuleName IPAP Copy-Item -ParameterFilter { $Destination -like '*original_non_text_raw' } { throw 'disk full' }
+            $Script:LevelByImage = @{ '1.jpg' = 0; '2.jpg' = 0 }
+            $Thrown = $null
+
+            try {
+                Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
+            }
+            catch {
+                $Thrown = $PSItem
+            }
+
+            $Thrown.Exception | Should -BeOfType ([System.IO.IOException])
+            $Thrown.Exception.Message | Should -BeLike '复制 Level 0 无文字图失败: *'
+            $Thrown.Exception.InnerException.Message | Should -BeExactly 'disk full'
+            Should -Invoke -ModuleName IPAP Write-LogEntry `
+                -ParameterFilter { $Level -eq 'Error' -and $Message -eq '复制 Level 0 无文字图失败: disk full' } -Times 1 -Exactly
+        }
         It '存在无文字图时应有文字图取差集' {
             Mock -ModuleName IPAP Select-NonTextImage { return $Script:Image2 }
             $Script:LevelByImage = @{ '1.jpg' = 0; '2.jpg' = 1 }
