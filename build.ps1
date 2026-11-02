@@ -192,6 +192,24 @@ function Invoke-AnalyzeTask
 
     Write-Output '运行静态分析...'
 
+    # 确保 PSScriptAnalyzer 已加载：显式导入可避开陈旧会话的模块缓存
+    if (-not (Get-Command -Name 'Invoke-ScriptAnalyzer' -ErrorAction SilentlyContinue)) {
+        [object]$analyzerModule = Get-Module -ListAvailable -Name 'PSScriptAnalyzer' |
+            Sort-Object -Property Version -Descending |
+            Select-Object -First 1
+        if (-not $analyzerModule) {
+            Write-Error '未找到 PSScriptAnalyzer。请先运行: Install-Module PSScriptAnalyzer -Scope CurrentUser -Force'
+            exit 1
+        }
+        try {
+            Import-Module -Name $analyzerModule.Path -Force -ErrorAction Stop
+        }
+        catch {
+            Write-Error "PSScriptAnalyzer 导入失败: $($PSItem.Exception.Message)"
+            exit 1
+        }
+    }
+
     # 收集待分析文件（排除 output/.git/node_modules/tests 和 build.ps1 本身）
     $analysisFiles = Get-ChildItem -Path $script:ModulePath -Recurse -Include '*.ps1', '*.psm1', '*.psd1' |
         Where-Object { $PSItem.FullName -notmatch 'output|.git|node_modules|tests' -and $PSItem.Name -ne 'build.ps1' }
