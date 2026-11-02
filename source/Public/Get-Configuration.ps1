@@ -38,13 +38,10 @@ function Get-Configuration {
         }
 
         $Root = $ProjectRoot
+        # 能走到这里说明配置实例不存在：实例存在且 ProjectRoot 为空时已在上面 return，
+        # 因此这里无需再判断实例，直接抛出逻辑异常
         if ([string]::IsNullOrWhiteSpace($Root)) {
-            if ($script:IPAPConfigInstance) {
-                $Root = $script:IPAPConfigInstance.Paths.ProjectRoot
-            }
-            else {
-                throw [System.InvalidOperationException]::new('ProjectRoot 未指定，且配置实例未初始化')
-            }
+            throw [System.InvalidOperationException]::new('ProjectRoot 未指定，且配置实例未初始化')
         }
 
         $script:IPAPConfigInstance = [IPAPConfiguration]::Load($Root)
