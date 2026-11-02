@@ -196,7 +196,7 @@ class ClassName
   - 集成测试：`tests/Integration/*.Integration.Tests.ps1`
 - **命名模式**：`{ModuleName}_{FunctionName}.{Scope}.Tests.ps1`
   - 单元测试示例：`IPAP_Get-ImageInfo.Unit.Tests.ps1`
-  - 集成测试示例：`IPAP_Rename-FilesBySize.Integration.Tests.ps1`
+  - 集成测试示例：`IPAP_New-ProjectStructure.Integration.Tests.ps1`
 
 ### 7.2 测试结构规范
 
