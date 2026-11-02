@@ -6,7 +6,7 @@
 .DESCRIPTION
     按 doc/单元测试方法论.md 覆盖多行输入循环：
     L1 多行累积、L2 空输入、L3 空行边界、
-    L4 全部分支与渲染、L5 返回行数组逐项验证。
+    L4 全部分支与渲染、L5 返回行数组与渲染输出逐项验证。
     ReadKey / WriteOutput 全部注入假实现，不触碰真实控制台。
 #>
 
@@ -198,6 +198,88 @@ Describe 'Invoke-MultiLineReader Unit Tests' -Tag 'Invoke-MultiLineReader', 'IPA
 
             # 一次 Append（NoNewline）+ 一次 NewLine
             Should -Invoke -CommandName Write-Host -ModuleName IPAP -Times 2 -Exactly
+        }
+    }
+
+    Context 'L5 输出字段验证' {
+        It '多行结果应逐行验证类型、内容与顺序' {
+            $keys = @(
+                (New-TestKey -KeyChar ([char]'a') -Key ([ConsoleKey]::A))
+                (New-TestKey -KeyChar ([char]' ') -Key ([ConsoleKey]::Spacebar))
+                (New-TestKey -KeyChar ([char]'b') -Key ([ConsoleKey]::B))
+                (New-TestKey -KeyChar ([char]13) -Key ([ConsoleKey]::Enter))
+                (New-TestKey -KeyChar ([char]'中') -Key ([ConsoleKey]::A))
+                (New-TestKey -KeyChar ([char]'é') -Key ([ConsoleKey]::E))
+                (New-TestKey -KeyChar ([char]13) -Key ([ConsoleKey]::Enter))
+                (New-TestKey -KeyChar ([char]13) -Key ([ConsoleKey]::Enter))
+                (New-TestKey -KeyChar ([char]4) -Key ([ConsoleKey]::D) -Control)
+            )
+
+            $result = Invoke-ReaderTest -Keys $keys
+
+            # 返回类型与元素个数
+            ($result.Lines -is [string[]]) | Should -BeTrue
+            $result.Lines.Count | Should -Be 3
+            # 逐行内容与顺序：空格、中文、空字符串均原样保留
+            $result.Lines[0] | Should -Be 'a b'
+            $result.Lines[1] | Should -Be '中é'
+            $result.Lines[2] | Should -Be ''
+            # 每个元素都是 string
+            foreach ($line in $result.Lines) {
+                $line | Should -BeOfType [string]
+            }
+        }
+
+        It '空输入应返回空数组而不是包含 null 的数组' {
+            $keys = @(
+                (New-TestKey -KeyChar ([char]4) -Key ([ConsoleKey]::D) -Control)
+            )
+
+            $result = Invoke-ReaderTest -Keys $keys
+
+            ($result.Lines -is [string[]]) | Should -BeTrue
+            $result.Lines.Count | Should -Be 0
+            @($result.Lines).Count | Should -Be 0
+            $result.Lines | Should -BeNullOrEmpty
+        }
+
+        It '渲染输出应完整匹配 Prompt 与按键动作序列' {
+            $keys = @(
+                (New-TestKey -KeyChar ([char]'a') -Key ([ConsoleKey]::A))
+                (New-TestKey -KeyChar ([char]'b') -Key ([ConsoleKey]::B))
+                (New-TestKey -KeyChar ([char]8) -Key ([ConsoleKey]::Backspace))
+                (New-TestKey -KeyChar ([char]13) -Key ([ConsoleKey]::Enter))
+                (New-TestKey -KeyChar ([char]'c') -Key ([ConsoleKey]::C))
+                (New-TestKey -KeyChar ([char]0) -Key ([ConsoleKey]::Delete))
+                (New-TestKey -KeyChar ([char]'d') -Key ([ConsoleKey]::D))
+                (New-TestKey -KeyChar ([char]13) -Key ([ConsoleKey]::Enter))
+                (New-TestKey -KeyChar ([char]4) -Key ([ConsoleKey]::D) -Control)
+            )
+
+            $result = Invoke-ReaderTest -Keys $keys -Prompt 'P'
+
+            $result.Lines.Count | Should -Be 2
+            $result.Lines[0] | Should -Be 'a'
+            $result.Lines[1] | Should -Be 'd'
+
+            $expected = @(
+                [PSCustomObject]@{ Text = 'P'; NoNewline = $false }
+                [PSCustomObject]@{ Text = 'a'; NoNewline = $true }
+                [PSCustomObject]@{ Text = 'b'; NoNewline = $true }
+                [PSCustomObject]@{ Text = "`b `b"; NoNewline = $true }
+                [PSCustomObject]@{ Text = ''; NoNewline = $false }
+                [PSCustomObject]@{ Text = 'c'; NoNewline = $true }
+                [PSCustomObject]@{ Text = "`r  `rP"; NoNewline = $true }
+                [PSCustomObject]@{ Text = 'd'; NoNewline = $true }
+                [PSCustomObject]@{ Text = ''; NoNewline = $false }
+            )
+
+            # 逐项验证渲染调用的两个字段：Text 与 NoNewline
+            $result.RenderCalls.Count | Should -Be $expected.Count
+            for ($i = 0; $i -lt $expected.Count; $i++) {
+                $result.RenderCalls[$i].Text | Should -Be $expected[$i].Text
+                $result.RenderCalls[$i].NoNewline | Should -Be $expected[$i].NoNewline
+            }
         }
     }
 }
