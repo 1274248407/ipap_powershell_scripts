@@ -8,11 +8,12 @@
     L1 正常流程 —— Context 'L1 正常流程'
     L2 异常流程 —— Context 'L2 异常流程'
     L3 边界数据 —— Context 'L3 边界数据'
-    L4 分支覆盖 —— L1/L2 分别覆盖返回与抛出两条分支，L2 验证日志先于异常
+    L4 分支覆盖 —— L1/L2 分别覆盖返回与抛出两条分支
     L5 输出字段 —— Context 'L5 输出字段'
 
-    Write-LogEntry 不设 Mock，走真实实现；Mock Write-Host 捕获 5 段输出，
-    以钉住「ERROR 日志先完整写出，再由显式 throw 抛强类型异常」。
+    Write-LogEntry 在调用方测试中 Mock：本函数只负责"以 Error 级别记录完整消息后抛出"，
+    日志的 5 段排版/颜色由 IPAP_Write-LogEntry.Unit.Tests.ps1 单独覆盖，
+    避免调用方测试与日志格式耦合。
 #>
 
 Describe 'Get-FfprobePath Unit Tests' -Tag 'Get-FfprobePath', 'IPAP' {
@@ -27,17 +28,8 @@ Describe 'Get-FfprobePath Unit Tests' -Tag 'Get-FfprobePath', 'IPAP' {
     }
 
     BeforeEach {
-        # Mock Write-Host 记录每段调用参数，供日志内容与顺序断言使用
-        $script:WriteHostCalls = @()
-        Mock -CommandName Write-Host -ModuleName IPAP {
-            param($Object, $NoNewline, $ForegroundColor, $BackgroundColor)
-            $script:WriteHostCalls += [pscustomobject]@{
-                Text            = [string]::Join('', @($Object))
-                NoNewline       = $NoNewline
-                ForegroundColor = [string]$ForegroundColor
-                BackgroundColor = [string]$BackgroundColor
-            }
-        }
+        # 日志函数 Mock：本文件只断言"调用级别 + 消息"，不重复测试日志排版
+        Mock -CommandName Write-LogEntry -ModuleName IPAP { }
     }
 
     Context 'L1 正常流程' {
@@ -52,13 +44,13 @@ Describe 'Get-FfprobePath Unit Tests' -Tag 'Get-FfprobePath', 'IPAP' {
 
             $result | Should -Be 'C:\tools\ffmpeg\ffprobe.exe'
             $result | Should -BeOfType [string]
-            $script:WriteHostCalls.Count | Should -Be 0
+            Should -Invoke -CommandName Write-LogEntry -ModuleName IPAP -Times 0 -Exactly
             Should -Invoke -CommandName Get-Configuration -ModuleName IPAP -Times 1 -Exactly
         }
     }
 
     Context 'L2 异常流程' {
-        It '配置未给出 FfprobeExePath 时应抛出 FileNotFoundException 并先记录 ERROR 日志' {
+        It '配置未给出 FfprobeExePath 时应抛出 FileNotFoundException 并记录 Error 日志' {
             Mock -CommandName Get-Configuration -ModuleName IPAP {
                 [pscustomobject]@{
                     Tools = [pscustomobject]@{ FfprobeExePath = '' }
@@ -68,15 +60,14 @@ Describe 'Get-FfprobePath Unit Tests' -Tag 'Get-FfprobePath', 'IPAP' {
             { Get-FfprobePath } |
                 Should -Throw -ExceptionType ([System.IO.FileNotFoundException]) -ExpectedMessage '未找到 FFprobe'
 
-            $script:WriteHostCalls.Count | Should -Be 5
-            $script:WriteHostCalls[1].Text | Should -Be '| ERROR   | '
-            $script:WriteHostCalls[3].Text | Should -Be '未找到 FFprobe'
-            $script:WriteHostCalls[3].BackgroundColor | Should -Be 'Red'
+            Should -Invoke -CommandName Write-LogEntry -ModuleName IPAP -ParameterFilter {
+                $Level -eq 'Error' -and $Message -eq '未找到 FFprobe'
+            } -Times 1 -Exactly
         }
     }
 
     Context 'L3 边界数据' {
-        It '配置值为 $null 时同样抛出 FileNotFoundException' {
+        It '配置值为 $null 时同样抛出 FileNotFoundException 并记录 Error 日志' {
             Mock -CommandName Get-Configuration -ModuleName IPAP {
                 [pscustomobject]@{
                     Tools = [pscustomobject]@{ FfprobeExePath = $null }
@@ -86,12 +77,14 @@ Describe 'Get-FfprobePath Unit Tests' -Tag 'Get-FfprobePath', 'IPAP' {
             { Get-FfprobePath } |
                 Should -Throw -ExceptionType ([System.IO.FileNotFoundException]) -ExpectedMessage '未找到 FFprobe'
 
-            $script:WriteHostCalls.Count | Should -Be 5
+            Should -Invoke -CommandName Write-LogEntry -ModuleName IPAP -ParameterFilter {
+                $Level -eq 'Error' -and $Message -eq '未找到 FFprobe'
+            } -Times 1 -Exactly
         }
     }
 
     Context 'L5 输出字段' {
-        It '异常输出的类型、消息与日志字段应完整' {
+        It '异常输出的类型、消息与日志调用字段应完整' {
             Mock -CommandName Get-Configuration -ModuleName IPAP {
                 [pscustomobject]@{
                     Tools = [pscustomobject]@{ FfprobeExePath = '' }
@@ -108,11 +101,9 @@ Describe 'Get-FfprobePath Unit Tests' -Tag 'Get-FfprobePath', 'IPAP' {
 
             $caught.Exception | Should -BeOfType [System.IO.FileNotFoundException]
             $caught.Exception.Message | Should -Be '未找到 FFprobe'
-            $script:WriteHostCalls.Count | Should -Be 5
-            $script:WriteHostCalls[1].Text | Should -Be '| ERROR   | '
-            $script:WriteHostCalls[3].Text | Should -Be '未找到 FFprobe'
-            $script:WriteHostCalls[3].ForegroundColor | Should -Be 'White'
-            $script:WriteHostCalls[3].BackgroundColor | Should -Be 'Red'
+            Should -Invoke -CommandName Write-LogEntry -ModuleName IPAP -ParameterFilter {
+                $Level -eq 'Error' -and $Message -eq '未找到 FFprobe'
+            } -Times 1 -Exactly
         }
     }
 }

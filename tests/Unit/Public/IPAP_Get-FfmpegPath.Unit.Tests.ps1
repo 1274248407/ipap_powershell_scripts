@@ -4,31 +4,23 @@
 .SYNOPSIS
     IPAP 模块 - Get-FfmpegPath 单元测试
 .DESCRIPTION
-    按 doc/单元测试方法论.md 五级要求覆盖 Get-FfmpegPath 的两条分支：
-    L1 正常流程      —— Context 'L1 正常流程'
-    L2 异常流程      —— Context 'L2 异常流程'
-    L3 边界数据      —— 并入 L1（空字符串与 $null 同为"未配置"）
+    按 doc/单元测试方法论.md 五级要求覆盖 Get-FfmpegPath：
+    L1 正常流程 —— Context 'L1 正常流程'
+    L2 异常流程 —— Context 'L2 异常流程'
+    L3 边界数据 —— Context 'L3 边界数据'
+    L4 分支覆盖 —— L1/L2 分别覆盖返回与抛出两条分支
+    L5 输出字段 —— Context 'L5 输出字段'
 
-    设计要点：
-    - Write-LogEntry 不设 Mock，走真实实现，用以钉住"日志已发出且 Write-LogEntry
-      本身不抛异常"这一前提；终止错误由源码第 34 行的
-      throw [System.IO.FileNotFoundException] 抛出。
-    - Write-Host 为模块外部依赖，Mock 后捕获 5 段输出，既隔离终端副作用
-      又可断言 ERROR 段确实在异常之前写出。
-    - Get-Configuration 为模块内命令，Mock 须带 -ModuleName IPAP。
-.INPUTS
-    无
-.OUTPUTS
-    无
-.NOTES
-    Author:  lucas_gold
+    Write-LogEntry 在调用方测试中 Mock：本函数只负责"以 Error 级别记录完整消息后抛出"，
+    日志的 5 段排版/颜色由 IPAP_Write-LogEntry.Unit.Tests.ps1 单独覆盖，
+    避免调用方测试与日志格式耦合。
 #>
 
 Describe 'Get-FfmpegPath Unit Tests' -Tag 'Get-FfmpegPath', 'IPAP' {
     BeforeAll {
         # tests\Unit\Public → 项目根（向上三级）
-        $ProjectRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
-        Import-Module (Join-Path $ProjectRoot 'source\IPAP.psd1') -Force -Global
+        $script:ProjectRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
+        Import-Module (Join-Path $script:ProjectRoot 'source\IPAP.psd1') -Force -Global
     }
 
     AfterAll {
@@ -36,17 +28,8 @@ Describe 'Get-FfmpegPath Unit Tests' -Tag 'Get-FfmpegPath', 'IPAP' {
     }
 
     BeforeEach {
-        # Mock Write-Host 记录每段调用参数，供"日志先于异常写出"断言使用
-        $script:WriteHostCalls = @()
-        Mock -CommandName Write-Host -ModuleName IPAP {
-            param($Object, $NoNewline, $ForegroundColor, $BackgroundColor)
-            $script:WriteHostCalls += [pscustomobject]@{
-                Text            = [string]::Join('', @($Object))
-                NoNewline       = $NoNewline
-                ForegroundColor = [string]$ForegroundColor
-                BackgroundColor = [string]$BackgroundColor
-            }
-        }
+        # 日志函数 Mock：本文件只断言"调用级别 + 消息"，不重复测试日志排版
+        Mock -CommandName Write-LogEntry -ModuleName IPAP { }
     }
 
     Context 'L1 正常流程' {
@@ -57,41 +40,70 @@ Describe 'Get-FfmpegPath Unit Tests' -Tag 'Get-FfmpegPath', 'IPAP' {
                 }
             }
 
-            $Result = Get-FfmpegPath
+            $result = Get-FfmpegPath
 
-            $Result | Should -Be 'C:\tools\ffmpeg\ffmpeg.exe'
-            $script:WriteHostCalls.Count | Should -Be 0 -Because '命中配置时不应产生任何日志输出'
+            $result | Should -Be 'C:\tools\ffmpeg\ffmpeg.exe'
+            $result | Should -BeOfType [string]
+            Should -Invoke -CommandName Write-LogEntry -ModuleName IPAP -Times 0 -Exactly
+            Should -Invoke -CommandName Get-Configuration -ModuleName IPAP -Times 1 -Exactly
         }
     }
 
     Context 'L2 异常流程' {
-        It '配置未给出 FfmpegExePath 时抛出 FileNotFoundException 并先记录 ERROR 日志' {
+        It '配置未给出 FfmpegExePath 时应抛出 FileNotFoundException 并记录 Error 日志' {
             Mock -CommandName Get-Configuration -ModuleName IPAP {
                 [pscustomobject]@{
                     Tools = [pscustomobject]@{ FfmpegExePath = '' }
                 }
             }
 
-            $ScriptBlock = { Get-FfmpegPath }
+            { Get-FfmpegPath } |
+                Should -Throw -ExceptionType ([System.IO.FileNotFoundException]) -ExpectedMessage '未找到 FFmpeg'
 
-            # 终止错误须由源码显式 throw 的强类型异常抛出，而非 Write-LogEntry 的裸字符串
-            $ScriptBlock | Should -Throw -ExceptionType ([System.IO.FileNotFoundException]) -ExpectedMessage '未找到 FFmpeg'
-
-            # Write-LogEntry 为纯日志函数：ERROR 段在异常之前已完整写出，且只写 5 段、不额外中断
-            $script:WriteHostCalls.Count | Should -Be 5 -Because '应恰输出一条完整日志行'
-            $script:WriteHostCalls[1].Text | Should -Be '| ERROR   | '
-            $script:WriteHostCalls[3].Text | Should -Be '未找到 FFmpeg'
-            $script:WriteHostCalls[3].BackgroundColor | Should -Be 'Red'
+            Should -Invoke -CommandName Write-LogEntry -ModuleName IPAP -ParameterFilter {
+                $Level -eq 'Error' -and $Message -eq '未找到 FFmpeg'
+            } -Times 1 -Exactly
         }
+    }
 
-        It '配置未给出 FfmpegExePath（$null）时同样抛出 FileNotFoundException' {
+    Context 'L3 边界数据' {
+        It '配置值为 $null 时同样抛出 FileNotFoundException 并记录 Error 日志' {
             Mock -CommandName Get-Configuration -ModuleName IPAP {
                 [pscustomobject]@{
                     Tools = [pscustomobject]@{ FfmpegExePath = $null }
                 }
             }
 
-            { Get-FfmpegPath } | Should -Throw -ExceptionType ([System.IO.FileNotFoundException]) -ExpectedMessage '未找到 FFmpeg'
+            { Get-FfmpegPath } |
+                Should -Throw -ExceptionType ([System.IO.FileNotFoundException]) -ExpectedMessage '未找到 FFmpeg'
+
+            Should -Invoke -CommandName Write-LogEntry -ModuleName IPAP -ParameterFilter {
+                $Level -eq 'Error' -and $Message -eq '未找到 FFmpeg'
+            } -Times 1 -Exactly
+        }
+    }
+
+    Context 'L5 输出字段' {
+        It '异常输出的类型、消息与日志调用字段应完整' {
+            Mock -CommandName Get-Configuration -ModuleName IPAP {
+                [pscustomobject]@{
+                    Tools = [pscustomobject]@{ FfmpegExePath = '' }
+                }
+            }
+
+            $caught = $null
+            try {
+                Get-FfmpegPath
+            }
+            catch {
+                $caught = $PSItem
+            }
+
+            $caught.Exception | Should -BeOfType [System.IO.FileNotFoundException]
+            $caught.Exception.Message | Should -Be '未找到 FFmpeg'
+            Should -Invoke -CommandName Write-LogEntry -ModuleName IPAP -ParameterFilter {
+                $Level -eq 'Error' -and $Message -eq '未找到 FFmpeg'
+            } -Times 1 -Exactly
         }
     }
 }
