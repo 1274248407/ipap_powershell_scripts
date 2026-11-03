@@ -4,8 +4,13 @@
 .SYNOPSIS
     IPAP 模块 - Invoke-UpscaleProcess 单元测试
 .DESCRIPTION
-    按 doc/单元测试方法论.md 覆盖单图执行器：
-    L1 成功路径、L2 异常路径、L3 引擎成功判据边界、L5 输出字段。
+    按 doc/单元测试方法论.md 的 L1-L5 覆盖单图执行器：
+    - L1 成功路径：RealCugan / FFmpeg 各自的成功判据
+    - L2 异常路径：进程调用抛异常时捕获并返回失败与错误消息（catch 分支）
+    - L3 边界数据：退出码 0/非 0、输出文件存在/不存在、空 exe 路径
+    - L4 分支覆盖：引擎二选一分支（同一输入下 RealCugan 与 FFmpeg 结论互斥），
+      catch 分支由 L2 用例覆盖
+    - L5 输出字段：Success / Image / Error 三字段与类型
     外部进程通过 -InvokeProcess 注入假实现，不依赖真实引擎；
     默认适配器属进程调用边界，用系统 cmd.exe 作为无害替身覆盖
     重定向/不重定向、退出码 0/非 0、命令不存在三条路径。
@@ -146,6 +151,19 @@ Describe 'Invoke-UpscaleProcess Unit Tests' -Tag 'Invoke-UpscaleProcess', 'IPAP'
 
             $result.Success | Should -BeFalse
             $result.Error | Should -Be 'boom'
+        }
+    }
+
+    Context 'L4 分支覆盖' {
+        It '同一输入（退出码 1 且输出文件存在）下 RealCugan 与 FFmpeg 的判定分支应互斥' {
+            [string]$outputPath = Join-Path $TestDrive 'engine-branch.webp'
+            [IO.File]::WriteAllBytes($outputPath, [byte[]]::new(10))
+
+            $realCuganResult = Invoke-ProcessTest -Engine 'RealCugan' -OutputPath $outputPath -FakeProcess { param($P, $A) return 1 }
+            $ffmpegResult = Invoke-ProcessTest -Engine 'FFmpeg' -OutputPath $outputPath -FakeProcess { param($P, $A) return 1 }
+
+            $realCuganResult.Success | Should -BeTrue
+            $ffmpegResult.Success | Should -BeFalse
         }
     }
 
