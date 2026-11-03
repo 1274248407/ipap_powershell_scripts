@@ -6,9 +6,8 @@
 .DESCRIPTION
     按 doc/单元测试方法论.md 五级要求编写，测试 Invoke-ParallelUpscale 的函数契约、
     引擎缺失异常、参数边界与并行失败路径计数（Mock 隔离外部依赖，无需真实引擎）：
-    - Level1 正常流程：成功路径依赖真实 exe 执行与输出文件落盘，单测不可构造
-      （并行子 runspace 内 & 调用与 Test-Path 不受 Pester Mock 控制，探针实证），
-      故以失败路径真实计数（FailedCount 自增）与本函数返回结构承载 L1/L4/L5
+    - Level1 正常流程：单图成功路径已抽到 Invoke-UpscaleProcess，由其单测覆盖；
+      本文件继续验证编排层（失败计数、输出目录、参数契约、返回结构）
     - Level2 异常流程：引擎路径缺失抛 [System.IO.FileNotFoundException] 强类型
       异常（类型级断言 + 消息断言）；参数校验拒绝由引擎绑定抛
       ParameterBindingException 家族（用公共父类型断言，函数体不进入）
@@ -26,8 +25,8 @@
       （无 filter Mock 会连聚合链一并吞掉导致计数从未真实执行；带 filter Mock 时
       返回值不流入下游真实聚合，探针实证）。并行块以真实执行 + 失败路径驱动聚合，
       计数逻辑因此被真实覆盖；
-    - 成功路径（必须真实运行引擎 exe 并落盘输出文件）属集成测试范畴，
-      拆分并行块内纯函数规划已记录 doc/将来要改的地方.md（make it right）。
+    - 成功路径：Invoke-UpscaleProcess / Get-RealCuganArgument / Get-FfmpegArgument /
+      Write-UpscaleSummary 均有独立单测；本文件保留并行编排层的失败路径与契约测试。
 
 .NOTES
     Author:  lucas_gold
@@ -323,6 +322,15 @@ Describe 'Invoke-ParallelUpscale Unit Tests' -Tag 'Invoke-ParallelUpscale', 'IPA
             Mock Get-RealCuganExePath -ModuleName IPAP { return 'C:\nope\missing.exe' }
 
             $Result = Invoke-ParallelUpscale -Images $script:MockImages -OutputDir 'C:\output' -MaxWorkers 1
+
+            $Result.SuccessCount | Should -Be 0
+            $Result.FailedCount  | Should -Be 1
+        }
+
+        It 'FFmpeg 引擎应走 Get-FfmpegArgument 参数拼装分支并计入失败计数' {
+            Mock Get-FfmpegPath -ModuleName IPAP { return $null }
+
+            $Result = Invoke-ParallelUpscale -Images $script:MockImages -OutputDir 'C:\output' -Engine 'FFmpeg' -MaxWorkers 1
 
             $Result.SuccessCount | Should -Be 0
             $Result.FailedCount  | Should -Be 1

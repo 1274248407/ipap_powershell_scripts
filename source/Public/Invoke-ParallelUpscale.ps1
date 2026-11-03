@@ -61,11 +61,8 @@ function Invoke-ParallelUpscale {
         [int]$TileSize = 128
     )
 
-    # 引擎路径解析（缺失时 Get-*Path 内部直接抛出终止错误）
-    $FfmpegPath = $null
-    if ($Engine -eq 'FFmpeg') {
-        $FfmpegPath = Get-FfmpegPath
-    }
+    # 引擎路径解析（缺失时 Get-*Path 内部直接抛出终止错误；每个引擎只解析一次）
+    [string]$ExePath = $Engine -eq 'FFmpeg' ? (Get-FfmpegPath) : (Get-RealCuganExePath)
 
     Write-LogEntry -Level Info -Message "开始并行图片处理，引擎: $Engine, 并发数: $MaxWorkers"
 
@@ -73,138 +70,37 @@ function Invoke-ParallelUpscale {
         New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
     }
 
-    $successCount = 0
-    $failedCount = 0
-
-    if ($Engine -eq 'RealCugan') {
-        # Real-CUGAN 引擎：AI 超分（Level 2）
-        $realCuganExePath = Get-RealCuganExePath
-
-        $Images | ForEach-Object -Parallel {
-            $image = $PSItem
-            $outputDir = $using:OutputDir
-            $scale = $using:Scale
-            $noiseLevel = $using:NoiseLevel
-            $modelPath = $using:ModelPath
-            $outputFormat = $using:OutputFormat
-            $tileSize = $using:TileSize
-            $realCuganExePath = $using:realCuganExePath
-
-            $fileName = [System.IO.Path]::GetFileNameWithoutExtension($image.FullName)
-            $outputPath = Join-Path $outputDir "${fileName}.${outputFormat}"
-
-            try {
-                $realCuganArgs = @(
-                    '-i', $image.FullName,
-                    '-o', $outputPath,
-                    '-n', $noiseLevel,
-                    '-s', $scale,
-                    '-t', $tileSize,
-                    '-m', $modelPath,
-                    '-f', $outputFormat
-                )
-
-                & $realCuganExePath @realCuganArgs
-
-                if (Test-Path -LiteralPath $outputPath) {
-                    return @{ Success = $true; Image = $image.Name }
-                }
-                else {
-                    return @{ Success = $false; Image = $image.Name }
-                }
-            }
-            catch {
-                return @{ Success = $false; Image = $image.Name; Error = $PSItem.Exception.Message }
-            }
-        } -ThrottleLimit $MaxWorkers | ForEach-Object {
-            if ($PSItem.Success) {
-                Write-LogEntry -Level Info -Message "图片处理成功: $($PSItem.Image)"
-                $successCount++
-            }
-            else {
-                # 单张图片失败不中断批次，降级为警告日志并计入失败数
-                Write-LogEntry -Level Warning -Message "图片处理失败: $($PSItem.Image)"
-                $failedCount++
-            }
+    # 在主 runspace 构造每张图的输出路径与参数（纯函数，可在单测中直接验证）
+    $jobs = foreach ($image in $Images) {
+        [string]$fileName = [System.IO.Path]::GetFileNameWithoutExtension($image.FullName)
+        [string]$outputPath = Join-Path $OutputDir "${fileName}.${OutputFormat}"
+        [string[]]$arguments = if ($Engine -eq 'RealCugan') {
+            Get-RealCuganArgument -ImagePath $image.FullName -OutputPath $outputPath `
+                -NoiseLevel $NoiseLevel -Scale $Scale -TileSize $TileSize `
+                -ModelPath $ModelPath -OutputFormat $OutputFormat
         }
-    }
-    else {
-        # FFmpeg 引擎：Lanczos 放大 + Unsharp Mask 锐化（Level 1）
-        $FfmpegPath = Get-FfmpegPath
-        $Images | ForEach-Object -Parallel {
-            $image = $PSItem
-            $outputDir = $using:OutputDir
-            $outputFormat = $using:OutputFormat
-            $ffmpegPath = $using:FfmpegPath
+        else {
+            Get-FfmpegArgument -ImagePath $image.FullName -OutputPath $outputPath -OutputFormat $OutputFormat
+        }
 
-            # 将输出格式映射为 FFmpeg 编码器名称
-            $codecMap = @{ 'jpg' = 'mjpeg'; 'jpeg' = 'mjpeg'; 'png' = 'png'; 'webp' = 'libwebp' }
-            $codec = $codecMap[$outputFormat.ToLower()]
-            # 默认输出webp格式
-            if (-not $codec) { $codec = 'libwebp' }
-
-            $fileName = [System.IO.Path]::GetFileNameWithoutExtension($image.FullName)
-            $outputPath = Join-Path $outputDir "${fileName}.${outputFormat}"
-
-            try {
-                # Lanczos 放大 1.2 倍 + USM 锐化
-                # 1. 基础输入输出参数
-                # -i $image.FullName: 指定输入文件。-i 代表 input，即原始图片的完整路径。
-                # -y：覆盖模式，如果输出路径已有同名文件直接覆盖不卡住脚本。
-                # $outputPath：最终处理完的图片保存路径。
-                # 2. 核心滤镜链参数 (-vf)
-                # -vf 后面的字符串是视频滤镜链，两个滤镜用逗号 , 分隔，按从左到右顺序执行：
-
-                # scale=iw*1.2:ih*1.2:flags=lanczos:
-                # 放大图片。
-
-                # iw*1.2:ih*1.2：将宽度 和高度 分别乘以 1.2，即放大 1.2 倍。
-                # flags=lanczos：指定使用 Lanczos 缩放算法。这是一种高质量的插值算法，能在放大图片时最大程度保留细节，减少锯齿和模糊。
-                # unsharp=5:5:1.0（等价于完整写法 unsharp=5:5:1.0:5:5:0.0）
-                # 锐化滤镜（USM 锐化）。完整语法为 lx:ly:la:cx:cy:ca：
-                #   前三个参数（lx:ly:la）控制亮度（luma）锐化：
-                #     5:5 — 锐化矩阵宽度和高度（5x5），决定锐化影响的像素范围。
-                #     1.0 — 亮度锐化强度（luma amount），正值为锐化，负值为模糊。
-                #           过高会产生白边噪点，1.0 是适中的值。
-                #   后三个参数（cx:cy:ca）控制色度（chroma）锐化，此处默认为 0.0（不锐化色度），
-                #   避免引入色彩噪点。
-                # 3. 编码与质量控制参数
-                # -c:v $codec: 指定视频编码器。-c:v 是 codec video 的缩写。代码中会根据你选择的输出格式动态映射，比如输出 webp 就用 libwebp，输出 jpg 就用 mjpeg。
-                # -quality 95: 设置输出质量为 95。对于 webp 或 jpg 等有损压缩格式，95 代表极高的画质（几乎无损），避免二次压缩导致画质严重下降。
-                $ffmpegArgs = @(
-                    '-i', $image.FullName,
-                    '-vf', 'scale=iw*1.2:ih*1.2:flags=lanczos,unsharp=5:5:1.0',
-                    '-c:v', $codec,
-                    '-quality', '95',
-                    '-y', $outputPath
-                )
-                $null = & $ffmpegPath @ffmpegArgs 2>&1
-
-                if ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $outputPath)) {
-                    return @{ Success = $true; Image = $image.Name }
-                }
-                else {
-                    return @{ Success = $false; Image = $image.Name }
-                }
-            }
-            catch {
-                return @{ Success = $false; Image = $image.Name; Error = $PSItem.Exception.Message }
-            }
-        } -ThrottleLimit $MaxWorkers | ForEach-Object {
-            if ($PSItem.Success) {
-                Write-LogEntry -Level Info -Message "图片处理成功: $($PSItem.Image)"
-                $successCount++
-            }
-            else {
-                # 单张图片失败不中断批次，降级为警告日志并计入失败数
-                Write-LogEntry -Level Warning -Message "图片处理失败: $($PSItem.Image)"
-                $failedCount++
-            }
+        [PSCustomObject]@{
+            Image      = $image
+            OutputPath = $outputPath
+            Arguments  = $arguments
         }
     }
 
-    Write-LogEntry -Level Info -Message "并行处理完成，成功: $successCount, 失败: $failedCount"
+    # 并行 runspace 不继承模块函数，因此把单图执行器序列化后注入
+    [string]$WorkerSource = ${function:Invoke-UpscaleProcess}.ToString()
+    $results = $jobs | ForEach-Object -Parallel {
+        [scriptblock]$worker = [scriptblock]::Create($using:WorkerSource)
+        & $worker -Image $PSItem.Image -OutputPath $PSItem.OutputPath -Arguments $PSItem.Arguments `
+            -Engine $using:Engine -ExePath $using:ExePath
+    } -ThrottleLimit $MaxWorkers
 
-    return @{ SuccessCount = $successCount; FailedCount = $failedCount }
+    [PSCustomObject]$counts = Write-UpscaleSummary -Results @($results)
+
+    Write-LogEntry -Level Info -Message "并行处理完成，成功: $($counts.SuccessCount), 失败: $($counts.FailedCount)"
+
+    return @{ SuccessCount = $counts.SuccessCount; FailedCount = $counts.FailedCount }
 }
-
