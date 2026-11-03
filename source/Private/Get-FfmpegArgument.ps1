@@ -32,6 +32,9 @@
 function Get-FfmpegArgument {
     [CmdletBinding()]
     [OutputType([string])]
+    # 项目约定：[OutputType()] 声明元素类型而非集合类型；该规则按实际返回的 string[] 比对会误报，
+    # 此处精确压制，其余源文件仍受 PSUseOutputTypeCorrectly 保护
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseOutputTypeCorrectly', '', Justification = '项目约定：[OutputType()] 声明元素类型；本函数返回 string[]，管道展开后为 string 流')]
     param(
         [Parameter(Mandatory = $true)]
         [string]$ImagePath,

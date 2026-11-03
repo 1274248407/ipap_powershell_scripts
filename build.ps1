@@ -178,6 +178,8 @@ function Invoke-BuildTask
     对项目内所有 .ps1/.psm1/.psd1 文件运行 PSScriptAnalyzer，
     排除 output/.git/node_modules/tests 路径与 build.ps1 本身。
     发现任何问题立即报错退出。
+    对 PSScriptAnalyzer 1.25.0 的已知偶发崩溃（PSUseCorrectCasing 空引用，
+    上游 PowerShell/PSScriptAnalyzer#1708）做单文件有限重试，避免整批分析被随机打断。
 .OUTPUTS
     [void]
 .NOTES
@@ -211,14 +213,37 @@ function Invoke-AnalyzeTask
     }
 
     # 收集待分析文件（排除 output/.git/node_modules/tests 和 build.ps1 本身）
+    # 正则锚定到路径分隔符并转义点号，避免误伤文件名中含 output 等字样的源文件
+    $excludedPathPattern = '[\\/](output|\.git|node_modules|tests)[\\/]'
     $analysisFiles = Get-ChildItem -Path $script:ModulePath -Recurse -Include '*.ps1', '*.psm1', '*.psd1' |
-        Where-Object { $PSItem.FullName -notmatch 'output|.git|node_modules|tests' -and $PSItem.Name -ne 'build.ps1' }
+        Where-Object { $PSItem.FullName -notmatch $excludedPathPattern -and $PSItem.Name -ne 'build.ps1' }
+
+    $settingsPath = Join-Path -Path $script:ModulePath -ChildPath 'PSScriptAnalyzerSettings.psd1'
 
     # 逐文件运行分析器
+    # PSScriptAnalyzer 1.25.0 的 PSUseCorrectCasing 会对 CommandInfo.Parameters 空引用崩溃
+    # （上游 PowerShell/PSScriptAnalyzer#1708，2021 年至今未修复，1.25.0 仍复现）。
+    # 该崩溃属线程竞态：同一文件立即重跑通常即可恢复，故做有限重试；全部失败才上报并附文件名。
     $results = @()
-    foreach ($File in $analysisFiles)
-    {
-        $results += Invoke-ScriptAnalyzer -Path $File.FullName -Settings (Join-Path -Path $script:ModulePath -ChildPath 'PSScriptAnalyzerSettings.psd1')
+    foreach ($File in $analysisFiles) {
+        [int]$attempt = 0
+        [bool]$analyzed = $false
+        while (-not $analyzed -and $attempt -lt 3) {
+            $attempt++
+            try {
+                $results += Invoke-ScriptAnalyzer -Path $File.FullName -Settings $settingsPath -ErrorAction Stop
+                $analyzed = $true
+            }
+            catch {
+                if ($attempt -ge 3) {
+                    Write-Output "`n静态分析失败文件：$($File.FullName)"
+                    Write-Output "最后一次异常：$($PSItem.Exception.Message)"
+                    Write-Error '静态分析未通过'
+                    exit 1
+                }
+                Write-Verbose "第 $attempt 次分析失败，重试：$($File.Name) - $($PSItem.Exception.Message)"
+            }
+        }
     }
 
     # Error/Warning 级阻断；Information 级仅展示不阻断（参考性规则如 PSUseOutputTypeCorrectly 存在静态误报）
