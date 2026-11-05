@@ -21,7 +21,7 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
         Remove-Module 'IPAP' -ErrorAction SilentlyContinue
     }
 
-    Context '构造函数 - 完整配置' {
+    Context '构造函数 - 完整配置（L1）' {
         It '应正确读取所有项目配置属性' {
             InModuleScope IPAP {
                 $settings = @{
@@ -44,7 +44,7 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
         }
     }
 
-    Context '构造函数 - 缺失 project 键' {
+    Context '构造函数 - 缺失 project 键（L3）' {
         It 'settings 为 null 时所有属性应为空字符串' {
             InModuleScope IPAP {
                 $config = [ProjectConfiguration]::new($null)
@@ -71,7 +71,7 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
         }
     }
 
-    Context '构造函数 - 部分键缺失' {
+    Context '构造函数 - 部分键缺失（L3）' {
         It '仅有 author 时其他属性应为空字符串' {
             InModuleScope IPAP {
                 $settings = @{
@@ -125,7 +125,7 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
         }
     }
 
-    Context '构造函数 - 空值覆盖' {
+    Context '构造函数 - 空值覆盖（L3）' {
         It 'settings 中值为空字符串时应接受空字符串' {
             InModuleScope IPAP {
                 $settings = @{
@@ -170,7 +170,7 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
         }
     }
 
-    Context '构造函数 - 非法 project 值（Level 2 逻辑异常）' {
+    Context '构造函数 - 非法 project 值（L2）' {
         It 'project 为 null 时应抛出逻辑异常而非系统异常' {
             InModuleScope IPAP {
                 { [ProjectConfiguration]::new(@{ project = $null }) } |
@@ -201,7 +201,7 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
         }
     }
 
-    Context '构造函数 - project 为空字典（Level 3 边界）' {
+    Context '构造函数 - project 为空字典（L3）' {
         It '空哈希表应被接受且所有属性为空字符串' {
             InModuleScope IPAP {
                 $config = [ProjectConfiguration]::new(@{ project = @{} })
@@ -227,7 +227,7 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
         }
     }
 
-    Context '构造函数 - 有序字典（[ordered]）应被接受' {
+    Context '构造函数 - 有序字典（[ordered]）应被接受（L4）' {
         It '有序字典应能正常构造并读取全部字段' {
             InModuleScope IPAP {
                 $settings = @{
@@ -267,7 +267,7 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
         }
     }
 
-    Context '构造函数验证' {
+    Context '构造函数验证（L1）' {
         It '应返回 ProjectConfiguration 实例' {
             InModuleScope IPAP {
                 $settings = @{
@@ -283,7 +283,7 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
         }
     }
 
-    Context '属性类型验证' {
+    Context '属性类型验证（L5）' {
         It '所有属性应为 string 类型' {
             InModuleScope IPAP {
                 $settings = @{
@@ -306,7 +306,7 @@ Describe 'ProjectConfiguration Unit Tests' -Tag 'ProjectConfiguration', 'IPAP', 
         }
     }
 
-    Context '独立性验证' {
+    Context '独立性验证（L5）' {
         It '多个实例之间不应互相影响' {
             InModuleScope IPAP {
                 $settings1 = @{ project = @{ author = '作者A'; original_title = '标题A' } }

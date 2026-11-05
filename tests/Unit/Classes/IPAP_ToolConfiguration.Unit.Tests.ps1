@@ -39,7 +39,7 @@ Describe 'ToolConfiguration Unit Tests' -Tag 'ToolConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '构造函数 - 配置路径优先' {
+    Context '构造函数 - 配置路径优先（L1）' {
         It '当配置路径存在时应使用配置路径（ffmpeg）' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
@@ -75,7 +75,7 @@ Describe 'ToolConfiguration Unit Tests' -Tag 'ToolConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '构造函数 - PATH 环境变量回退' {
+    Context '构造函数 - PATH 环境变量回退（L4）' {
         It '配置路径为空时应回退到 PATH 查找（ffmpeg）' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
@@ -109,7 +109,7 @@ Describe 'ToolConfiguration Unit Tests' -Tag 'ToolConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '构造函数 - 工具未找到' {
+    Context '构造函数 - 工具未找到（L3）' {
         It '配置路径不存在且 PATH 中也找不到时 ffmpeg 应为空' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
@@ -164,7 +164,7 @@ Describe 'ToolConfiguration Unit Tests' -Tag 'ToolConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '构造函数 - Real-CUGAN 路径解析' {
+    Context '构造函数 - Real-CUGAN 路径解析（L1/L4）' {
         It '配置路径存在时应使用配置路径' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
@@ -221,7 +221,7 @@ Describe 'ToolConfiguration Unit Tests' -Tag 'ToolConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '构造函数 - 配置路径存在但文件实际不存在' {
+    Context '构造函数 - 配置路径存在但文件实际不存在（L4）' {
         It '配置路径指定但文件不存在时应回退到 PATH 查找' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
@@ -239,7 +239,7 @@ Describe 'ToolConfiguration Unit Tests' -Tag 'ToolConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '构造函数 - 配置路径指向目录（Level 3 边界）' {
+    Context '构造函数 - 配置路径指向目录（L3）' {
         It '配置路径指向目录时应视为未命中并回退到 PATH 查找' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
@@ -261,7 +261,7 @@ Describe 'ToolConfiguration Unit Tests' -Tag 'ToolConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '构造函数 - settings 缺失或为空（Level 2 边界，不得抛系统异常）' {
+    Context '构造函数 - settings 缺失或为空（L2）' {
         It 'settings 为 null 时三个路径均为空（构造完成即证明未抛系统异常）' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
@@ -289,7 +289,7 @@ Describe 'ToolConfiguration Unit Tests' -Tag 'ToolConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '构造函数 - PathConfig 为空（Level 2 逻辑异常）' {
+    Context '构造函数 - PathConfig 为空（L2）' {
         It 'PathConfig 为 null 时应抛出 ArgumentException 而非系统异常' {
             InModuleScope IPAP {
                 { [ToolConfiguration]::new($null, @{}) } |
@@ -298,7 +298,7 @@ Describe 'ToolConfiguration Unit Tests' -Tag 'ToolConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '构造函数 - settings.paths 类型非法（Level 2 逻辑异常）' {
+    Context '构造函数 - settings.paths 类型非法（L2）' {
         It 'paths 为字符串时应抛出 ArgumentException' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
@@ -331,7 +331,7 @@ Describe 'ToolConfiguration Unit Tests' -Tag 'ToolConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '构造函数验证' {
+    Context '构造函数验证（L1）' {
         It '应返回 ToolConfiguration 实例' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
@@ -345,7 +345,7 @@ Describe 'ToolConfiguration Unit Tests' -Tag 'ToolConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '属性类型验证' {
+    Context '属性类型验证（L5）' {
         It '所有公开属性应为 string 类型' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
@@ -361,7 +361,7 @@ Describe 'ToolConfiguration Unit Tests' -Tag 'ToolConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '边界情况 - 多工具混合状态' {
+    Context '边界情况 - 多工具混合状态（L3）' {
         It '部分工具找到部分未找到时应正确反映各自状态' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
@@ -406,7 +406,7 @@ Describe 'ToolConfiguration Unit Tests' -Tag 'ToolConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '边界情况 - settings 结构不完整' {
+    Context '边界情况 - settings 结构不完整（L3）' {
         It 'settings.paths 为 null 时应回退为空配置而非抛异常' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
@@ -437,7 +437,7 @@ Describe 'ToolConfiguration Unit Tests' -Tag 'ToolConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '边界情况 - 配置值为纯空白（Level 3 边界）' {
+    Context '边界情况 - 配置值为纯空白（L3）' {
         It '配置值为纯空白时应视为空并回退到 PATH 查找' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'

@@ -7,6 +7,12 @@
     测试 ApplicationConfiguration 类的构造函数、三层嵌套配置读取逻辑、
     默认值回退、MaxWorkers 动态计算和静态工厂方法 Load。
     覆盖 app_settings、upscale、webp 三个配置区块的完整边界情况。
+    按 doc/单元测试方法论.md 的 L1-L5 覆盖：
+    - L1 正常流程：完整配置读取、MaxWorkers 动态计算、构造函数可用性
+    - L2 异常流程：非法输入抛 ArgumentException
+    - L3 边界数据：区块缺失 / 空设置 / 默认值回退 / 越界钳制 / 字符串数字与布尔转换
+    - L4 分支覆盖：数据缺失与越界的回退分支随 L3 用例覆盖，不单列
+    - L5 输出字段：属性类型、实例独立性
     本文件是纯类测试：不 Mock、不做文件 IO、不共享跨用例状态，因此不设 BeforeEach 共享夹具，
     §7.7 的清理要求也因不产生测试数据而天然满足。
 #>
@@ -22,7 +28,7 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
         Remove-Module 'IPAP' -ErrorAction SilentlyContinue
     }
 
-    Context '构造函数 - 完整配置' {
+    Context '构造函数 - 完整配置（L1）' {
         It '应正确读取所有 app_settings 配置' {
             InModuleScope IPAP {
                 $settings = @{
@@ -57,7 +63,7 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
         }
     }
 
-    Context '构造函数 - app_settings 默认值回退' {
+    Context '构造函数 - app_settings 默认值回退（L3）' {
         It 'app_settings 为 null 时应使用 app_settings 默认值' {
             InModuleScope IPAP {
                 $config = [ApplicationConfiguration]::new(@{})
@@ -170,7 +176,7 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
         }
     }
 
-    Context '构造函数 - upscale 默认值回退' {
+    Context '构造函数 - upscale 默认值回退（L3）' {
         It 'upscale 为 null 时应使用默认值' {
             InModuleScope IPAP {
                 $config = [ApplicationConfiguration]::new(@{})
@@ -275,7 +281,7 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
         }
     }
 
-    Context '构造函数 - webp 默认值回退' {
+    Context '构造函数 - webp 默认值回退（L3）' {
         It 'webp 为 null 时应使用默认值' {
             InModuleScope IPAP {
                 $config = [ApplicationConfiguration]::new(@{})
@@ -375,7 +381,7 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
         }
     }
 
-    Context '构造函数 - 布尔值转换（Level 3 边界）' {
+    Context '构造函数 - 布尔值转换（L3）' {
         It "webp.enabled 为字符串 'false' 时应转换为 `$false" {
             InModuleScope IPAP {
                 $config = [ApplicationConfiguration]::new(@{ webp = @{ enabled = 'false' } })
@@ -410,7 +416,7 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
         }
     }
 
-    Context '构造函数 - MaxWorkers 动态计算' {
+    Context '构造函数 - MaxWorkers 动态计算（L1/L3）' {
         It 'max_workers 显式指定非零值时应直接使用' {
             InModuleScope IPAP {
                 $settings = @{
@@ -470,7 +476,7 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
         }
     }
 
-    Context '构造函数 - 完全空设置' {
+    Context '构造函数 - 完全空设置（L3）' {
         It '传入空哈希表时应全部使用默认值' {
             InModuleScope IPAP {
                 $config = [ApplicationConfiguration]::new(@{})
@@ -488,7 +494,7 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
         }
     }
 
-    Context '构造函数 - 仅部分区块存在' {
+    Context '构造函数 - 仅部分区块存在（L3）' {
         It '仅有 app_settings 时 upscale 和 webp 使用默认值' {
             InModuleScope IPAP {
                 $settings = @{
@@ -535,7 +541,7 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
         }
     }
 
-    Context '构造函数验证' {
+    Context '构造函数验证（L1）' {
         It '应返回 ApplicationConfiguration 实例' {
             InModuleScope IPAP {
                 $settings = @{
@@ -567,7 +573,7 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
         }
     }
 
-    Context '构造函数 - 无效输入（Level 2 逻辑异常）' {
+    Context '构造函数 - 无效输入（L2）' {
         It 'max_workers 为非数字字符串时应抛出 ArgumentException' {
             InModuleScope IPAP {
                 { [ApplicationConfiguration]::new(@{ app_settings = @{ max_workers = 'abc' } }) } | Should -Throw -ExpectedMessage '*max_workers*不是有效的整数*'
@@ -631,7 +637,7 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
         }
     }
 
-    Context '属性类型验证' {
+    Context '属性类型验证（L5）' {
         It '数值属性应为正确类型' {
             InModuleScope IPAP {
                 $settings = @{
@@ -662,7 +668,7 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
         }
     }
 
-    Context '独立性验证' {
+    Context '独立性验证（L5）' {
         It '多个实例之间不应互相影响' {
             InModuleScope IPAP {
                 $settings1 = @{

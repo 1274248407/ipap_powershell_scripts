@@ -6,6 +6,12 @@
 .DESCRIPTION
     测试 PathConfiguration 的构造函数：ProjectRoot 规范化与校验、BinPath/ConfigPath 自动拼接、
     可选参数透传、属性类型与实例独立性。覆盖正常路径、可选参数组合和输入验证边界。
+    按 doc/单元测试方法论.md 的 L1-L5 覆盖：
+    - L1 正常流程：ProjectRoot 设置、BinPath/ConfigPath 自动拼接、构造函数可用性
+    - L2 异常流程：ProjectRoot 空 / 空白 / 不存在 / 指向文件时抛强类型异常
+    - L3 边界数据：可选参数组合、空字符串接受、尾随空格规范化
+    - L4 分支覆盖：无独立分支用例，校验分支由 L2/L3 覆盖
+    - L5 输出字段：属性类型、实例独立性
 
     夹具（§7.2 / §7.7）：共享的 MockProject 目录由 BeforeEach 创建、AfterEach 清理；
     该测试不涉及外部依赖，因此不需要任何 Mock。
@@ -39,7 +45,7 @@ Describe 'PathConfiguration Unit Tests' -Tag 'PathConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '构造函数 - 正常执行路径' {
+    Context '构造函数 - 正常执行路径（L1）' {
         It '应正确设置 ProjectRoot 属性' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
@@ -81,7 +87,7 @@ Describe 'PathConfiguration Unit Tests' -Tag 'PathConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '构造函数 - 可选参数' {
+    Context '构造函数 - 可选参数（L3）' {
         It '传入 BaseProjectDir 时应正确设置' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
@@ -124,7 +130,7 @@ Describe 'PathConfiguration Unit Tests' -Tag 'PathConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '构造函数 - 异常路径' {
+    Context '构造函数 - 异常路径（L2）' {
         It 'ProjectRoot 为空字符串时应抛出 ArgumentException' {
             InModuleScope IPAP {
                 { [PathConfiguration]::new('', $null, $null) } |
@@ -162,7 +168,7 @@ Describe 'PathConfiguration Unit Tests' -Tag 'PathConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '构造函数 - 输入规范化与路径类型' {
+    Context '构造函数 - 输入规范化与路径类型（L3）' {
         It 'ProjectRoot 指向文件（非目录）时应抛出 DirectoryNotFoundException' {
             InModuleScope IPAP {
                 # Test-Path 对文件也返回真，必须由 -PathType Container 拦住
@@ -186,7 +192,7 @@ Describe 'PathConfiguration Unit Tests' -Tag 'PathConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '构造函数验证' {
+    Context '构造函数验证（L1）' {
         It '应返回 PathConfiguration 实例' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
@@ -196,7 +202,7 @@ Describe 'PathConfiguration Unit Tests' -Tag 'PathConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '属性类型验证' {
+    Context '属性类型验证（L5）' {
         It '所有属性应为 string 类型' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
@@ -210,7 +216,7 @@ Describe 'PathConfiguration Unit Tests' -Tag 'PathConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '路径拼接边界' {
+    Context '路径拼接边界（L5）' {
         It '连续创建两个实例应互不影响' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'

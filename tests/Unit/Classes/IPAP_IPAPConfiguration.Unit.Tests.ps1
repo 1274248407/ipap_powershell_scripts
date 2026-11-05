@@ -6,6 +6,12 @@
 .DESCRIPTION
     测试 IPAPConfiguration 聚合类的构造函数、静态 Load 方法、
     ReadConfigFile（TOML 读取与 Windows 路径转义修复）和 MergeSettings（浅合并逻辑）。
+    按 doc/单元测试方法论.md 的 L1-L5 覆盖：
+    - L1 正常流程：四子配置聚合、TOML 解析与合并、ReadConfigFile 读取
+    - L2 异常流程：TOML 解析失败、转义修复失败、配置块类型非法
+    - L3 边界数据：配置文件缺失 / 空文件、PSToml 不可用、多种配置组合
+    - L4 分支覆盖：候选 PSToml 导入成功 / 失败、转义修复重试、OrderedDictionary 转换
+    - L5 输出字段：子配置类型、实例独立性
     共享夹具（§7.2）：BeforeEach 统一创建 MockProject 目录与 0 字节 config.toml，AfterEach 清理；
     模块内依赖统一在 BeforeEach 用 -ModuleName IPAP Mock（§7.5），各用例只覆盖自己的差异。
     ReadConfigFile 与 MergeSettings 是模块内的隐藏静态方法，在 InModuleScope 中可直接调用，无需反射。
@@ -69,7 +75,7 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '构造函数 - 正常路径' {
+    Context '构造函数 - 正常路径（L1）' {
         It '应正确聚合四个子配置对象' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
@@ -107,7 +113,7 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '静态方法 Load - 配置文件不存在' {
+    Context '静态方法 Load - 配置文件不存在（L3）' {
         BeforeEach {
             # 本组验证「无配置文件」分支，移除默认夹具中的 config.toml
             Remove-Item -LiteralPath (Join-Path $script:TestProjectDir 'config.toml') -Force
@@ -241,7 +247,7 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '静态方法 Load - PSToml 模块未找到' {
+    Context '静态方法 Load - PSToml 模块未找到（L3）' {
         BeforeEach {
             # 本组聚焦「PSToml 不可用」路径，覆盖默认的「ConvertFrom-Toml 可用」探测
             Mock -CommandName Get-Command -ModuleName IPAP { return $null }
@@ -285,7 +291,7 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '静态方法 Load - PSToml 候选路径导入' {
+    Context '静态方法 Load - PSToml 候选路径导入（L4）' {
         BeforeEach {
             # 本组聚焦「候选导入」分支，探测保持不可用以免后续真的走解析
             Mock -CommandName Get-Command -ModuleName IPAP { return $null }
@@ -322,7 +328,7 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '静态方法 Load - 空配置文件' {
+    Context '静态方法 Load - 空配置文件（L3）' {
         It 'config.toml 为空文件时应回退默认配置并记录 Info 日志' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
@@ -341,7 +347,7 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
         }
     }
 
-    Context '静态方法 Load - TOML 解析成功' {
+    Context '静态方法 Load - TOML 解析成功（L1）' {
         It '应正确解析并合并用户配置' {
             if (-not $script:PSTomlAvailable) {
                 Set-ItResult -Skipped -Because 'PSToml 模块不可用'
@@ -388,7 +394,7 @@ source_dir = "D:/images"
         }
     }
 
-    Context '静态方法 Load - TOML 解析失败' {
+    Context '静态方法 Load - TOML 解析失败（L2）' {
         It '解析失败且非转义问题时应抛出 InvalidOperationException 且不触发修复重试' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
@@ -404,7 +410,7 @@ source_dir = "D:/images"
         }
     }
 
-    Context '静态方法 Load - Windows 路径转义自动修复' {
+    Context '静态方法 Load - Windows 路径转义自动修复（L2/L4）' {
         It '检测到反斜杠转义问题时应尝试自动修复' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
@@ -521,7 +527,7 @@ author = "Lucas\\G\"old"
         }
     }
 
-    Context 'MergeSettings 方法 - 浅合并逻辑' {
+    Context 'MergeSettings 方法 - 浅合并逻辑（L1）' {
         It '用户配置覆盖默认值时应使用用户值' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
@@ -584,7 +590,7 @@ author = "Lucas\\G\"old"
         }
     }
 
-    Context 'ReadConfigFile - 读取流程' {
+    Context 'ReadConfigFile - 读取流程（L1）' {
         It 'config.toml 存在时应尝试读取文件内容' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
@@ -599,7 +605,7 @@ author = "Lucas\\G\"old"
         }
     }
 
-    Context 'ReadConfigFile - OrderedDictionary 转换' {
+    Context 'ReadConfigFile - OrderedDictionary 转换（L4）' {
         It 'OrderedDictionary 类型的子配置应被转换为 Hashtable' {
             if (-not $script:PSTomlAvailable) {
                 Set-ItResult -Skipped -Because 'PSToml 模块不可用'
@@ -627,7 +633,7 @@ source_dir = "real_source"
         }
     }
 
-    Context '边界情况 - 多种配置组合' {
+    Context '边界情况 - 多种配置组合（L3）' {
         It '所有配置区块都存在时应正确合并' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
@@ -693,7 +699,7 @@ source_dir = "real_source"
         }
     }
 
-    Context '静态方法 Load - 配置块类型非法（Level 2 逻辑异常）' {
+    Context '静态方法 Load - 配置块类型非法（L2）' {
         It 'paths 键存在但不是字典类型时应抛出 ArgumentException' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
@@ -705,7 +711,7 @@ source_dir = "real_source"
         }
     }
 
-    Context '构造函数 - 独立性验证' {
+    Context '构造函数 - 独立性验证（L5）' {
         It '修改一个实例不应影响另一个实例' {
             InModuleScope IPAP {
                 $p = Join-Path $TestDrive 'MockProject'
