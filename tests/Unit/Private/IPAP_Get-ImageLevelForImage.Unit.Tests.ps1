@@ -246,4 +246,17 @@ exit /b 0
             $result.YDIF | Should -Be 6.0
         }
     }
+
+    Context 'L5 输出字段' {
+        It '结果对象应恰好包含 Index / Image / Level / LongEdge / YDIF 五个字段' {
+            $result = Invoke-LevelWorker -Image $script:Image
+
+            @($result.PSObject.Properties.Name | Sort-Object) |
+                Should -Be @('Image', 'Index', 'Level', 'LongEdge', 'YDIF')
+            ($result.Index -is [int]) | Should -BeTrue
+            ($result.Level -is [int]) | Should -BeTrue
+            ($result.LongEdge -is [int]) | Should -BeTrue
+            ($result.YDIF -is [double]) | Should -BeTrue
+        }
+    }
 }

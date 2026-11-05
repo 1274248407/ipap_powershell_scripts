@@ -8,8 +8,10 @@
     - Level1 正常流程：各级别输出 5 段完整日志（时间戳/级别/调用者/消息/换行）
     - Level2 异常流程：Error 级别不抛异常、不中断执行，输出仍为完整 5 段
     - Level3 边界数据：空串与 $null 消息原样输出、非 Error 空消息、超长/多行/Unicode 消息
-    - Level4 分支覆盖：级别颜色四分支、Error 消息红底白字、NoNewline 序列、CallerInfo 格式
-    - Level5 输出字段：时间戳格式、级别文本宽度、颜色、NoNewline、文本逐字段验证
+    - Level4 分支覆盖：级别颜色四分支、Error 消息红底白字、NoNewline 序列、调用栈三档
+      （>=3 帧 / 2 帧 / 1 帧，见 Context '调用栈深度 - L4 分支覆盖'）
+    - Level5 输出字段：五个输出段（时间戳/级别/调用者/消息/换行）的文本、颜色、
+      NoNewline 逐字段验证（见 Context 'L5 输出字段' 的跨级别结构断言）
 
     既有契约备注：
     - Write-LogEntry 四个级别均为纯日志函数：只写终端，不抛异常、不中断执行。
@@ -238,7 +240,7 @@ Describe 'Write-LogEntry Unit Tests' -Tag 'Write-LogEntry', 'IPAP' {
         }
     }
 
-    Context '调用栈深度 - L3 浅栈边界' {
+    Context '调用栈深度 - L4 分支覆盖' {
         It '调用栈只有 2 帧时应取第 2 帧作为调用者' {
             Mock -CommandName Get-PSCallStack -ModuleName IPAP {
                 return @(
@@ -274,6 +276,29 @@ Describe 'Write-LogEntry Unit Tests' -Tag 'Write-LogEntry', 'IPAP' {
                 -ExpectedLevelSegment '| INFO    | ' `
                 -ExpectedLevelColor $script:LevelColorMap['Info'] `
                 -ExpectedMessage '单帧测试'
+        }
+    }
+
+    Context 'L5 输出字段' {
+        It '四个级别都应输出结构一致的 5 段：时间戳/级别/调用者/消息/换行' {
+            foreach ($Level in @('Info', 'Success', 'Warning', 'Error')) {
+                $script:WriteHostCalls = @()
+
+                Write-LogEntry -Level $Level -Message '字段契约'
+
+                $script:WriteHostCalls.Count | Should -Be 5
+                $script:WriteHostCalls[0].Text | Should -Match '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} $'
+                $script:WriteHostCalls[0].ForegroundColor | Should -Be 'DarkGray'
+                $script:WriteHostCalls[0].NoNewline | Should -BeTrue
+                $script:WriteHostCalls[1].ForegroundColor | Should -Be $script:LevelColorMap[$Level]
+                $script:WriteHostCalls[1].NoNewline | Should -BeTrue
+                $script:WriteHostCalls[2].ForegroundColor | Should -Be 'Cyan'
+                $script:WriteHostCalls[2].NoNewline | Should -BeTrue
+                $script:WriteHostCalls[3].Text | Should -Be '字段契约'
+                $script:WriteHostCalls[3].NoNewline | Should -BeTrue
+                $script:WriteHostCalls[4].Text | Should -Be ''
+                $script:WriteHostCalls[4].NoNewline | Should -Not -BeTrue
+            }
         }
     }
 }

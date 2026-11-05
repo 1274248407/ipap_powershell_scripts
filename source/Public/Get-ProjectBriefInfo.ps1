@@ -92,13 +92,29 @@ function Get-ProjectBriefInfo {
 
     # 输入原文简介（参数为空时交互式获取）
     if ([System.String]::IsNullOrWhiteSpace($OriginalOverview)) {
-        $originalOverviewLines = Read-MultiLineInput -Prompt '请输入【原文简介】（按 Ctrl+D 结束）：'
+        try {
+            $originalOverviewLines = Read-MultiLineInput -Prompt '请输入【原文简介】（按 Ctrl+D 结束）：'
+        }
+        catch {
+            # 控制台不可用属 IO 边界：记录现场后抛强类型异常，避免原始 RuntimeException 泄漏给上层
+            $ErrorMessage = '读取【原文简介】失败：当前环境无法读取控制台输入，请改用 -OriginalOverview 参数传入'
+            Write-LogEntry -Level Error -Message $ErrorMessage
+            throw [System.InvalidOperationException]::new($ErrorMessage, $PSItem.Exception)
+        }
         $OriginalOverview = $originalOverviewLines -join "`n"
     }
 
     # 输入中文简介（参数为空时交互式获取）
     if ([System.String]::IsNullOrWhiteSpace($ChineseOverview)) {
-        $chineseOverviewLines = Read-MultiLineInput -Prompt '请输入【中文简介】（按 Ctrl+D 结束）：'
+        try {
+            $chineseOverviewLines = Read-MultiLineInput -Prompt '请输入【中文简介】（按 Ctrl+D 结束）：'
+        }
+        catch {
+            # 同上：交互不可用时记录并中断，错误消息指出可绕过的参数
+            $ErrorMessage = '读取【中文简介】失败：当前环境无法读取控制台输入，请改用 -ChineseOverview 参数传入'
+            Write-LogEntry -Level Error -Message $ErrorMessage
+            throw [System.InvalidOperationException]::new($ErrorMessage, $PSItem.Exception)
+        }
         $ChineseOverview = $chineseOverviewLines -join "`n"
     }
 

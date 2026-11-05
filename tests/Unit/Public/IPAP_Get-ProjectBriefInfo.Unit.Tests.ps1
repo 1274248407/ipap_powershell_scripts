@@ -8,9 +8,8 @@
     项目信息获取与格式化模板生成逻辑（交互输入经 Mock 隔离，无需真实控制台）：
     - Level1 正常流程：无参全交互、传参数值、混合参数调用，双值输出
       （$formatted 模板文本 + $projectName 项目名）非空且结构正确
-    - Level2 异常流程：本函数无自定义逻辑异常分支（无守卫、无 throw），
-      L2 以契约声明承载：全参数空值时转入交互而非抛错（见"参数化调用"用例），
-      且 Read-Host / Read-MultiLineInput 被误调用的反言用 throw Mock 断言
+    - Level2 异常流程：交互不可用时（下层 Read-MultiLineInput 抛异常）记录 Error 日志并抛
+      InvalidOperationException，保留原始异常为 InnerException，消息指出可绕过的参数
     - Level3 边界数据：空字符串 / 空白字符参数视为未提供转交互；首尾空格在
       交互分支被 Trim（参数直接传入的非空白值不 Trim，属既定行为）；
       Read-MultiLineInput 返回空数组时简介段为空行占位
@@ -36,12 +35,11 @@ Describe 'Get-ProjectBriefInfo Unit Tests' -Tag 'Get-ProjectBriefInfo', 'IPAP' {
         # tests\Unit\Public → 项目根（向上三级）
         $ProjectRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
         Import-Module (Join-Path $ProjectRoot 'source\IPAP.psd1') -Force -Global
-
-        # 屏蔽日志输出（Write-LogEntry 为纯日志函数，无状态 Mock）
-        Mock Write-LogEntry -ModuleName IPAP { }
     }
 
     BeforeEach {
+        # 屏蔽日志输出（Write-LogEntry 为纯日志函数，无状态 Mock）
+        Mock Write-LogEntry -ModuleName IPAP { }
         # 每个用例前重置交互数据（避免测试间共享状态）
         $script:AuthorName = 'TestAuthor'
         $script:OriginalTitle = 'TestProject'
@@ -96,6 +94,40 @@ Describe 'Get-ProjectBriefInfo Unit Tests' -Tag 'Get-ProjectBriefInfo', 'IPAP' {
             $Formatted, $ProjectName = Get-ProjectBriefInfo
 
             ($Formatted -split "`n")[3] | Should -BeExactly '  中文：[TestAuthor] 中文标题'
+        }
+    }
+
+    Context '交互不可用 - L2 异常流程' {
+        It '读取原文简介失败时应记录 Error 日志并抛强类型 InvalidOperationException' {
+            Mock Read-MultiLineInput -ModuleName IPAP -ParameterFilter { $Prompt -like '*原文简介*' } {
+                throw [System.InvalidOperationException]::new('控制台不可用')
+            }
+
+            { Get-ProjectBriefInfo } |
+                Should -Throw -ExceptionType ([System.InvalidOperationException]) -ExpectedMessage '*读取【原文简介】失败*'
+
+            Should -Invoke -CommandName Write-LogEntry -ModuleName IPAP -ParameterFilter {
+                $Level -eq 'Error' -and $Message -like '*读取【原文简介】失败*'
+            } -Times 1 -Exactly
+        }
+
+        It '读取中文简介失败时应抛强类型异常并保留原始异常为 InnerException' {
+            Mock Read-MultiLineInput -ModuleName IPAP -ParameterFilter { $Prompt -like '*中文简介*' } {
+                throw [System.InvalidOperationException]::new('控制台不可用')
+            }
+
+            $caught = $null
+            try {
+                Get-ProjectBriefInfo -OriginalOverview '已有原文简介'
+            }
+            catch {
+                $caught = $PSItem
+            }
+
+            $caught.Exception | Should -BeOfType [System.InvalidOperationException]
+            $caught.Exception.Message | Should -BeLike '*读取【中文简介】失败*'
+            $caught.Exception.InnerException | Should -BeOfType [System.InvalidOperationException]
+            $caught.Exception.InnerException.Message | Should -Be '控制台不可用'
         }
     }
 
