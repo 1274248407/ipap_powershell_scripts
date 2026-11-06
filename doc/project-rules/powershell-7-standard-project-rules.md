@@ -5,7 +5,7 @@
 - **强类型契约**：禁止使用弱类型定义。必须为所有变量、函数参数（param 块）及返回值显式标注类型。
   - 示例：`[string]$UserName = "Lucas"`, `[int]$RetryCount = 3`
 - **标准架构**：所有函数必须包含 `[CmdletBinding()]` 和 `[OutputType()]` 属性，并统一使用 `param()` 块定义参数。
-  - **元素类型语义**：`[OutputType()]` 声明单个输出对象的类型，不声明集合类型。示例：输出多个文件的函数声明 `[OutputType([System.IO.FileInfo])]` 而非 `[OutputType([System.IO.FileInfo[]])]`（与 PowerShell 官方惯例及 `PSUseOutputTypeCorrectly` 检查逻辑一致）。
+  - **元素类型语义**：`[OutputType()]` 声明单个输出对象的类型，不声明集合类型。示例：输出多个文件的函数声明 `[OutputType([System.IO.FileInfo])]` 而非 `[OutputType([System.IO.FileInfo[]])]`。注意 `PSUseOutputTypeCorrectly` 会按实际返回的集合类型比对并误报；返回数组的函数用 `[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseOutputTypeCorrectly', '', Justification = '...')]` 精确压制并注明理由。
   - **无输出函数**：显式声明 `[OutputType([void])]`。
   - **类方法豁免**：PowerShell 类方法不支持 `[OutputType()]` 属性，返回契约由方法签名的静态返回类型承担（如 `hidden [string] ResolveToolPath([string]$ConfiguredPath, [string]$CommandName)`）。
   - **自定义类返回值**：函数返回模块内自定义类的实例时，必须使用**字符串形式**声明 `[OutputType('ClassName')]`。类型字面量形式（`[OutputType([ClassName])]`）的实参在调用者上下文解析，模块类在全局会话状态不可见，将导致运行时 `Unable to find type` 终止错误。内置类型（string、hashtable、bool 等）仍使用类型字面量形式。
@@ -240,3 +240,13 @@ class ClassName
 - **使用 TestDrive**：文件操作测试必须使用 `TestDrive` 进行隔离，避免影响真实文件系统。
 - **清理测试数据**：在 `AfterEach` 或 `AfterAll` 中清理测试产生的数据和状态。
 - **避免共享状态**：测试之间不应共享状态，每个测试应独立运行。
+
+## 8. 静态分析范围
+
+- **纳入**：除下列排除项外的全部 `.ps1` / `.psm1` / `.psd1`（当前含 `source/**`、`Main.ps1`、`PSScriptAnalyzerSettings.psd1`）。
+- **排除**：`tests/`、`build.ps1`、`output/`、`.git/`、`node_modules/`（2026-11-06 决策）。
+  - 原因：`tests/` 实测 132 条违规，其中 26 条 `PSReviewUnusedParameter` 来自 Pester Mock 的
+    `param($P,$A)` 签名参数（参数由 Pester 注入，属规则误报）；`build.ps1` 9 条。
+  - 风险：两者都含 `Get-Command` 调用，批量分析会放大 `PSUseCorrectCasing` 的上游竞态
+    （PowerShell/PSScriptAnalyzer#1708）。
+  - 复核条件：上游修复该竞态，或为 `tests/` 建立专用规则集（排除上述误报）后重新评估。
