@@ -290,7 +290,8 @@ function Invoke-OutputTypeAudit
     # 收集待检查文件（Public + Private，一函数一文件）
     $auditFiles = Get-ChildItem -Path (Join-Path -Path $script:SourcePath -ChildPath 'Public'), (Join-Path -Path $script:SourcePath -ChildPath 'Private') -Filter '*.ps1'
 
-    # 收集缺失 OutputType 声明的条目
+    # 解析失败与缺失声明分别收集：解析失败时 AST 不完整，继续检查只会得到假绿
+    $parseFailures = @()
     $missing = @()
     foreach ($File in $auditFiles)
     {
@@ -298,30 +299,66 @@ function Invoke-OutputTypeAudit
         $parseErrors = $null
         # 解析文件 AST 并查找全部函数定义
         $ast = [System.Management.Automation.Language.Parser]::ParseFile($File.FullName, [ref]$tokens, [ref]$parseErrors)
+
+        # 语法错误时 ParseFile 仍会返回不完整的 AST，必须显式拦截，否则可能漏检函数
+        if (@($parseErrors).Count -gt 0)
+        {
+            foreach ($ParseError in $parseErrors)
+            {
+                $parseFailures += [PSCustomObject]@{
+                    File    = $File.Name
+                    Line    = $ParseError.Extent.StartLineNumber
+                    Message = $ParseError.Message
+                }
+            }
+            continue
+        }
+
         # -is 会匹配继承关系。由于 PowerShell 中类方法（class 内的 method）在 AST 中表示为 FunctionMemberAst，
         # 而非 FunctionDefinitionAst，因此此判断 天然排除了类方法，无需额外过滤。
         $functions = $ast.FindAll({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)
 
         foreach ($Function in $functions)
         {
-            # 提取 param 块 attribute 类型名，检查是否声明 OutputType
-            $attrNames = @($Function.Body.ParamBlock.Attributes | ForEach-Object { $PSItem.TypeName.Name })
+            # 提取 param 块 attribute 类型名；无 param 块时视为未声明 OutputType
+            $attrNames = @(
+                if ($null -ne $Function.Body.ParamBlock)
+                {
+                    $Function.Body.ParamBlock.Attributes | ForEach-Object { $PSItem.TypeName.Name }
+                }
+            )
             if (-not ($attrNames -contains 'OutputType'))
             {
-                $missing += '{0} 行 {1}：函数 {2} 缺少 [OutputType()] 声明' -f $File.Name, $Function.Extent.StartLineNumber, $Function.Name
+                $missing += [PSCustomObject]@{
+                    File     = $File.Name
+                    Line     = $Function.Extent.StartLineNumber
+                    Function = $Function.Name
+                    Message  = '缺少 [OutputType()] 声明'
+                }
             }
         }
+    }
+
+    # 解析失败优先报错：AST 不完整时无法确认契约，继续检查会得到假绿
+    if ($parseFailures.Count -gt 0)
+    {
+        Write-Host ''
+        Write-Host '以下文件存在语法错误，无法完成 OutputType 契约检查：'
+        $parseFailures | Format-Table -Property File, Line, Message -AutoSize | Out-String -Stream | Write-Host
+        Write-Error 'OutputType 契约检查未通过'
+        exit 1
     }
 
     # 发现缺失则报错退出
     if ($missing.Count -gt 0)
     {
-        Write-Output "`n以下函数缺少 [OutputType()] 声明："
-        $missing | ForEach-Object { Write-Output $PSItem }
+        Write-Host ''
+        Write-Host '以下函数缺少 [OutputType()] 声明：'
+        $missing | Format-Table -Property File, Line, Function, Message -AutoSize | Out-String -Stream | Write-Host
         Write-Error 'OutputType 契约检查未通过'
         exit 1
     }
-    Write-Output 'OutputType 契约检查通过'
+    Write-Host 'OutputType 契约检查通过'
 }
 
 <#
