@@ -11,6 +11,7 @@
         '02_Preprocessing\original_non_text_raw',
         '02_Preprocessing\inpainted',
         '02_Preprocessing\mask',
+        '02_Preprocessing\result',
         '03_Typesetting\workfiles',
         '03_Typesetting\final_pages'
 .PARAMETER BaseDir
@@ -122,6 +123,7 @@ function New-ProjectStructure {
                 '02_Preprocessing\original_non_text_raw',
                 '02_Preprocessing\inpainted',
                 '02_Preprocessing\mask',
+                '02_Preprocessing\result',
                 '03_Typesetting\workfiles',
                 '03_Typesetting\final_pages'
             )

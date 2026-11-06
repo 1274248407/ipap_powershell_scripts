@@ -77,6 +77,8 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
         Mock New-Item -ModuleName IPAP { }
         Mock Invoke-ParallelUpscale -ModuleName IPAP { return @{ SuccessCount = 0; FailedCount = 0 } }
         Mock Test-UpscaleResult -ModuleName IPAP { return $true }
+        # 完成提示音是副作用，单测统一静默；只断言调用次数，不实际发声
+        Mock Invoke-CompletionSound -ModuleName IPAP { }
 
         Mock Get-ImageInfo -ModuleName IPAP {
             return [PSCustomObject]@{ Images = $Script:Images; Count = $Script:Images.Count }
@@ -103,6 +105,8 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
             Should -Invoke -ModuleName IPAP New-ProjectStructure -Times 1 -Exactly
             Should -Invoke -ModuleName IPAP Select-NonTextImage -Times 1 -Exactly
             Should -Invoke -ModuleName IPAP New-ReadmeFile -Times 1 -Exactly
+            # L4 分支：完整跑完后才播放一次提示音
+            Should -Invoke -ModuleName IPAP Invoke-CompletionSound -Times 1 -Exactly
         }
 
         It '显式传 -Config 时即使模块内配置实例为空也应正常执行' {
@@ -163,6 +167,8 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
             # 内层记录现场 1 次 + 外层 catch 记录上下文 1 次
             Should -Invoke -ModuleName IPAP Write-LogEntry `
                 -ParameterFilter { $Level -eq 'Error' } -Times 2 -Exactly
+            # L4 分支：异常路径不播放完成提示音
+            Should -Invoke -ModuleName IPAP Invoke-CompletionSound -Times 0 -Exactly
         }
 
         It '复制有文字图失败时应包装为 IOException 并保留内层异常' {
@@ -246,6 +252,8 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
             Should -Invoke -ModuleName IPAP Write-LogEntry `
                 -ParameterFilter { $Level -eq 'Warning' -and $Message -eq '源目录中没有图片，工作流终止' } -Times 1 -Exactly
             Should -Invoke -ModuleName IPAP New-ProjectStructure -Times 0 -Exactly
+            # L4 分支：没有图片时流程终止，不应播放完成提示音
+            Should -Invoke -ModuleName IPAP Invoke-CompletionSound -Times 0 -Exactly
         }
     }
 

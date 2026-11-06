@@ -37,6 +37,9 @@ function Start-IPAPWorkflow {
         [string]$SourceDir = $null
     )
 
+    # 只有完整跑完处理与校验才置为 $true；无图片、用户取消或异常路径保持 $false
+    [bool]$WorkflowCompleted = $false
+
     try {
         Write-LogEntry -Level Info -Message '正在初始化 IPAP 工作流...'
 
@@ -220,6 +223,9 @@ function Start-IPAPWorkflow {
                     if ($nonTextTotalProcessed -gt 0) {
                         $null = Test-UpscaleResult -ExpectedCount $nonTextTotalProcessed -OutputDir $nonTextRawDir
                     }
+
+                    # 处理与校验全部通过后才标记完成，提示音只在真正跑完时播放
+                    $WorkflowCompleted = $true
                 }
                 else {
                     # 记录错误现场后显式抛出强类型异常，由外层 catch 捕获记录
@@ -237,6 +243,11 @@ function Start-IPAPWorkflow {
         # 顶层统一记录错误后重抛，保证进程退出码非零（供 CI/调度器感知失败）
         Write-LogEntry -Level Error -Message "执行过程中发生错误: $($PSItem.Exception.Message)"
         throw $PSItem
+    }
+
+    # 提示音只在完整跑完时播放：无图片、用户取消或异常路径保持安静
+    if ($WorkflowCompleted) {
+        Invoke-CompletionSound
     }
 }
 

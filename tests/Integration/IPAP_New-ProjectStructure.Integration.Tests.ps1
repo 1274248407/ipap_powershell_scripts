@@ -68,6 +68,7 @@ Describe 'New-ProjectStructure 集成测试（真实文件系统协作）' -Tag 
                 '02_Preprocessing\original_non_text_raw',
                 '02_Preprocessing\inpainted',
                 '02_Preprocessing\mask',
+                '02_Preprocessing\result',
                 '03_Typesetting\workfiles',
                 '03_Typesetting\final_pages'
             )
@@ -98,10 +99,10 @@ Describe 'New-ProjectStructure 集成测试（真实文件系统协作）' -Tag 
             [string]$FirstRun = New-ProjectStructure -BaseDir $BaseDir -ProjectName 'MangaIdempotent' -Force
             [string]$SecondRun = New-ProjectStructure -BaseDir $BaseDir -ProjectName 'MangaIdempotent' -Force
 
-            # 两次调用返回相同路径，目录树保持完整（2 个顶级分组 + 6 个工作流子目录 = 8 个）
+            # 两次调用返回相同路径，目录树保持完整（2 个顶级分组 + 7 个工作流子目录 = 9 个）
             $SecondRun | Should -Be $FirstRun
             [int]$SubDirCount = (Get-ChildItem -LiteralPath $FirstRun -Recurse -Directory).Count
-            $SubDirCount | Should -Be 8
+            $SubDirCount | Should -Be 9
         }
     }
 

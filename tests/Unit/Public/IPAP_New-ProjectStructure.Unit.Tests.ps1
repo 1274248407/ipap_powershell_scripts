@@ -92,7 +92,7 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP' {
 
             $Result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'ExistingProject' -Force
 
-            Should -Invoke -ModuleName IPAP New-Item -Times 7 -Exactly
+            Should -Invoke -ModuleName IPAP New-Item -Times 8 -Exactly
             $Result | Should -Not -BeNullOrEmpty
         }
 
@@ -117,14 +117,14 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP' {
                 -ParameterFilter { $Level -eq 'Info' -and $Message -eq '用户取消覆盖操作' } -Times 1 -Exactly
         }
 
-        It '目录已存在且用户输入 Y 时应按覆盖路径创建全部 7 个目录' {
+        It '目录已存在且用户输入 Y 时应按覆盖路径创建全部 8 个目录' {
             Mock Test-Path -ModuleName IPAP { return $true }
             Mock Read-Host -ModuleName IPAP { return 'Y' }
 
             $Result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'ExistingProject'
 
             $Result | Should -BeExactly 'C:\Projects\2026-01-01_ExistingProject'
-            Should -Invoke -ModuleName IPAP New-Item -Times 7 -Exactly
+            Should -Invoke -ModuleName IPAP New-Item -Times 8 -Exactly
         }
 
         It '用户输入带前导空格的小写 y 应视为确认覆盖（Trim 与大小写归一）' {
@@ -134,7 +134,7 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP' {
             $Result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'ExistingProject'
 
             $Result | Should -BeExactly 'C:\Projects\2026-01-01_ExistingProject'
-            Should -Invoke -ModuleName IPAP New-Item -Times 7 -Exactly
+            Should -Invoke -ModuleName IPAP New-Item -Times 8 -Exactly
         }
 
         It '用户输入为 $null（模拟 EOF）应视为取消覆盖且不创建目录' {
@@ -240,7 +240,7 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP' {
             $Result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName $Name
 
             $Result | Should -BeExactly "C:\Projects\2026-01-01_$Name"
-            $script:NewItemCalls.Count | Should -Be 7
+            $script:NewItemCalls.Count | Should -Be 8
         }
 
         It 'ProjectName 以全角空格(U+3000) 结尾应放行（实测不被裁剪且可正常寻址）' {
@@ -249,7 +249,7 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP' {
             $Result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName $Name
 
             $Result | Should -BeExactly "C:\Projects\2026-01-01_$Name"
-            $script:NewItemCalls.Count | Should -Be 7
+            $script:NewItemCalls.Count | Should -Be 8
         }
     }
 
@@ -327,13 +327,14 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP' {
     }
 
     Context 'L5 输出字段验证' {
-        It '应创建的 7 个目录路径应与契约清单完全一致' {
+        It '应创建的 8 个目录路径应与契约清单完全一致' {
             $ExpectedPaths = @(
                 'C:\Projects\2026-01-01_TestProject',
                 'C:\Projects\2026-01-01_TestProject\02_Preprocessing\raw_source',
                 'C:\Projects\2026-01-01_TestProject\02_Preprocessing\original_non_text_raw',
                 'C:\Projects\2026-01-01_TestProject\02_Preprocessing\inpainted',
                 'C:\Projects\2026-01-01_TestProject\02_Preprocessing\mask',
+                'C:\Projects\2026-01-01_TestProject\02_Preprocessing\result',
                 'C:\Projects\2026-01-01_TestProject\03_Typesetting\workfiles',
                 'C:\Projects\2026-01-01_TestProject\03_Typesetting\final_pages'
             )
@@ -344,13 +345,13 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP' {
             $Unexpected = @($script:NewItemCalls | Where-Object { $ExpectedPaths -notcontains $PSItem })
             $Missing | Should -BeNullOrEmpty
             $Unexpected | Should -BeNullOrEmpty
-            $script:NewItemCalls.Count | Should -Be 7
+            $script:NewItemCalls.Count | Should -Be 8
         }
 
-        It '成功路径应记录 1 条开始、6 条子目录、1 条完成共 8 条 Info 日志' {
+        It '成功路径应记录 1 条开始、7 条子目录、1 条完成共 9 条 Info 日志' {
             New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'TestProject' | Out-Null
 
-            Should -Invoke -ModuleName IPAP Write-LogEntry -ParameterFilter { $Level -eq 'Info' } -Times 8 -Exactly
+            Should -Invoke -ModuleName IPAP Write-LogEntry -ParameterFilter { $Level -eq 'Info' } -Times 9 -Exactly
         }
     }
 }
