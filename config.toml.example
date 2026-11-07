@@ -1,28 +1,52 @@
-# config.toml.example - IPAP Workflow 项目配置模板
+﻿# config.toml.example - IPAP Workflow 项目配置模板
 # 复制此文件并重命名为 config.toml，然后根据您的环境修改配置
 
 # --- [paths] - 路径配置 ---
 [paths]
 # 漫画/翻译项目工作区的基准目录 (请根据实际环境修改)
 base_project_dir = "D:/documents/translation/01_Projects_Active"
-# 默认的项目目录名称前缀
-project_dir_prefix = ""
-# 原始文件归档目录
-archive_dir = "D:/documents/translation/02_Archive_Completed"
+# 源图片目录（待处理的漫画图片所在目录）
+# 提示：Windows 路径建议用单引号字面量字符串，例如：
+# source_dir = 'C:\Users\Name\Pictures\Manga'
+# 若使用双引号，必须将反斜杠转义为双反斜杠，例如：
+# source_dir = "C:\\Users\\Name\\Pictures\\Manga"
+source_dir = ''
+# FFmpeg/FFprobe 可执行文件路径（相对于项目根目录）
+ffmpeg_exe = "bin/ffmpeg-xxx/bin/ffmpeg.exe"
+ffprobe_exe = "bin/ffmpeg-xxx/bin/ffprobe.exe"
+# Real-CUGAN 可执行文件路径（相对于项目根目录）
+realcugan_exe = "bin/realcugan-ncnn-vulkan-xxx/realcugan-ncnn-vulkan.exe"
 
-# --- [logging] - 日志配置 ---
-[logging]
-level = "INFO"
-# Loguru 格式字符串
-format = "<green>{time:HH:mm:ss}</green> <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
-colorize = true
+
+# --- [project] - 项目信息配置 ---
+[project]
+# 作者名（用于生成项目目录名和 README）
+author = "作者名"
+# 原作品名（原文）
+original_title = "原作品名"
+# 作品中文译名
+chinese_title = "中文译名"
+# 原文简介（使用多行字符串，按需求修改）
+# 多行字符串使用三个双引号包裹，支持换行
+original_overview = """
+这是原文简介的第一行。
+这是原文简介的第二行。
+"""
+# 中文简介（使用多行字符串，按需求修改）
+chinese_overview = """
+这是中文简介的第一行。
+这是中文简介的第二行。
+"""
+
 
 # --- [app_settings] - 业务参数 ---
 [app_settings]
+# 支持的图片格式
+supported_image_formats = [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"]
 # 高清化后单张图片大小的上限目标（MB）
 # max_output_image_size_mb = 5 （暂时不要）
-# 并行处理高清化任务的最大进程数 (0 或负数表示由程序决定)
-max_workers = 8
+# 并行处理高清化任务的最大进程数 (0 表示由程序根据 CPU 核心数动态计算，默认为核心数/2)
+max_workers = 0
 # 高清化超时时间（秒）暂时不知道是单张还是整个任务，所以暂时用3600秒
 upscale_timeout_sec = 3600
 # 模型选择，默认为"models-se"，可选"models-se"或"models-pro"
