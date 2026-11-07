@@ -367,7 +367,7 @@ function Invoke-OutputTypeAudit
 .DESCRIPTION
     运行 tests/ 目录下所有 *.Tests.ps1（单元 + 集成），启用 JaCoCo 代码覆盖率，
     输出 coverage.xml 到 output/。
-    任何测试失败立即报错退出。
+    任何测试失败立即报错退出；测试通过后校验缺失行是否全部登记在 coverage-exemptions.psd1。
 .OUTPUTS
     [void]
 .NOTES
@@ -410,6 +410,10 @@ function Invoke-TestTask
     # 覆盖率报告路径
     $coverageReportPath = Join-Path -Path $script:OutputPath -ChildPath 'coverage.xml'
     Write-Output '所有测试通过'
+
+    # 覆盖率门禁：缺失行必须全部登记在 coverage-exemptions.psd1
+    Test-CoverageExemption
+
     Write-Output "覆盖率报告：$coverageReportPath"
 }
 
@@ -460,6 +464,103 @@ function Test-CodeCoverage
     # 输出覆盖率（暂不强制 100% 门禁，迁移期仅报告）
     Write-Output "代码覆盖率：$([Math]::Round($coveragePercent, 2))%（覆盖 $covered 行，未覆盖 $missed 行）"
     return $coveragePercent
+}
+
+<#
+.SYNOPSIS
+    校验覆盖率缺失行是否全部在豁免清单内
+.DESCRIPTION
+    读取 output/coverage.xml 与仓库根目录的 coverage-exemptions.psd1，做双向校验：
+    1. coverage.xml 中任何未登记的缺失行 → 失败；
+    2. 清单中已不再缺失的条目（已修复或行号漂移）→ 失败，强制同步清单。
+    通过时输出「覆盖率豁免校验通过」。
+.OUTPUTS
+    [void]
+.NOTES
+    Author:  lucas_gold
+    Website: https://github.com/1274248407
+#>
+function Test-CoverageExemption
+{
+    [CmdletBinding()]
+    [OutputType([void])]
+    param ()
+
+    $coverageReportPath = Join-Path -Path $script:OutputPath -ChildPath 'coverage.xml'
+    if (-not (Test-Path -LiteralPath $coverageReportPath))
+    {
+        Write-Error "覆盖率报告不存在：$coverageReportPath（请先运行 Test task）"
+        exit 1
+    }
+
+    $exemptionPath = Join-Path -Path $script:ModulePath -ChildPath 'coverage-exemptions.psd1'
+    if (-not (Test-Path -LiteralPath $exemptionPath))
+    {
+        Write-Error "覆盖率豁免清单不存在：$exemptionPath"
+        exit 1
+    }
+
+    # 读取豁免清单：文件 → 行号集合
+    $manifest = Import-PowerShellDataFile -LiteralPath $exemptionPath
+    $registered = @{}
+    foreach ($entry in $manifest.Exemptions)
+    {
+        $registered[[string]$entry.File] = @($entry.Lines | ForEach-Object { [int]$PSItem })
+    }
+
+    # 解析报告中的实际缺失行
+    [xml]$coverageXml = Get-Content -LiteralPath $coverageReportPath -Raw -Encoding utf8
+    $unregistered = @()
+    $observed = @{}
+    foreach ($sourceFile in $coverageXml.SelectNodes('//sourcefile'))
+    {
+        $name = [System.IO.Path]::GetFileName([string]$sourceFile.name)
+        $missed = @($sourceFile.line |
+            Where-Object { [int]$PSItem.mi -gt 0 -and [int]$PSItem.ci -eq 0 } |
+            ForEach-Object { [int]$PSItem.nr })
+        foreach ($line in $missed)
+        {
+            if (-not ($registered.ContainsKey($name) -and $registered[$name] -contains $line))
+            {
+                $unregistered += [PSCustomObject]@{ File = $name; Line = $line }
+            }
+            if (-not $observed.ContainsKey($name)) { $observed[$name] = @() }
+            $observed[$name] += $line
+        }
+    }
+
+    # 反向校验：清单里已不再缺失的条目视为过期
+    $stale = @()
+    foreach ($name in $registered.Keys)
+    {
+        foreach ($line in $registered[$name])
+        {
+            if (-not ($observed.ContainsKey($name) -and $observed[$name] -contains $line))
+            {
+                $stale += [PSCustomObject]@{ File = $name; Line = $line }
+            }
+        }
+    }
+
+    if ($unregistered.Count -gt 0)
+    {
+        Write-Host ''
+        Write-Host '以下缺失行未在 coverage-exemptions.psd1 登记：'
+        $unregistered | Format-Table -Property File, Line -AutoSize | Out-String -Stream | Write-Host
+    }
+    if ($stale.Count -gt 0)
+    {
+        Write-Host ''
+        Write-Host '以下豁免条目已不再缺失（已修复或行号漂移），请同步更新清单：'
+        $stale | Format-Table -Property File, Line -AutoSize | Out-String -Stream | Write-Host
+    }
+    if ($unregistered.Count -gt 0 -or $stale.Count -gt 0)
+    {
+        Write-Error '覆盖率豁免校验未通过'
+        exit 1
+    }
+
+    Write-Host '覆盖率豁免校验通过'
 }
 
 <#
