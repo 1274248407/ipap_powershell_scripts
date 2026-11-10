@@ -7,6 +7,8 @@
     - RealCugan：只看输出文件是否存在（实测退出码不可靠，解码/编码失败仍可能返回 0）；
     - FFmpeg：退出码为 0 且输出文件存在。
     外部进程调用通过 InvokeProcess 注入，默认直接执行真实可执行文件。
+    两个引擎都会重定向并丢弃 stderr：Real-CUGAN 会把 GPU 进度写到 stderr，
+    $ErrorActionPreference = 'Stop' 时若直接透传会被误判为终止错误。
 .PARAMETER Image
     图片文件对象，需包含 Name 属性。
 .PARAMETER OutputPath
@@ -51,21 +53,18 @@ function Invoke-UpscaleProcess {
         [AllowEmptyString()]
         [string]$ExePath,
 
-        # 默认适配器：RealCugan 不重定向输出，FFmpeg 捕获输出；均返回退出码
+        # 默认适配器：两个引擎都捕获并丢弃输出（含 stderr），只返回退出码。
+        # Real-CUGAN 会把 GPU 进度写到 stderr；在 $ErrorActionPreference = 'Stop' 下
+        # 直接透传会被当作终止错误，导致整个并行批次失败。
         [scriptblock]$InvokeProcess = {
-            param([string]$Path, [string[]]$Arguments, [bool]$CaptureOutput)
-            if ($CaptureOutput) {
-                $null = & $Path @Arguments 2>&1
-            }
-            else {
-                $null = & $Path @Arguments
-            }
+            param([string]$Path, [string[]]$Arguments)
+            $null = & $Path @Arguments 2>&1
             return $LASTEXITCODE
         }
     )
 
     try {
-        [int]$exitCode = & $InvokeProcess $ExePath $Arguments ($Engine -eq 'FFmpeg')
+        [int]$exitCode = & $InvokeProcess $ExePath $Arguments
 
         [bool]$success = if ($Engine -eq 'RealCugan') {
             # RealCugan 退出码不可靠：只以输出文件是否存在判定成功

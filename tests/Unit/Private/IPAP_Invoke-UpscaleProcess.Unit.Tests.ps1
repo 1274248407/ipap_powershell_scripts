@@ -173,7 +173,7 @@ Describe 'Invoke-UpscaleProcess Unit Tests' -Tag 'Invoke-UpscaleProcess', 'IPAP'
             [string]$script:CommandShell = $env:ComSpec
         }
 
-        It 'RealCugan 默认适配器应不重定向输出并返回退出码 0 判定成功' {
+        It 'RealCugan 默认适配器应重定向并丢弃输出后返回退出码 0 判定成功' {
             [string]$outputPath = Join-Path $TestDrive 'default-rc-ok.webp'
             [IO.File]::WriteAllBytes($outputPath, [byte[]]::new(10))
 
@@ -182,6 +182,33 @@ Describe 'Invoke-UpscaleProcess Unit Tests' -Tag 'Invoke-UpscaleProcess', 'IPAP'
 
             $result.Success | Should -BeTrue
             $result.Image | Should -Be 'a.jpg'
+            $result.Error | Should -Be ''
+        }
+
+        It 'Stop 模式下命令写 stderr 不应中断处理' {
+            [string]$outputPath = Join-Path $TestDrive 'default-stderr-stop.webp'
+            [IO.File]::WriteAllBytes($outputPath, [byte[]]::new(10))
+
+            $result = InModuleScope IPAP -Parameters @{
+                Out    = $outputPath
+                Exe    = $CommandShell
+                Engine = 'RealCugan'
+            } -ScriptBlock {
+                param($Out, $Exe, $Engine)
+                $previous = $ErrorActionPreference
+                $ErrorActionPreference = 'Stop'
+                try {
+                    $image = [PSCustomObject]@{ Name = 'a.jpg' }
+                    Invoke-UpscaleProcess -Image $image -OutputPath $Out `
+                        -Arguments @('/c', 'echo noise 1>&2 & exit 0') `
+                        -Engine $Engine -ExePath $Exe
+                }
+                finally {
+                    $ErrorActionPreference = $previous
+                }
+            }
+
+            $result.Success | Should -BeTrue
             $result.Error | Should -Be ''
         }
 

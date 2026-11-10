@@ -116,11 +116,11 @@ param (
     [string]$OutputDir
 )
 
-$ErrorActionPreference = 'Continue'
+$ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $Repo 'source\IPAP.psd1') -Force
 
-# 与 Main.ps1 的真实入口保持一致：不把 Real-CUGAN 写到 stderr 的进度行
-# 当作终止错误（$ErrorActionPreference='Stop' 会让这些行中断并行块）
+# 模块默认适配器已重定向并丢弃 stderr；这里用 Stop 验证 Real-CUGAN 的
+# GPU 进度行不会再把并行块当作终止错误
 
 # 工作目录指向仓库根，读取仓库根目录的 config.toml
 $Config = Get-Configuration -ProjectRoot $Repo
