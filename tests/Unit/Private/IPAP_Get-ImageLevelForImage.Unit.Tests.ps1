@@ -26,19 +26,23 @@ Describe 'Get-ImageLevelForImage Unit Tests' -Tag 'Get-ImageLevelForImage', 'IPA
                 [int]$ProbeExit = 0,
                 [int]$FfmpegBytes = 6144,
                 [int]$FfmpegExit = 0,
+                [double]$HighDetailThreshold = 6.0,
+                [double]$MediumDetailThreshold = 3.0,
                 [switch]$ProbeThrows,
                 [switch]$FfmpegThrows
             )
             InModuleScope IPAP -Parameters @{
-                TargetImage  = $Image
-                Output       = $ProbeOutput
-                ProbeCode    = $ProbeExit
-                Bytes        = $FfmpegBytes
-                FfmpegCode   = $FfmpegExit
-                ThrowProbe   = [bool]$ProbeThrows
-                ThrowFfmpeg  = [bool]$FfmpegThrows
+                TargetImage    = $Image
+                Output         = $ProbeOutput
+                ProbeCode      = $ProbeExit
+                Bytes          = $FfmpegBytes
+                FfmpegCode     = $FfmpegExit
+                HighThreshold  = $HighDetailThreshold
+                MediumThreshold = $MediumDetailThreshold
+                ThrowProbe     = [bool]$ProbeThrows
+                ThrowFfmpeg    = [bool]$FfmpegThrows
             } -ScriptBlock {
-                param($TargetImage, $Output, $ProbeCode, $Bytes, $FfmpegCode, $ThrowProbe, $ThrowFfmpeg)
+                param($TargetImage, $Output, $ProbeCode, $Bytes, $FfmpegCode, $HighThreshold, $MediumThreshold, $ThrowProbe, $ThrowFfmpeg)
 
                 # 使用模块作用域变量，避免脚本块动态作用域丢失局部参数
                 $script:ProbeOutputValue = $Output
@@ -64,6 +68,7 @@ Describe 'Get-ImageLevelForImage Unit Tests' -Tag 'Get-ImageLevelForImage', 'IPA
 
                 return Get-ImageLevelForImage -Index 0 -Image $TargetImage `
                     -FfprobePath 'fake-ffprobe' -FfmpegPath 'fake-ffmpeg' `
+                    -HighDetailThreshold $HighThreshold -MediumDetailThreshold $MediumThreshold `
                     -InvokeFfprobe $probe -InvokeFfmpeg $ffmpeg
             }
         }
@@ -88,6 +93,7 @@ Describe 'Get-ImageLevelForImage Unit Tests' -Tag 'Get-ImageLevelForImage', 'IPA
             $result.Level | Should -Be 0
             $result.LongEdge | Should -Be 1920
             $result.YDIF | Should -Be 6.0
+            $result.DetailError | Should -Be ''
         }
 
         It '800x600 且 YDIF 为 2.5 时应为 Level 2' {
@@ -106,6 +112,7 @@ Describe 'Get-ImageLevelForImage Unit Tests' -Tag 'Get-ImageLevelForImage', 'IPA
             $result.Level | Should -Be 1
             $result.LongEdge | Should -Be 0
             $result.YDIF | Should -Be 5.0
+            $result.DetailError | Should -Be 'FFprobe 未能解析出分辨率'
         }
 
         It 'ffprobe 输出不匹配时应回退到 Level 1 与 YDIF 5.0' {
@@ -122,6 +129,7 @@ Describe 'Get-ImageLevelForImage Unit Tests' -Tag 'Get-ImageLevelForImage', 'IPA
             $result.Level | Should -Be 1
             $result.LongEdge | Should -Be 1920
             $result.YDIF | Should -Be 5.0
+            $result.DetailError | Should -Be 'edgedetect 输出缺失或 FFmpeg 退出码非 0'
         }
 
         It 'ffmpeg 成功但未生成输出文件时应使用 YDIF 5.0' {
@@ -180,6 +188,21 @@ Describe 'Get-ImageLevelForImage Unit Tests' -Tag 'Get-ImageLevelForImage', 'IPA
             $result.Level | Should -Be 1
             $result.LongEdge | Should -Be 1920
             $result.YDIF | Should -Be 5.99
+        }
+
+        It '高细节阈值可配置：阈值 100 时 1920 宽、YDIF 6.0 应降为 Level 1' {
+            $result = Invoke-LevelWorker -Image $script:Image -HighDetailThreshold 100
+
+            $result.Level | Should -Be 1
+            $result.YDIF | Should -Be 6.0
+        }
+
+        It '中细节阈值可配置：阈值 0 时 800 宽、YDIF 2.5 应升为 Level 1' {
+            $result = Invoke-LevelWorker -Image $script:Image -ProbeOutput '800x600' -FfmpegBytes 2560 `
+                -MediumDetailThreshold 0
+
+            $result.Level | Should -Be 1
+            $result.YDIF | Should -Be 2.5
         }
     }
 
@@ -248,15 +271,16 @@ exit /b 0
     }
 
     Context 'L5 输出字段' {
-        It '结果对象应恰好包含 Index / Image / Level / LongEdge / YDIF 五个字段' {
+        It '结果对象应恰好包含 Index / Image / Level / LongEdge / YDIF / DetailError 六个字段' {
             $result = Invoke-LevelWorker -Image $script:Image
 
             @($result.PSObject.Properties.Name | Sort-Object) |
-                Should -Be @('Image', 'Index', 'Level', 'LongEdge', 'YDIF')
+                Should -Be @('DetailError', 'Image', 'Index', 'Level', 'LongEdge', 'YDIF')
             ($result.Index -is [int]) | Should -BeTrue
             ($result.Level -is [int]) | Should -BeTrue
             ($result.LongEdge -is [int]) | Should -BeTrue
             ($result.YDIF -is [double]) | Should -BeTrue
+            $result.DetailError | Should -BeOfType [string]
         }
     }
 }

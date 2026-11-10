@@ -326,6 +326,12 @@ class ApplicationConfiguration {
     # WebP 质量参数
     [int]$WebpQuality
 
+    # 高细节判定阈值（边缘图 PNG 大小，KB）
+    [double]$HighDetailThreshold
+
+    # 中细节判定阈值（边缘图 PNG 大小，KB）
+    [double]$MediumDetailThreshold
+
     <#
     .SYNOPSIS
         创建应用配置实例
@@ -362,6 +368,15 @@ class ApplicationConfiguration {
         $this.WebpEnabled = [ApplicationConfiguration]::TryBoolConvert($webpSettings.enabled ?? $true, 'enabled')
         $this.WebpLossless = [ApplicationConfiguration]::TryBoolConvert($webpSettings.lossless ?? $true, 'lossless')
         $this.WebpQuality = [int][math]::Clamp([ApplicationConfiguration]::TryIntConvert($webpSettings.quality, 'quality') ?? 100, 0, 100)            # cwebp -q: 0~100
+
+        # 分级阈值：边缘图 PNG 大小（KB），用于 Level 0/1/2 判定
+        $classifierSettings = [ApplicationConfiguration]::GetSettingsBlock($Settings.classifier, 'classifier')
+        $this.HighDetailThreshold = [double][math]::Clamp([ApplicationConfiguration]::TryDoubleConvert($classifierSettings.high_detail, 'high_detail') ?? 6.0, 0.0, 1000.0)
+        $this.MediumDetailThreshold = [double][math]::Clamp([ApplicationConfiguration]::TryDoubleConvert($classifierSettings.medium_detail, 'medium_detail') ?? 3.0, 0.0, 1000.0)
+        # 中细节阈值不得高于高细节阈值，避免配置倒置导致 Level 0/2 不可达
+        if ($this.MediumDetailThreshold -gt $this.HighDetailThreshold) {
+            $this.MediumDetailThreshold = $this.HighDetailThreshold
+        }
 
         # MaxWorkers 不大于 0 时（0 = 自动检测，负数 = 无效值），按 CPU 核心数动态计算
         $this.MaxWorkers = $this.MaxWorkers -le 0 ? [math]::Max(1, [System.Environment]::ProcessorCount / 2) : $this.MaxWorkers
@@ -422,6 +437,31 @@ class ApplicationConfiguration {
             return $parsed
         }
         throw [System.ArgumentException]::new("配置项 '$ParameterName' 的值 '$Value' 不是有效的整数")
+    }
+
+    <#
+    .SYNOPSIS
+        安全浮点转换
+    .DESCRIPTION
+        将配置值安全转换为 [double]，失败时抛出逻辑异常而非系统异常。
+        使用 InvariantCulture 解析，保证小数点在不同系统区域设置下行为一致。
+    .PARAMETER Value
+        待转换的配置值
+    .PARAMETER ParameterName
+        参数名称，用于构造友好的错误信息
+    .OUTPUTS
+        double
+    .NOTES
+        Author:  lucas_gold
+        Website: https://github.com/1274248407
+    #>
+    hidden static [object] TryDoubleConvert([object]$Value, [string]$ParameterName) {
+        if ($null -eq $Value) { return $null }
+        $parsed = 0.0
+        if ([double]::TryParse([string]$Value, [System.Globalization.NumberStyles]::Float, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$parsed)) {
+            return $parsed
+        }
+        throw [System.ArgumentException]::new("配置项 '$ParameterName' 的值 '$Value' 不是有效的数值")
     }
 
     <#

@@ -27,6 +27,15 @@ Describe 'Get-ImageLevel Unit Tests' -Tag 'Get-ImageLevel', 'IPAP' {
 
     BeforeEach {
         Mock -CommandName Write-LogEntry -ModuleName IPAP { }
+        # 分级阈值来自配置；Get-FfprobePath / Get-FfmpegPath 已 Mock，不会触发真实配置读取
+        Mock -CommandName Get-Configuration -ModuleName IPAP {
+            [pscustomobject]@{
+                App = [pscustomobject]@{
+                    HighDetailThreshold   = 6.0
+                    MediumDetailThreshold = 3.0
+                }
+            }
+        }
         # 假工具路径：worker 内部的 & 调用会抛异常，从而稳定走 Level 1 回退路径
         Mock -CommandName Get-FfprobePath -ModuleName IPAP { return 'C:\fake\ffprobe.exe' }
         Mock -CommandName Get-FfmpegPath -ModuleName IPAP { return 'C:\fake\ffmpeg.exe' }
@@ -109,15 +118,24 @@ Describe 'Get-ImageLevel Unit Tests' -Tag 'Get-ImageLevel', 'IPAP' {
     }
 
     Context 'L5 输出字段' {
-        It '结果对象应恰好包含 Index / Image / Level / LongEdge / YDIF 五个字段' {
+        It '结果对象应恰好包含 Index / Image / Level / LongEdge / YDIF / DetailError 六个字段' {
             $result = @(Get-ImageLevel -Images @($script:Images[0]))
 
             @($result[0].PSObject.Properties.Name | Sort-Object) |
-                Should -Be @('Image', 'Index', 'Level', 'LongEdge', 'YDIF')
+                Should -Be @('DetailError', 'Image', 'Index', 'Level', 'LongEdge', 'YDIF')
             ($result[0].Index -is [int]) | Should -BeTrue
             ($result[0].Level -is [int]) | Should -BeTrue
             ($result[0].LongEdge -is [int]) | Should -BeTrue
             ($result[0].YDIF -is [double]) | Should -BeTrue
+            $result[0].DetailError | Should -BeOfType [string]
+        }
+
+        It '细节测量失败时应在主 runspace 记录 Warning' {
+            $null = Get-ImageLevel -Images @($script:Images[0])
+
+            Should -Invoke -CommandName Write-LogEntry -ModuleName IPAP -ParameterFilter {
+                $Level -eq 'Warning' -and $Message -like '图片细节测量失败（已回退 YDIF=5.0）: *'
+            } -Times 1 -Exactly
         }
     }
 }

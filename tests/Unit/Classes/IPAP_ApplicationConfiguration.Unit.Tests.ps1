@@ -381,6 +381,79 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
         }
     }
 
+    Context '构造函数 - 分级阈值（L3）' {
+        It '缺少 classifier 区块时应使用默认阈值 6.0 / 3.0' {
+            InModuleScope IPAP {
+                $config = [ApplicationConfiguration]::new(@{})
+
+                $config.HighDetailThreshold | Should -Be 6.0
+                $config.MediumDetailThreshold | Should -Be 3.0
+            }
+        }
+
+        It 'classifier 提供数值时应按原值读取' {
+            InModuleScope IPAP {
+                $config = [ApplicationConfiguration]::new(@{
+                        classifier = @{ high_detail = 10.5; medium_detail = 4.5 }
+                    })
+
+                $config.HighDetailThreshold | Should -Be 10.5
+                $config.MediumDetailThreshold | Should -Be 4.5
+            }
+        }
+
+        It 'classifier 提供字符串数字时应转换为 double' {
+            InModuleScope IPAP {
+                $config = [ApplicationConfiguration]::new(@{
+                        classifier = @{ high_detail = '8.5'; medium_detail = '2.5' }
+                    })
+
+                $config.HighDetailThreshold | Should -Be 8.5
+                $config.MediumDetailThreshold | Should -Be 2.5
+            }
+        }
+
+        It 'classifier 缺失单个键时应回退对应默认值' {
+            InModuleScope IPAP {
+                $config = [ApplicationConfiguration]::new(@{ classifier = @{ high_detail = 9.0 } })
+
+                $config.HighDetailThreshold | Should -Be 9.0
+                $config.MediumDetailThreshold | Should -Be 3.0
+            }
+        }
+
+        It 'classifier 非字典时应抛 ArgumentException' {
+            { InModuleScope IPAP { [ApplicationConfiguration]::new(@{ classifier = 'bad' }) } } |
+                Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage '*classifier*'
+        }
+
+        It 'high_detail 非数值时应抛 ArgumentException' {
+            { InModuleScope IPAP { [ApplicationConfiguration]::new(@{ classifier = @{ high_detail = 'abc' } }) } } |
+                Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage '*high_detail*'
+        }
+
+        It 'medium_detail 高于 high_detail 时应钳制为 high_detail' {
+            InModuleScope IPAP {
+                $config = [ApplicationConfiguration]::new(@{
+                        classifier = @{ high_detail = 5.0; medium_detail = 9.0 }
+                    })
+
+                $config.MediumDetailThreshold | Should -Be 5.0
+            }
+        }
+
+        It '负值应钳制为 0' {
+            InModuleScope IPAP {
+                $config = [ApplicationConfiguration]::new(@{
+                        classifier = @{ high_detail = -1; medium_detail = -2 }
+                    })
+
+                $config.HighDetailThreshold | Should -Be 0
+                $config.MediumDetailThreshold | Should -Be 0
+            }
+        }
+    }
+
     Context '构造函数 - 布尔值转换（L3）' {
         It "webp.enabled 为字符串 'false' 时应转换为 `$false" {
             InModuleScope IPAP {

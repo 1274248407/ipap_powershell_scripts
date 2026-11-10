@@ -2,8 +2,10 @@
 .SYNOPSIS
     分析图片质量分级
 .DESCRIPTION
-    通过 FFprobe 获取图片分辨率，并通过 FFmpeg 去网点提取高频细节 YDIF 值。
+    通过 FFprobe 获取图片分辨率，并通过 FFmpeg 标准 edgedetect 滤镜提取边缘图，
+    以其 PNG 大小作为高频细节指标 YDIF（KB）。
     根据分辨率和 YDIF 值将图片分为三个级别：Level 0（高清跳过）、Level 1（轻度模糊，FFmpeg 锐化）、Level 2（重度模糊，Real-CUGAN AI 超分）。
+    分级阈值从配置 [classifier] 的 high_detail / medium_detail 读取，默认 6.0 / 3.0 KB。
 .PARAMETER Images
     (array, Mandatory) 图片文件对象数组，每个对象需要包含 FullName 属性。
     （适用于所有参数集）
@@ -13,7 +15,7 @@
 .INPUTS
     array
 .OUTPUTS
-    PSCustomObject (每个对象包含 Index, Image, Level, LongEdge, YDIF 属性，逐个输出)
+    PSCustomObject (每个对象包含 Index, Image, Level, LongEdge, YDIF, DetailError 属性，逐个输出)
 .NOTES
     Author:  lucas_gold
     Website: https://github.com/1274248407
@@ -32,6 +34,11 @@ function Get-ImageLevel {
     $FfprobePath = Get-FfprobePath
     $FfmpegPath = Get-FfmpegPath
 
+    # 分级阈值来自配置 [classifier]，随 worker 注入到并行 runspace
+    [object]$AppConfig = (Get-Configuration).App
+    [double]$HighDetailThreshold = $AppConfig.HighDetailThreshold
+    [double]$MediumDetailThreshold = $AppConfig.MediumDetailThreshold
+
     Write-LogEntry -Level Info -Message "开始分析 $($Images.Count) 张图片的质量分级..."
 
     # 并行分析所有图片（保留原始顺序）
@@ -45,11 +52,19 @@ function Get-ImageLevel {
     $results = $indexedImages | ForEach-Object -Parallel {
         $worker = [scriptblock]::Create($using:WorkerSource)
         & $worker -Index $PSItem.Index -Image $PSItem.Image `
-            -FfprobePath $using:FfprobePath -FfmpegPath $using:FfmpegPath
+            -FfprobePath $using:FfprobePath -FfmpegPath $using:FfmpegPath `
+            -HighDetailThreshold $using:HighDetailThreshold -MediumDetailThreshold $using:MediumDetailThreshold
     } -ThrottleLimit 8
 
     # 按原始索引排序恢复顺序
     $results = $results | Sort-Object -Property Index
+
+    # 细节测量失败的图片会回退 YDIF=5.0，在主 runspace 统一记录 Warning
+    foreach ($result in $results) {
+        if ($result.DetailError) {
+            Write-LogEntry -Level Warning -Message "图片细节测量失败（已回退 YDIF=5.0）: $($result.Image.Name) - $($result.DetailError)"
+        }
+    }
 
     Write-LogEntry -Level Info -Message "图片分级分析完成: $($results.Count) 张"
 

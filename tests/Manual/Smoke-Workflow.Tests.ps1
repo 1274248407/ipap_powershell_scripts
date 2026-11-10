@@ -98,7 +98,7 @@ Describe 'IPAP Workflow Smoke' -Tag 'Smoke', 'IPAP' {
         # 合成图片：尺寸/格式差异用于覆盖格式探测与路径分支（当前 ffmpeg 构建下均为 Level 1）
         New-SyntheticImage -Path (Join-Path $script:SrcAll 'page1.png') -Size '2000x2800' -Filter 'noise=alls=80:allf=t+u'
         New-SyntheticImage -Path (Join-Path $script:SrcAll 'page2.jpg') -Size '1200x1700' -Filter 'drawgrid=w=40:h=40:t=2:c=black'
-        New-SyntheticImage -Path (Join-Path $script:SrcAll 'page3.webp') -Size '900x1200' -Filter ''
+        New-SyntheticImage -Path (Join-Path $script:SrcAll 'page3.webp') -Size '800x1000' -Filter ''
         New-SyntheticImage -Path (Join-Path $script:RcSrc 'small.png') -Size '640x800' -Filter 'noise=alls=40:allf=t+u'
         New-SyntheticImage -Path (Join-Path $script:SrcMixed 'page1.png') -Size '1200x1700' -Filter 'drawgrid=w=40:h=40:t=2:c=black'
         New-SyntheticImage -Path (Join-Path $script:SrcMixed 'nontext\bg.png') -Size '1200x1600' -Filter 'drawbox=x=100:y=100:w=800:h=1000:c=green:t=fill'
@@ -166,11 +166,26 @@ else {
             Test-Path -LiteralPath (Join-Path $script:Project1[0].FullName '02_Preprocessing') | Should -BeTrue
         }
 
-        It '三张有文字图均产出 webp' {
+        It 'Level 1 与 Level 2 两张产出 webp' {
             $script:Project1.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
             $preprocessing = Join-Path $script:Project1[0].FullName '02_Preprocessing'
             @(Get-ChildItem -LiteralPath $preprocessing -File -Filter '*.webp' -ErrorAction SilentlyContinue).Count |
+                Should -Be 2
+        }
+
+        It 'Level 0 图片应被跳过（不产出 webp）' {
+            $script:Project1.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
+            Test-Path -LiteralPath (Join-Path $script:Project1[0].FullName '02_Preprocessing\page1.webp') | Should -BeFalse
+        }
+
+        It 'raw_source 应保留三张原图' {
+            $script:Project1.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
+            @(Get-ChildItem -LiteralPath (Join-Path $script:Project1[0].FullName '02_Preprocessing\raw_source') -File -ErrorAction SilentlyContinue).Count |
                 Should -Be 3
+        }
+
+        It 'Level 2 图片应走 Real-CUGAN 分支' {
+            $script:Run1.Output | Should -Match '有文字图 Level 2'
         }
 
         It 'README.md 存在' {

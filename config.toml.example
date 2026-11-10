@@ -67,3 +67,10 @@ enabled = true
 lossless = true
 # 压缩质量 (0-100)，仅在非无损模式下有效
 quality = 100
+
+# --- [classifier] - 图片分级阈值 ---
+[classifier]
+# 高细节阈值（边缘图 PNG 大小，KB）：长边 >= 1920 且 YDIF >= 该值判为 Level 0（跳过）
+high_detail = 6.0
+# 中细节阈值（KB）：长边 >= 1100 或 YDIF >= 该值判为 Level 1（FFmpeg）
+medium_detail = 3.0
