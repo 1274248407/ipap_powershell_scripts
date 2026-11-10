@@ -5,7 +5,8 @@
     函数化构建脚本，支持 Task 依赖图调度。提供以下 Task：
     - Build：构建模块到 output/IPAP/
     - Analyze：PSScriptAnalyzer 静态检查
-    - Test：Pester v5 测试（单元 + 集成）+ 代码覆盖率（JaCoCo）
+    - Test：Pester 测试（单元 + 集成 + 真实工具链冒烟）+ 代码覆盖率（JaCoCo）
+    - Smoke：只跑真实工具链冒烟（依赖 GPU 与 bin/ 工具）
     - Pack：打包发布 zip（强制前置 Build/Analyze/Test）
     - Release：git commit/tag/push + gh release create（强制前置 Pack）
 
@@ -13,12 +14,13 @@
     - Build     -> （无）
     - Analyze   -> （无）
     - Test      -> Build, Analyze
+    - Smoke     -> （无）
     - Pack      -> Build, Analyze, Test
     - Release   -> Pack
 
     调度器自动按依赖顺序执行，已跑过的 Task 不重复跑。
 .PARAMETER Task
-    (string[]) 要执行的 Task 列表（必填）。可选值：Build、Analyze、Test、Pack、Release。
+    (string[]) 要执行的 Task 列表（必填）。可选值：Build、Analyze、Test、Smoke、Pack、Release。
     前置依赖会自动触发，例如 -Task Pack 会依次执行 Build、Analyze、Test。
 .PARAMETER ResolveDependency
     (switch) 是否解析外部依赖（PSToml），默认 $true。幂等：已安装则跳过。
@@ -48,7 +50,7 @@
 [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidDefaultValueSwitchParameter', '')]
 param (
     [Parameter(Mandatory)]
-    [ValidateSet('Build', 'Analyze', 'Test', 'Pack', 'Release')]
+    [ValidateSet('Build', 'Analyze', 'Test', 'Smoke', 'Pack', 'Release')]
     [string[]] $Task,
     [switch] $ResolveDependency = $true,
     [switch] $UseModuleFast = $true
@@ -68,6 +70,7 @@ $script:TaskDependencies = @{
     Build   = @()
     Analyze = @()
     Test    = @('Build', 'Analyze')
+    Smoke   = @()
     Pack    = @('Build', 'Analyze', 'Test')
     Release = @('Pack')
 }
@@ -415,6 +418,44 @@ function Invoke-TestTask
     Test-CoverageExemption
 
     Write-Output "覆盖率报告：$coverageReportPath"
+}
+
+<#
+.SYNOPSIS
+    运行真实工具链冒烟
+.DESCRIPTION
+    只执行 tests/Manual 下的冒烟测试（真实 ffmpeg / Real-CUGAN，依赖 GPU）。
+    与 Test task 的单元/集成测试分开，便于在本地快速复现或验收时单独触发。
+    任何冒烟失败立即报错退出。
+.OUTPUTS
+    [void]
+.NOTES
+    Author:  lucas_gold
+    Website: https://github.com/1274248407
+#>
+function Invoke-SmokeTask
+{
+    [CmdletBinding()]
+    [OutputType([void])]
+    param ()
+
+    Write-Output '运行真实工具链冒烟...'
+
+    $pesterConfig = New-PesterConfiguration -Hashtable @{
+        Run = @{
+            Path     = (Join-Path -Path $script:ModulePath -ChildPath 'tests\Manual')
+            PassThru = $true
+        }
+    }
+
+    $testResults = Invoke-Pester -Configuration $pesterConfig
+    if ($testResults.FailedCount -gt 0)
+    {
+        Write-Error '冒烟未通过'
+        exit 1
+    }
+
+    Write-Output '冒烟通过'
 }
 
 <#
@@ -880,6 +921,7 @@ function Invoke-TaskWithDependency
         'Build' { Invoke-BuildTask }
         'Analyze' { Invoke-AnalyzeTask }
         'Test' { Invoke-TestTask }
+        'Smoke' { Invoke-SmokeTask }
         'Pack' { Invoke-PackTask }
         'Release' { Invoke-ReleaseTask }
     }
