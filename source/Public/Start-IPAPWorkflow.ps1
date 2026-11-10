@@ -10,9 +10,11 @@
     (IPAPConfiguration) 配置实例（可选），若未指定则从全局配置获取。
 .PARAMETER BaseDir
     (string) 项目基础目录（可选），若未指定则从配置读取或交互式输入。
-    三个来源汇合后统一去除首尾空白，避免带尾部空白的入参传入 New-ProjectStructure 造成目录分裂。
+    每个来源先去除首尾空白再判空：纯空白等同于未提供；交互输入为空时抛
+    [System.InvalidOperationException]。
 .PARAMETER SourceDir
     (string) 源图片目录（可选），若未指定则从配置读取或交互式输入。
+    规则与 BaseDir 相同。
 .EXAMPLE
     Start-IPAPWorkflow
     执行完整的工作流，使用配置文件或交互式输入参数。
@@ -51,24 +53,40 @@ function Start-IPAPWorkflow {
             $Config = Get-Configuration
         }
 
-        # 参数优先级：函数参数 > 配置文件 > 交互式输入
-        if (-not $BaseDir) {
-            $BaseDir = $Config.Paths.BaseProjectDir
-        }
-        if (-not $BaseDir) {
-            $BaseDir = Read-Host '请输入项目基础目录'
-        }
-
-        # 归一：在 BaseDir 的唯一汇合点去除首尾空白（覆盖函数参数 / 配置文件 / 交互式输入三个来源），
-        # 避免带尾部空白的入参传入 New-ProjectStructure 后造成目录分裂
+        # 参数优先级：函数参数 > 配置文件 > 交互式输入；每个来源先 Trim 再判空，
+        # 避免纯空白参数跳过回退、直到 New-ProjectStructure 参数绑定阶段才失败
         $BaseDir = ([string]$BaseDir).Trim()
+        if (-not $BaseDir) {
+            $BaseDir = ([string]$Config.Paths.BaseProjectDir).Trim()
+        }
+        if (-not $BaseDir) {
+            if (-not $PSCmdlet.ShouldProcess('IPAP 工作流', '读取缺失的基础目录输入')) {
+                return
+            }
+            $BaseDir = ([string](Read-Host '请输入项目基础目录')).Trim()
+            if (-not $BaseDir) {
+                $ErrorMessage = '未提供基础目录（BaseDir），且配置与交互输入均为空'
+                Write-LogEntry -Level Error -Message $ErrorMessage
+                throw [System.InvalidOperationException]::new($ErrorMessage)
+            }
+        }
 
+        $SourceDir = ([string]$SourceDir).Trim()
         if (-not $SourceDir) {
-            $SourceDir = $Config.Paths.SourceDir
+            $SourceDir = ([string]$Config.Paths.SourceDir).Trim()
         }
         if (-not $SourceDir) {
-            $SourceDir = Read-Host '请输入源图片目录'
+            if (-not $PSCmdlet.ShouldProcess('IPAP 工作流', '读取缺失的源图片目录输入')) {
+                return
+            }
+            $SourceDir = ([string](Read-Host '请输入源图片目录')).Trim()
+            if (-not $SourceDir) {
+                $ErrorMessage = '未提供源图片目录（SourceDir），且配置与交互输入均为空'
+                Write-LogEntry -Level Error -Message $ErrorMessage
+                throw [System.InvalidOperationException]::new($ErrorMessage)
+            }
         }
+
         # 这里会对图片进行排序，确保按顺序处理
         $imageInfo = Get-ImageInfo -SourceDir $SourceDir
 

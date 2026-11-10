@@ -53,6 +53,21 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
             [IPAPConfiguration]::new($paths, $tools, $app, $project)
         }
 
+        # 空路径配置：用于覆盖「配置与交互都为空」的失败路径
+        $Script:EmptyDirConfig = InModuleScope IPAP -Parameters @{ Root = $Script:ConfigRoot } -ScriptBlock {
+            param($Root)
+            $paths = [PathConfiguration]::new($Root, '', '')
+            $tools = [ToolConfiguration]::new($paths, @{})
+            $tools.RealCuganExePath = 'C:\bin\realcugan-ncnn-vulkan.exe'
+            $app = [ApplicationConfiguration]::new(@{})
+            $app.MaxWorkers = 8
+            $project = [ProjectConfiguration]::new(@{})
+            $project.Author = 'TestAuthor'
+            $project.OriginalTitle = 'TestTitle'
+            $project.ChineseTitle = '测试标题'
+            [IPAPConfiguration]::new($paths, $tools, $app, $project)
+        }
+
         # 关键：用 -Parameters 传值；InModuleScope 里读不到测试作用域的 $Script: 变量
         InModuleScope IPAP -Parameters @{ Cfg = $Script:MockConfig } -ScriptBlock {
             param($Cfg)
@@ -186,6 +201,28 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
             $Thrown.Exception.Message | Should -BeLike '复制有文字图失败: *'
             $Thrown.Exception.InnerException.Message | Should -BeExactly 'disk full'
         }
+
+        It 'BaseDir 交互输入为空时应抛 InvalidOperationException 并记录 Error' {
+            Mock -ModuleName IPAP Read-Host { return $null }
+
+            { Start-IPAPWorkflow -Config $Script:EmptyDirConfig -SourceDir 'C:\Images' } |
+                Should -Throw -ExceptionType ([System.InvalidOperationException]) -ExpectedMessage '*基础目录*'
+
+            Should -Invoke -ModuleName IPAP Write-LogEntry `
+                -ParameterFilter { $Level -eq 'Error' -and $Message -eq '未提供基础目录（BaseDir），且配置与交互输入均为空' } -Times 1 -Exactly
+            Should -Invoke -ModuleName IPAP New-ProjectStructure -Times 0 -Exactly
+        }
+
+        It 'SourceDir 交互输入为空时应抛 InvalidOperationException 并记录 Error' {
+            Mock -ModuleName IPAP Read-Host { return $null }
+
+            { Start-IPAPWorkflow -Config $Script:EmptyDirConfig -BaseDir 'C:\Projects' } |
+                Should -Throw -ExceptionType ([System.InvalidOperationException]) -ExpectedMessage '*源图片目录*'
+
+            Should -Invoke -ModuleName IPAP Write-LogEntry `
+                -ParameterFilter { $Level -eq 'Error' -and $Message -eq '未提供源图片目录（SourceDir），且配置与交互输入均为空' } -Times 1 -Exactly
+            Should -Invoke -ModuleName IPAP Get-ImageInfo -Times 0 -Exactly
+        }
     }
 
     Context 'L3 参数契约与边界数据' {
@@ -196,24 +233,18 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
                 -ParameterFilter { $BaseDir -eq 'C:\Projects' } -Times 1 -Exactly
         }
 
-        It 'BaseDir 为纯空白时应 Trim 成空串，并在参数绑定阶段被 New-ProjectStructure 拒绝' {
-            # 现状：if (-not $BaseDir) 把纯空白当作有效值，不会回退到配置；Trim 后为 ''，
-            # 由 New-ProjectStructure 的 Mandatory [string] 在「参数绑定阶段」拒绝，函数体不会执行。
-            # 该「参数优先级」不一致已登记至 doc/将来要改的地方.md
-            $Thrown = $null
+        It 'BaseDir 为纯空白时应回退到配置中的基准项目目录' {
+            Start-IPAPWorkflow -BaseDir "`t`n " -SourceDir 'C:\Images'
 
-            try {
-                Start-IPAPWorkflow -BaseDir "`t`n " -SourceDir 'C:\Images'
-            }
-            catch {
-                $Thrown = $PSItem
-            }
+            Should -Invoke -ModuleName IPAP New-ProjectStructure `
+                -ParameterFilter { $BaseDir -eq 'C:\Projects' } -Times 1 -Exactly
+        }
 
-            $Thrown | Should -Not -BeNullOrEmpty
-            $Thrown.Exception.GetType().FullName | Should -BeExactly 'System.Management.Automation.ParameterBindingValidationException'
-            $Thrown.FullyQualifiedErrorId | Should -BeLike 'ParameterArgumentValidationErrorEmptyStringNotAllowed*'
-            $Thrown.Exception.Message | Should -BeLike '*BaseDir*'
-            Should -Invoke -ModuleName IPAP New-ProjectStructure -Times 0 -Exactly
+        It 'SourceDir 为纯空白时应回退到配置中的源图片目录' {
+            Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir "`t`n "
+
+            Should -Invoke -ModuleName IPAP Get-ImageInfo `
+                -ParameterFilter { $SourceDir -eq 'C:\Images' } -Times 1 -Exactly
         }
 
         It '超长 BaseDir 应原样透传' {
@@ -422,6 +453,14 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
             Should -Invoke -ModuleName IPAP Read-Host -Times 2 -Exactly
             Should -Invoke -ModuleName IPAP New-ProjectStructure `
                 -ParameterFilter { $BaseDir -eq 'C:\FromPrompt' } -Times 1 -Exactly
+        }
+
+        It '-WhatIf 且路径为空时应零交互并直接返回' {
+            Start-IPAPWorkflow -Config $Script:EmptyDirConfig -BaseDir '' -SourceDir '' -WhatIf
+
+            Should -Invoke -ModuleName IPAP Read-Host -Times 0 -Exactly
+            Should -Invoke -ModuleName IPAP Get-ImageInfo -Times 0 -Exactly
+            Should -Invoke -ModuleName IPAP New-ProjectStructure -Times 0 -Exactly
         }
     }
 
