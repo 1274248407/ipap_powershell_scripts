@@ -93,7 +93,7 @@ Describe 'Get-ImageLevel Unit Tests' -Tag 'Get-ImageLevel', 'IPAP' {
             $result | Should -BeNullOrEmpty
             Should -Invoke -CommandName Write-LogEntry -ModuleName IPAP -ParameterFilter { $Message -eq '开始分析 0 张图片的质量分级...' } -Times 1 -Exactly
             Should -Invoke -CommandName Write-LogEntry -ModuleName IPAP -ParameterFilter { $Message -eq '图片分级分析完成: 0 张' } -Times 1 -Exactly
-            Should -Invoke -CommandName Write-LogEntry -ModuleName IPAP -ParameterFilter { $Message -eq '分级结果 - Level 0 (高清跳过): 0, Level 1 (FFmpeg): 0, Level 2 (Real-CUGAN): 0' } -Times 1 -Exactly
+            Should -Invoke -CommandName Write-LogEntry -ModuleName IPAP -ParameterFilter { $Message -eq '分级结果 - Level 0 (已高清，不放大): 0, Level 1 (FFmpeg): 0, Level 2 (Real-CUGAN): 0' } -Times 1 -Exactly
         }
     }
 
@@ -113,7 +113,7 @@ Describe 'Get-ImageLevel Unit Tests' -Tag 'Get-ImageLevel', 'IPAP' {
 
             Should -Invoke -CommandName Write-LogEntry -ModuleName IPAP -ParameterFilter { $Message -eq '开始分析 2 张图片的质量分级...' } -Times 1 -Exactly
             Should -Invoke -CommandName Write-LogEntry -ModuleName IPAP -ParameterFilter { $Message -eq '图片分级分析完成: 2 张' } -Times 1 -Exactly
-            Should -Invoke -CommandName Write-LogEntry -ModuleName IPAP -ParameterFilter { $Message -eq '分级结果 - Level 0 (高清跳过): 0, Level 1 (FFmpeg): 2, Level 2 (Real-CUGAN): 0' } -Times 1 -Exactly
+            Should -Invoke -CommandName Write-LogEntry -ModuleName IPAP -ParameterFilter { $Message -eq '分级结果 - Level 0 (已高清，不放大): 0, Level 1 (FFmpeg): 2, Level 2 (Real-CUGAN): 0' } -Times 1 -Exactly
         }
     }
 

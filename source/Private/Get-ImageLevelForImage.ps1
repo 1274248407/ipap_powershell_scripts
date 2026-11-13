@@ -4,7 +4,7 @@
 .DESCRIPTION
     通过 FFprobe 获取图片分辨率，并通过 FFmpeg 标准 edgedetect 滤镜提取边缘图，
     以其 PNG 大小作为高频细节指标 YDIF（KB）。
-    根据分辨率和 YDIF 值返回 Level 0（高清跳过）、Level 1（FFmpeg 锐化）、Level 2（Real-CUGAN）。
+    根据分辨率和 YDIF 值返回 Level 0（已高清，不放大）、Level 1（FFmpeg 锐化）、Level 2（Real-CUGAN）。
     外部进程调用通过 InvokeFfprobe / InvokeFfmpeg 注入，默认直接调用真实可执行文件；
     该接缝让单元测试无需依赖真实 ffmpeg 即可覆盖全部成功、失败与异常分支。
 .PARAMETER Index

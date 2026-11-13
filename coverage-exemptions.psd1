@@ -11,7 +11,7 @@
         }
         @{
             File   = 'Get-ImageLevel.ps1'
-            Lines  = @(53, 54)
+            Lines  = @(54, 55)
             Reason = 'ForEach-Object -Parallel 子 runspace 注入；Pester 覆盖率插桩不跨 runspace'
             Since  = '2026-11-05'
         }

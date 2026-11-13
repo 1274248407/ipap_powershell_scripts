@@ -4,10 +4,15 @@
 .SYNOPSIS
     IPAP 工作流真实工具链冒烟
 .DESCRIPTION
-    用合成图片驱动真实 ffmpeg / Real-CUGAN，验证三条路径：
-    1. Start-IPAPWorkflow 全文字图 → FFmpeg 放大，产物落到 02_Preprocessing；
-    2. Invoke-ParallelUpscale -Engine RealCugan → 直接验证 Real-CUGAN 与 GPU；
-    3. Start-IPAPWorkflow 含无文字图 → 产物落到 02_Preprocessing\original_non_text_raw。
+    用合成图片驱动真实 ffmpeg / Real-CUGAN，验证项目统一等级的四条路径：
+    1. 全部 Level 0 → 不放大，原图只进 raw_source；
+    2. 全部 Level 1 → 三张都走 FFmpeg 放大，落到 02_Preprocessing；
+    3. 有文字图 + 无文字图且同等级 → 分别落到 02_Preprocessing 与 original_non_text_raw；
+    4. 全部 Level 2 → 项目整批走 Real-CUGAN；
+    另有 Real-CUGAN 直接调用，单独验证推理链路与 GPU 可用性。
+
+    同一项目内所有页面必须同一等级（见 GLOSSARY「统一等级」），
+    因此每个场景的输入目录只放一种等级的合成图，不再混级。
 
     本文件位于 tests/Manual，会被 build.ps1 -Task Test 收集；也可用 -Task Smoke 单独运行。
     工作目录默认 %TEMP%\ipap-smoke，可用环境变量 IPAP_SMOKE_ROOT 覆盖；每次运行前清空，
@@ -36,10 +41,13 @@ Describe 'IPAP Workflow Smoke' -Tag 'Smoke', 'IPAP' {
         $script:LogDir = Join-Path $script:WorkRoot 'logs'
         $null = New-Item -ItemType Directory -Path $script:LogDir -Force
 
-        $script:SrcAll = Join-Path $script:WorkRoot 'src-all'
+        $script:SrcL0 = Join-Path $script:WorkRoot 'src-l0'
+        $script:SrcL1 = Join-Path $script:WorkRoot 'src-l1'
+        $script:SrcL2 = Join-Path $script:WorkRoot 'src-l2'
         $script:SrcMixed = Join-Path $script:WorkRoot 'src-mixed'
-        $script:RcSrc = Join-Path $script:WorkRoot 'rc-src'
-        $script:BaseAll = Join-Path $script:WorkRoot 'base-all'
+        $script:BaseL0 = Join-Path $script:WorkRoot 'base-l0'
+        $script:BaseL1 = Join-Path $script:WorkRoot 'base-l1'
+        $script:BaseL2 = Join-Path $script:WorkRoot 'base-l2'
         $script:BaseMixed = Join-Path $script:WorkRoot 'base-mixed'
         $script:OutRc = Join-Path $script:WorkRoot 'out-rc'
 
@@ -95,11 +103,21 @@ Describe 'IPAP Workflow Smoke' -Tag 'Smoke', 'IPAP' {
             }
         }
 
-        # 合成图片：尺寸/格式差异用于覆盖格式探测与路径分支（当前 ffmpeg 构建下均为 Level 1）
-        New-SyntheticImage -Path (Join-Path $script:SrcAll 'page1.png') -Size '2000x2800' -Filter 'noise=alls=80:allf=t+u'
-        New-SyntheticImage -Path (Join-Path $script:SrcAll 'page2.jpg') -Size '1200x1700' -Filter 'drawgrid=w=40:h=40:t=2:c=black'
-        New-SyntheticImage -Path (Join-Path $script:SrcAll 'page3.webp') -Size '800x1000' -Filter ''
-        New-SyntheticImage -Path (Join-Path $script:RcSrc 'small.png') -Size '640x800' -Filter 'noise=alls=40:allf=t+u'
+        # Level 0：长边 2800 且噪声密集，边缘图很大 → 高细节
+        New-SyntheticImage -Path (Join-Path $script:SrcL0 'page1.png') -Size '2000x2800' -Filter 'noise=alls=80:allf=t+u'
+        New-SyntheticImage -Path (Join-Path $script:SrcL0 'page2.jpg') -Size '2000x2800' -Filter 'noise=alls=80:allf=t+u'
+        New-SyntheticImage -Path (Join-Path $script:SrcL0 'page3.webp') -Size '2000x2800' -Filter 'noise=alls=80:allf=t+u'
+
+        # Level 1：长边 1700（>= 1100），细节中等
+        New-SyntheticImage -Path (Join-Path $script:SrcL1 'page1.png') -Size '1200x1700' -Filter 'drawgrid=w=40:h=40:t=2:c=black'
+        New-SyntheticImage -Path (Join-Path $script:SrcL1 'page2.jpg') -Size '1200x1700' -Filter 'drawgrid=w=40:h=40:t=2:c=black'
+        New-SyntheticImage -Path (Join-Path $script:SrcL1 'page3.webp') -Size '1200x1700' -Filter 'drawgrid=w=40:h=40:t=2:c=black'
+
+        # Level 2：长边 1000（< 1100）且接近空白，细节不足
+        New-SyntheticImage -Path (Join-Path $script:SrcL2 'page1.png') -Size '800x1000' -Filter ''
+        New-SyntheticImage -Path (Join-Path $script:SrcL2 'page2.jpg') -Size '800x1000' -Filter ''
+
+        # 有文字图 1 张 + 无文字图 1 张，两者单图等级都是 Level 1
         New-SyntheticImage -Path (Join-Path $script:SrcMixed 'page1.png') -Size '1200x1700' -Filter 'drawgrid=w=40:h=40:t=2:c=black'
         New-SyntheticImage -Path (Join-Path $script:SrcMixed 'nontext\bg.png') -Size '1200x1600' -Filter 'drawbox=x=100:y=100:w=800:h=1000:c=green:t=fill'
 
@@ -143,14 +161,15 @@ else {
 '@, [Text.UTF8Encoding]::new($false))
     }
 
-    Context '场景 1：全文字图 → FFmpeg' {
+    Context '场景 1：全 Level 0 项目 → 不放大' {
         BeforeAll {
+            # 无子文件夹时选项为 [1] 起始编号 [2] 自定义路径 [3] 跳过
             $script:Run1 = Invoke-SmokeRunner -RunnerArguments @(
-                '-Mode', 'workflow', '-Repo', $script:Repo, '-BaseDir', $script:BaseAll, '-SourceDir', $script:SrcAll
-            ) -InputText "4`n"
-            [IO.File]::WriteAllText((Join-Path $script:LogDir 'run1-workflow.log'), $script:Run1.Output, [Text.UTF8Encoding]::new($false))
+                '-Mode', 'workflow', '-Repo', $script:Repo, '-BaseDir', $script:BaseL0, '-SourceDir', $script:SrcL0
+            ) -InputText "3`n"
+            [IO.File]::WriteAllText((Join-Path $script:LogDir 'run1-level0.log'), $script:Run1.Output, [Text.UTF8Encoding]::new($false))
 
-            $script:Project1 = @(Get-ChildItem -LiteralPath $script:BaseAll -Directory -ErrorAction SilentlyContinue)
+            $script:Project1 = @(Get-ChildItem -LiteralPath $script:BaseL0 -Directory -ErrorAction SilentlyContinue)
         }
 
         It '工作流退出码为 0' {
@@ -161,21 +180,15 @@ else {
             $script:Project1.Count | Should -Be 1
         }
 
-        It '02_Preprocessing 存在' {
-            $script:Project1.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
-            Test-Path -LiteralPath (Join-Path $script:Project1[0].FullName '02_Preprocessing') | Should -BeTrue
+        It '项目统一等级应为 Level 0' {
+            $script:Run1.Output | Should -Match '项目统一等级: Level 0'
         }
 
-        It 'Level 1 与 Level 2 两张产出 webp' {
+        It '02_Preprocessing 根目录不应产出 webp' {
             $script:Project1.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
             $preprocessing = Join-Path $script:Project1[0].FullName '02_Preprocessing'
             @(Get-ChildItem -LiteralPath $preprocessing -File -Filter '*.webp' -ErrorAction SilentlyContinue).Count |
-                Should -Be 2
-        }
-
-        It 'Level 0 图片应被跳过（不产出 webp）' {
-            $script:Project1.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
-            Test-Path -LiteralPath (Join-Path $script:Project1[0].FullName '02_Preprocessing\page1.webp') | Should -BeFalse
+                Should -Be 0
         }
 
         It 'raw_source 应保留三张原图' {
@@ -184,71 +197,120 @@ else {
                 Should -Be 3
         }
 
-        It 'Level 2 图片应走 Real-CUGAN 分支' {
-            $script:Run1.Output | Should -Match '有文字图 Level 2'
-        }
-
         It 'README.md 存在' {
             $script:Project1.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
             Test-Path -LiteralPath (Join-Path $script:Project1[0].FullName 'README.md') | Should -BeTrue
         }
-
-        It '排版目录存在' {
-            $script:Project1.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
-            Test-Path -LiteralPath (Join-Path $script:Project1[0].FullName '03_Typesetting\final_pages') | Should -BeTrue
-        }
     }
 
-    Context '场景 2：Real-CUGAN 直接调用' {
+    Context '场景 2：全 Level 1 项目 → 整批 FFmpeg 放大' {
         BeforeAll {
             $script:Run2 = Invoke-SmokeRunner -RunnerArguments @(
-                '-Mode', 'realcugan', '-Repo', $script:Repo, '-ImagePath', (Join-Path $script:RcSrc 'small.png'),
-                '-OutputDir', $script:OutRc
-            )
-            [IO.File]::WriteAllText((Join-Path $script:LogDir 'run2-realcugan.log'), $script:Run2.Output, [Text.UTF8Encoding]::new($false))
-        }
+                '-Mode', 'workflow', '-Repo', $script:Repo, '-BaseDir', $script:BaseL1, '-SourceDir', $script:SrcL1
+            ) -InputText "3`n"
+            [IO.File]::WriteAllText((Join-Path $script:LogDir 'run2-level1.log'), $script:Run2.Output, [Text.UTF8Encoding]::new($false))
 
-        It 'Real-CUGAN 退出码为 0' {
-            $script:Run2.ExitCode | Should -Be 0
-        }
-
-        It 'Real-CUGAN 成功计数为 1' {
-            $script:Run2.Output | Should -Match 'RESULT_SUCCESS=1'
-        }
-
-        It 'Real-CUGAN 产出 webp' {
-            Test-Path -LiteralPath (Join-Path $script:OutRc 'small.webp') | Should -BeTrue
-        }
-    }
-
-    Context '场景 3：含无文字图 → original_non_text_raw' {
-        BeforeAll {
-            # 选项菜单：子文件夹存在时为 [1] 起始编号 [2] 子文件夹 [3] 自定义路径 [4] 跳过
-            $script:Run3 = Invoke-SmokeRunner -RunnerArguments @(
-                '-Mode', 'workflow', '-Repo', $script:Repo, '-BaseDir', $script:BaseMixed, '-SourceDir', $script:SrcMixed
-            ) -InputText "2`n1`n"
-            [IO.File]::WriteAllText((Join-Path $script:LogDir 'run3-nontext.log'), $script:Run3.Output, [Text.UTF8Encoding]::new($false))
-
-            $script:Project3 = @(Get-ChildItem -LiteralPath $script:BaseMixed -Directory -ErrorAction SilentlyContinue)
+            $script:Project2 = @(Get-ChildItem -LiteralPath $script:BaseL1 -Directory -ErrorAction SilentlyContinue)
         }
 
         It '工作流退出码为 0' {
+            $script:Run2.ExitCode | Should -Be 0
+        }
+
+        It '项目统一等级应为 Level 1' {
+            $script:Run2.Output | Should -Match '项目统一等级: Level 1'
+        }
+
+        It '三张图应全部产出 webp' {
+            $script:Project2.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
+            $preprocessing = Join-Path $script:Project2[0].FullName '02_Preprocessing'
+            @(Get-ChildItem -LiteralPath $preprocessing -File -Filter '*.webp' -ErrorAction SilentlyContinue).Count |
+                Should -Be 3
+        }
+
+        It 'raw_source 应保留三张原图' {
+            $script:Project2.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
+            @(Get-ChildItem -LiteralPath (Join-Path $script:Project2[0].FullName '02_Preprocessing\raw_source') -File -ErrorAction SilentlyContinue).Count |
+                Should -Be 3
+        }
+    }
+
+    Context '场景 3：Real-CUGAN 直接调用' {
+        BeforeAll {
+            $script:Run3 = Invoke-SmokeRunner -RunnerArguments @(
+                '-Mode', 'realcugan', '-Repo', $script:Repo, '-ImagePath', (Join-Path $script:SrcL2 'page1.png'),
+                '-OutputDir', $script:OutRc
+            )
+            [IO.File]::WriteAllText((Join-Path $script:LogDir 'run3-realcugan.log'), $script:Run3.Output, [Text.UTF8Encoding]::new($false))
+        }
+
+        It 'Real-CUGAN 退出码为 0' {
             $script:Run3.ExitCode | Should -Be 0
         }
 
-        It '创建了一个项目目录' {
-            $script:Project3.Count | Should -Be 1
+        It 'Real-CUGAN 成功计数为 1' {
+            $script:Run3.Output | Should -Match 'RESULT_SUCCESS=1'
+        }
+
+        It 'Real-CUGAN 产出 webp' {
+            Test-Path -LiteralPath (Join-Path $script:OutRc 'page1.webp') | Should -BeTrue
+        }
+    }
+
+    Context '场景 4：有文字图 + 无文字图，同等级 Level 1' {
+        BeforeAll {
+            # 有子文件夹时选项为 [1] 起始编号 [2] 子文件夹 [3] 自定义路径 [4] 跳过
+            $script:Run4 = Invoke-SmokeRunner -RunnerArguments @(
+                '-Mode', 'workflow', '-Repo', $script:Repo, '-BaseDir', $script:BaseMixed, '-SourceDir', $script:SrcMixed
+            ) -InputText "2`n1`n"
+            [IO.File]::WriteAllText((Join-Path $script:LogDir 'run4-mixed.log'), $script:Run4.Output, [Text.UTF8Encoding]::new($false))
+
+            $script:Project4 = @(Get-ChildItem -LiteralPath $script:BaseMixed -Directory -ErrorAction SilentlyContinue)
+        }
+
+        It '工作流退出码为 0' {
+            $script:Run4.ExitCode | Should -Be 0
+        }
+
+        It '项目统一等级应为 Level 1' {
+            $script:Run4.Output | Should -Match '项目统一等级: Level 1'
         }
 
         It '有文字图产物存在' {
-            $script:Project3.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
-            Test-Path -LiteralPath (Join-Path $script:Project3[0].FullName '02_Preprocessing\page1.webp') | Should -BeTrue
+            $script:Project4.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
+            Test-Path -LiteralPath (Join-Path $script:Project4[0].FullName '02_Preprocessing\page1.webp') | Should -BeTrue
         }
 
         It '无文字图产物存在' {
-            $script:Project3.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
-            Test-Path -LiteralPath (Join-Path $script:Project3[0].FullName '02_Preprocessing\original_non_text_raw\bg.webp') |
+            $script:Project4.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
+            Test-Path -LiteralPath (Join-Path $script:Project4[0].FullName '02_Preprocessing\original_non_text_raw\bg.webp') |
                 Should -BeTrue
+        }
+    }
+
+    Context '场景 5：全 Level 2 项目 → 整批 Real-CUGAN' {
+        BeforeAll {
+            $script:Run5 = Invoke-SmokeRunner -RunnerArguments @(
+                '-Mode', 'workflow', '-Repo', $script:Repo, '-BaseDir', $script:BaseL2, '-SourceDir', $script:SrcL2
+            ) -InputText "3`n"
+            [IO.File]::WriteAllText((Join-Path $script:LogDir 'run5-level2.log'), $script:Run5.Output, [Text.UTF8Encoding]::new($false))
+
+            $script:Project5 = @(Get-ChildItem -LiteralPath $script:BaseL2 -Directory -ErrorAction SilentlyContinue)
+        }
+
+        It '工作流退出码为 0' {
+            $script:Run5.ExitCode | Should -Be 0
+        }
+
+        It '项目统一等级应为 Level 2' {
+            $script:Run5.Output | Should -Match '项目统一等级: Level 2'
+        }
+
+        It '两张图应全部产出 webp' {
+            $script:Project5.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
+            $preprocessing = Join-Path $script:Project5[0].FullName '02_Preprocessing'
+            @(Get-ChildItem -LiteralPath $preprocessing -File -Filter '*.webp' -ErrorAction SilentlyContinue).Count |
+                Should -Be 2
         }
     }
 }

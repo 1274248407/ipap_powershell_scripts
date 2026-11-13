@@ -4,7 +4,8 @@
 .DESCRIPTION
     执行完整的 IPAP 工作流，包括环境初始化、项目创建、图片分析和处理。
     支持交互式输入或参数指定，处理过程中若发生错误则记录日志并退出。
-    使用 Get-ImageLevel 进行图片分级（Level 0/1/2），按级别分组并行处理。
+    使用 Get-ImageLevel 进行图片分级（Level 0/1/2），再用 Get-ProjectLevel 归并出项目统一等级；
+    同一项目内全部页面按该等级整批处理，保证输出宽高一致。
     参数优先级：函数参数 > 配置文件 > 交互式输入。
 .PARAMETER Config
     (IPAPConfiguration) 配置实例（可选），若未指定则从全局配置获取。
@@ -139,27 +140,33 @@ function Start-IPAPWorkflow {
                     $nonTextRawDir = Join-Path -Path $projectDir -ChildPath '02_Preprocessing\original_non_text_raw'
 
                     # 分析图片质量分级
-                    $textImageLevels = Get-ImageLevel -Images $textImages
-                    $textLevel1Levels = @($textImageLevels | Where-Object { $PSItem.Level -eq 1 })
-                    $textLevel2Levels = @($textImageLevels | Where-Object { $PSItem.Level -eq 2 })
-                    $textLevel1Images = @($textLevel1Levels | ForEach-Object { $PSItem.Image })
-                    $textLevel2Images = @($textLevel2Levels | ForEach-Object { $PSItem.Image })
-
-                    # 分析无文字图质量
-                    $nonTextLevel1Levels = @()
-                    $nonTextLevel2Levels = @()
-                    $nonTextLevel1Images = @()
-                    $nonTextLevel2Images = @()
+                    $textImageLevels = @(Get-ImageLevel -Images $textImages)
+                    $nonTextImageLevels = @()
                     if ($nonTextImages.Count -gt 0) {
-                        $nonTextImageLevels = Get-ImageLevel -Images $nonTextImages
-                        $nonTextLevel1Levels = @($nonTextImageLevels | Where-Object { $PSItem.Level -eq 1 })
-                        $nonTextLevel2Levels = @($nonTextImageLevels | Where-Object { $PSItem.Level -eq 2 })
-                        $nonTextLevel1Images = @($nonTextLevel1Levels | ForEach-Object { $PSItem.Image })
-                        $nonTextLevel2Images = @($nonTextLevel2Levels | ForEach-Object { $PSItem.Image })
+                        $nonTextImageLevels = @(Get-ImageLevel -Images $nonTextImages)
                     }
 
-                    # 判断是否需要高清化
-                    $needUpscale = @($textLevel1Levels).Count -gt 0 -or @($textLevel2Levels).Count -gt 0 -or @($nonTextLevel1Levels).Count -gt 0 -or @($nonTextLevel2Levels).Count -gt 0
+                    # 项目统一等级：同一项目内所有页面必须同一档位，否则被放大的页面宽高会与未放大的页面不一致
+                    [int]$ProjectLevel = Get-ProjectLevel `
+                        -TextLevels @($textImageLevels | ForEach-Object { [int]$PSItem.Level }) `
+                        -NonTextLevels @($nonTextImageLevels | ForEach-Object { [int]$PSItem.Level })
+
+                    [string]$ProjectLevelText = switch ($ProjectLevel) {
+                        0 { 'Level 0（已高清，不放大）' }
+                        1 { 'Level 1（FFmpeg 1.2 倍锐化）' }
+                        2 { 'Level 2（Real-CUGAN 2 倍超分）' }
+                    }
+                    Write-LogEntry -Level Info -Message "项目统一等级: $ProjectLevelText；有文字图 $($textImages.Count) 张，无文字图 $($nonTextImages.Count) 张"
+
+                    # README 的分级明细按项目等级归位：整批页面都按同一档位处理，
+                    # 因此把该类别的全部图片放进与项目等级对应的数组，而不是按单图等级拆开
+                    $textLevel1Levels = $ProjectLevel -eq 1 ? $textImageLevels : @()
+                    $textLevel2Levels = $ProjectLevel -eq 2 ? $textImageLevels : @()
+                    $nonTextLevel1Levels = $ProjectLevel -eq 1 ? $nonTextImageLevels : @()
+                    $nonTextLevel2Levels = $ProjectLevel -eq 2 ? $nonTextImageLevels : @()
+
+                    # 判断是否需要高清化：只有项目统一等级 > 0 才放大
+                    [bool]$needUpscale = $ProjectLevel -gt 0
 
                     # 一次性生成 README（包含有文字图和无文字图的高清化详情）
                     New-ReadmeFile -ProjectDir $projectDir -ProjectName $ProjectName -ImageCount $imageInfo.Count -NeedUpscale:$needUpscale -UpscaleRatio $Config.App.UpscaleRatio -BriefText $briefText -Level1ImageLevels $textLevel1Levels -Level2ImageLevels $textLevel2Levels -NonTextLevel1ImageLevels $nonTextLevel1Levels -NonTextLevel2ImageLevels $nonTextLevel2Levels
@@ -167,79 +174,78 @@ function Start-IPAPWorkflow {
                     $preprocessingDir = Join-Path -Path $projectDir -ChildPath '02_Preprocessing'
                     $maxWorkers = $Config.App.MaxWorkers
 
-                    # 高清化有文字图
-                    if ($textLevel1Images.Count -gt 0) {
-                        Write-LogEntry -Level Info -Message "有文字图 Level 1: 处理 $($textLevel1Images.Count) 张轻度模糊图片 (FFmpeg 锐化)"
-                        $result1 = Invoke-ParallelUpscale -Images $textLevel1Images -OutputDir $preprocessingDir -Engine 'FFmpeg' -MaxWorkers $maxWorkers
-                        Write-LogEntry -Level Info -Message "有文字图 Level 1 完成: 成功=$($result1.SuccessCount), 失败=$($result1.FailedCount)"
-                    }
+                    # 按项目统一等级整批路由：同项目不允许一部分页面放大、另一部分不放大
+                    if ($ProjectLevel -eq 1) {
+                        if ($textImages.Count -gt 0) {
+                            Write-LogEntry -Level Info -Message "有文字图: 处理 $($textImages.Count) 张轻度模糊图片 (FFmpeg 锐化)"
+                            $textResult = Invoke-ParallelUpscale -Images $textImages -OutputDir $preprocessingDir -Engine 'FFmpeg' -MaxWorkers $maxWorkers
+                            Write-LogEntry -Level Info -Message "有文字图 Level 1 完成: 成功=$($textResult.SuccessCount), 失败=$($textResult.FailedCount)"
+                        }
 
-                    if ($textLevel2Images.Count -gt 0) {
-                        if ($Config.Tools.RealCuganExePath) {
-                            Write-LogEntry -Level Info -Message "有文字图 Level 2: 处理 $($textLevel2Images.Count) 张重度模糊图片 (Real-CUGAN)"
-                            $modelPath = $Config.App.ModelSelect
-                            $result2 = Invoke-ParallelUpscale -Images $textLevel2Images -OutputDir $preprocessingDir -Engine 'RealCugan' -MaxWorkers $maxWorkers -ModelPath $modelPath
-                            Write-LogEntry -Level Info -Message "有文字图 Level 2 完成: 成功=$($result2.SuccessCount), 失败=$($result2.FailedCount)"
+                        if ($nonTextImages.Count -gt 0) {
+                            Write-LogEntry -Level Info -Message "无文字图: 处理 $($nonTextImages.Count) 张轻度模糊图片 (FFmpeg 锐化)"
+                            $nonTextResult = Invoke-ParallelUpscale -Images $nonTextImages -OutputDir $nonTextRawDir -Engine 'FFmpeg' -MaxWorkers $maxWorkers
+                            Write-LogEntry -Level Info -Message "无文字图 Level 1 完成: 成功=$($nonTextResult.SuccessCount), 失败=$($nonTextResult.FailedCount)"
+                        }
+                    }
+                    elseif ($ProjectLevel -eq 2) {
+                        if (-not $Config.Tools.RealCuganExePath) {
+                            $level2Count = $textImages.Count + $nonTextImages.Count
+                            Write-LogEntry -Level Warning -Message "项目等级为 Level 2: $level2Count 张图片需要 Real-CUGAN 处理，但未找到可执行文件"
                         }
                         else {
-                            Write-LogEntry -Level Warning -Message "有文字图 Level 2: $($textLevel2Images.Count) 张图片需要 Real-CUGAN 处理，但未找到可执行文件"
-                        }
-                    }
-
-                    # 高清化无文字图
-                    if ($nonTextLevel1Images.Count -gt 0) {
-                        Write-LogEntry -Level Info -Message "无文字图 Level 1: 处理 $($nonTextLevel1Images.Count) 张轻度模糊图片 (FFmpeg 锐化)"
-                        $result3 = Invoke-ParallelUpscale -Images $nonTextLevel1Images -OutputDir $nonTextRawDir -Engine 'FFmpeg' -MaxWorkers $maxWorkers
-                        Write-LogEntry -Level Info -Message "无文字图 Level 1 完成: 成功=$($result3.SuccessCount), 失败=$($result3.FailedCount)"
-                    }
-
-                    if ($nonTextLevel2Images.Count -gt 0) {
-                        if ($Config.Tools.RealCuganExePath) {
-                            Write-LogEntry -Level Info -Message "无文字图 Level 2: 处理 $($nonTextLevel2Images.Count) 张重度模糊图片 (Real-CUGAN)"
                             $modelPath = $Config.App.ModelSelect
-                            $result4 = Invoke-ParallelUpscale -Images $nonTextLevel2Images -OutputDir $nonTextRawDir -Engine 'RealCugan' -MaxWorkers $maxWorkers -ModelPath $modelPath
-                            Write-LogEntry -Level Info -Message "无文字图 Level 2 完成: 成功=$($result4.SuccessCount), 失败=$($result4.FailedCount)"
-                        }
-                        else {
-                            Write-LogEntry -Level Warning -Message "无文字图 Level 2: $($nonTextLevel2Images.Count) 张图片需要 Real-CUGAN 处理，但未找到可执行文件"
-                        }
-                    }
 
-                    # 复制不需要高清化的无文字图（Level 0）到目标目录
-                    $nonTextLevel0Levels = @($nonTextImageLevels | Where-Object { $PSItem.Level -eq 0 })
-                    $nonTextLevel0Images = @($nonTextLevel0Levels | ForEach-Object { $PSItem.Image })
-                    if ($nonTextLevel0Images.Count -gt 0) {
-                        Write-LogEntry -Level Info -Message "无文字图 Level 0: 复制 $($nonTextLevel0Images.Count) 张高清图片到 original_non_text_raw 目录"
-
-                        try {
-                            if (-not (Test-Path -LiteralPath $nonTextRawDir)) {
-                                New-Item -ItemType Directory -Path $nonTextRawDir -Force | Out-Null
+                            if ($textImages.Count -gt 0) {
+                                Write-LogEntry -Level Info -Message "有文字图: 处理 $($textImages.Count) 张重度模糊图片 (Real-CUGAN)"
+                                $textResult = Invoke-ParallelUpscale -Images $textImages -OutputDir $preprocessingDir -Engine 'RealCugan' -MaxWorkers $maxWorkers -ModelPath $modelPath
+                                Write-LogEntry -Level Info -Message "有文字图 Level 2 完成: 成功=$($textResult.SuccessCount), 失败=$($textResult.FailedCount)"
                             }
-                            foreach ($image in $nonTextLevel0Images) {
-                                Copy-Item -LiteralPath $image.FullName -Destination $nonTextRawDir -Force
-                            }
-                            Write-LogEntry -Level Info -Message "已复制 $($nonTextLevel0Images.Count) 张 Level 0 无文字图到 original_non_text_raw 目录"
-                        }
-                        catch {
-                            # 记录上下文后抛出包装异常并保留 InnerException（禁止吞异常）
-                            Write-LogEntry -Level Error -Message "复制 Level 0 无文字图失败: $($PSItem.Exception.Message)"
-                            throw [System.IO.IOException]::new("复制 Level 0 无文字图失败: $($PSItem.Exception.Message)", $PSItem.Exception)
-                        }
-                    }
 
-                    # 验证有文字图处理结果
-                    $textTotalProcessed = $textLevel1Images.Count + $textLevel2Images.Count
-                    if ($textTotalProcessed -gt 0) {
-                        $null = Test-UpscaleResult -ExpectedCount $textTotalProcessed -OutputDir $preprocessingDir
+                            if ($nonTextImages.Count -gt 0) {
+                                Write-LogEntry -Level Info -Message "无文字图: 处理 $($nonTextImages.Count) 张重度模糊图片 (Real-CUGAN)"
+                                $nonTextResult = Invoke-ParallelUpscale -Images $nonTextImages -OutputDir $nonTextRawDir -Engine 'RealCugan' -MaxWorkers $maxWorkers -ModelPath $modelPath
+                                Write-LogEntry -Level Info -Message "无文字图 Level 2 完成: 成功=$($nonTextResult.SuccessCount), 失败=$($nonTextResult.FailedCount)"
+                            }
+                        }
                     }
                     else {
-                        Write-LogEntry -Level Info -Message '所有有文字图均为高清 (Level 0)，跳过预处理'
+                        # Level 0：不放大；无文字图仍需落到 original_non_text_raw，保证页序完整
+                        if ($nonTextImages.Count -gt 0) {
+                            Write-LogEntry -Level Info -Message "无文字图: 复制 $($nonTextImages.Count) 张高清图片到 original_non_text_raw 目录"
+
+                            try {
+                                if (-not (Test-Path -LiteralPath $nonTextRawDir)) {
+                                    New-Item -ItemType Directory -Path $nonTextRawDir -Force | Out-Null
+                                }
+                                foreach ($image in $nonTextImages) {
+                                    Copy-Item -LiteralPath $image.FullName -Destination $nonTextRawDir -Force
+                                }
+                                Write-LogEntry -Level Info -Message "已复制 $($nonTextImages.Count) 张 Level 0 无文字图到 original_non_text_raw 目录"
+                            }
+                            catch {
+                                # 记录上下文后抛出包装异常并保留 InnerException（禁止吞异常）
+                                Write-LogEntry -Level Error -Message "复制 Level 0 无文字图失败: $($PSItem.Exception.Message)"
+                                throw [System.IO.IOException]::new("复制 Level 0 无文字图失败: $($PSItem.Exception.Message)", $PSItem.Exception)
+                            }
+                        }
+
+                        Write-LogEntry -Level Info -Message '项目统一等级为 Level 0，不执行高清化'
                     }
 
-                    # 验证无文字图处理结果
-                    $nonTextTotalProcessed = $nonTextLevel1Images.Count + $nonTextLevel2Images.Count
-                    if ($nonTextTotalProcessed -gt 0) {
-                        $null = Test-UpscaleResult -ExpectedCount $nonTextTotalProcessed -OutputDir $nonTextRawDir
+                    # 验证产出数量：ExpectedCount 取该类别全部图片数，而不是「需要放大的图片数」
+                    if ($ProjectLevel -eq 0) {
+                        if ($nonTextImages.Count -gt 0) {
+                            $null = Test-UpscaleResult -ExpectedCount $nonTextImages.Count -OutputDir $nonTextRawDir
+                        }
+                    }
+                    else {
+                        if ($textImages.Count -gt 0) {
+                            $null = Test-UpscaleResult -ExpectedCount $textImages.Count -OutputDir $preprocessingDir
+                        }
+                        if ($nonTextImages.Count -gt 0) {
+                            $null = Test-UpscaleResult -ExpectedCount $nonTextImages.Count -OutputDir $nonTextRawDir
+                        }
                     }
 
                     # 处理与校验全部通过后才标记完成，提示音只在真正跑完时播放

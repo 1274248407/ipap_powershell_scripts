@@ -4,8 +4,9 @@
 .DESCRIPTION
     通过 FFprobe 获取图片分辨率，并通过 FFmpeg 标准 edgedetect 滤镜提取边缘图，
     以其 PNG 大小作为高频细节指标 YDIF（KB）。
-    根据分辨率和 YDIF 值将图片分为三个级别：Level 0（高清跳过）、Level 1（轻度模糊，FFmpeg 锐化）、Level 2（重度模糊，Real-CUGAN AI 超分）。
+    根据分辨率和 YDIF 值将图片分为三个级别：Level 0（已高清，不放大）、Level 1（轻度模糊，FFmpeg 锐化）、Level 2（重度模糊，Real-CUGAN AI 超分）。
     分级阈值从配置 [classifier] 的 high_detail / medium_detail 读取，默认 6.0 / 3.0 KB。
+    单图等级需再经 Get-ProjectLevel 归并成项目统一等级后才能决定是否放大。
 .PARAMETER Images
     (array, Mandatory) 图片文件对象数组，每个对象需要包含 FullName 属性。
     （适用于所有参数集）
@@ -71,7 +72,7 @@ function Get-ImageLevel {
     $level0Count = @($results | Where-Object { $PSItem.Level -eq 0 }).Count
     $level1Count = @($results | Where-Object { $PSItem.Level -eq 1 }).Count
     $level2Count = @($results | Where-Object { $PSItem.Level -eq 2 }).Count
-    Write-LogEntry -Level Info -Message "分级结果 - Level 0 (高清跳过): $level0Count, Level 1 (FFmpeg): $level1Count, Level 2 (Real-CUGAN): $level2Count"
+    Write-LogEntry -Level Info -Message "分级结果 - Level 0 (已高清，不放大): $level0Count, Level 1 (FFmpeg): $level1Count, Level 2 (Real-CUGAN): $level2Count"
 
     return $results
 }
