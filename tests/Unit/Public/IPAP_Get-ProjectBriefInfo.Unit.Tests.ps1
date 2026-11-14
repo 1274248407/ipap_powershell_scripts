@@ -4,7 +4,7 @@
 .SYNOPSIS
     IPAP 模块 - Get-ProjectBriefInfo 单元测试
 .DESCRIPTION
-    按 doc/单元测试方法论.md 五级要求编写，测试 Get-ProjectBriefInfo 的
+    按 docs/单元测试方法论.md 五级要求编写，测试 Get-ProjectBriefInfo 的
     项目信息获取与格式化模板生成逻辑（交互输入经 Mock 隔离，无需真实控制台）：
     - Level1 正常流程：无参全交互、传参数值、混合参数调用，双值输出
       （$formatted 模板文本 + $projectName 项目名）非空且结构正确

@@ -4,7 +4,7 @@
 .SYNOPSIS
     IPAP 模块 - Read-MultiLineInput 单元测试
 .DESCRIPTION
-    按 doc/单元测试方法论.md 的 L1-L5 覆盖薄包装层：
+    按 docs/单元测试方法论.md 的 L1-L5 覆盖薄包装层：
     - L1 正常流程：Prompt 透传给 Invoke-MultiLineReader，并原样返回其行数组
     - L2 异常流程：下层抛异常时原样向上传播（本层不捕获、不改写异常）
     - L3 边界数据：内核无输出时返回空

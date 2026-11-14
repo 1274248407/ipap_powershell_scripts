@@ -4,7 +4,7 @@
 .SYNOPSIS
     IPAP 模块 - Get-ProjectLevel 单元测试
 .DESCRIPTION
-    按 doc/单元测试方法论.md 五个级别覆盖项目统一等级归并：
+    按 docs/单元测试方法论.md 五个级别覆盖项目统一等级归并：
     L1 正常归并     —— Context 'L1 正常归并'
     L2 异常输入     —— Context 'L2 非法输入'
     L3 边界数据     —— Context 'L3 边界数据'

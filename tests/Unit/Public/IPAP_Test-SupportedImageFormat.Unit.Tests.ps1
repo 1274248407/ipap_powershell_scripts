@@ -4,7 +4,7 @@
 .SYNOPSIS
     IPAP 模块 - Test-SupportedImageFormat 单元测试
 .DESCRIPTION
-    按 doc/单元测试方法论.md 五个级别覆盖 Test-SupportedImageFormat：
+    按 docs/单元测试方法论.md 五个级别覆盖 Test-SupportedImageFormat：
     L1 正常流程      —— Context 'L1 正常执行路径'
     L2 异常流程      —— Context 'L2 异常流程'
     L3 边界数据      —— Context 'L3 参数契约与边界数据'

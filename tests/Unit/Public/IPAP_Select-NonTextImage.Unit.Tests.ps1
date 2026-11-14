@@ -4,7 +4,7 @@
 .SYNOPSIS
     IPAP 模块 - Select-NonTextImage 单元测试
 .DESCRIPTION
-    按 doc/单元测试方法论.md 五个级别覆盖 Select-NonTextImage 的全部分支与输出字段：
+    按 docs/单元测试方法论.md 五个级别覆盖 Select-NonTextImage 的全部分支与输出字段：
     L1 正常流程      —— Context 'L1 正常执行路径'
     L2 异常流程      —— Context 'L2 异常流程'
     L3 边界数据      —— Context 'L3 参数契约与边界数据'
@@ -12,7 +12,7 @@
     L5 输出字段验证  —— Context 'L5 输出字段验证'
 
     该函数对外只依赖「交互输入」与「文件系统」，因此：
-    - 仅 Mock Read-Host（系统命令）与 Write-LogEntry（噪声抑制，规则例外见 doc/将来要改的地方.md）；
+    - 仅 Mock Read-Host（系统命令）与 Write-LogEntry（噪声抑制，规则例外见 docs/将来要改的地方.md）；
     - Get-ImageFile / Get-NaturalSortKey / Test-SupportedImageFormat / Test-Path 全部真实运行，
       测试数据是 TestDrive 下人造的空 .jpg/.png 文件（Get-ImageFile 只按扩展名筛选，不解码图片）。
     用户输入通过 $Script:InputQueue 队列驱动；队列为空时 Mock 返回 $null，即模拟 stdin EOF，

@@ -4,7 +4,7 @@
 .SYNOPSIS
     IPAP 模块 - Get-RealCuganArgument 单元测试
 .DESCRIPTION
-    按 doc/单元测试方法论.md 的 L1-L5 覆盖 Real-CUGAN 参数拼装纯函数：
+    按 docs/单元测试方法论.md 的 L1-L5 覆盖 Real-CUGAN 参数拼装纯函数：
     - L1 正常流程：14 个参数按固定顺序逐元素断言
     - L2 异常流程：Mandatory 参数在绑定阶段拒绝空串 / 不可转换的数值，抛
       ParameterBindingException 家族；本函数无自定义校验，故不新增源码校验

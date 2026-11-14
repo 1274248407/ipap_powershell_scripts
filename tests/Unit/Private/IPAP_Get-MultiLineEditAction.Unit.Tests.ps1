@@ -4,7 +4,7 @@
 .SYNOPSIS
     IPAP 模块 - Get-MultiLineEditAction 单元测试
 .DESCRIPTION
-    按 doc/单元测试方法论.md 覆盖按键到编辑动作的纯函数：
+    按 docs/单元测试方法论.md 覆盖按键到编辑动作的纯函数：
     L1 正常编辑、L2 非法按键忽略、L3 边界输入、
     L4 全部分支、L5 动作对象五字段。
 #>

@@ -4,7 +4,7 @@
 .SYNOPSIS
     IPAP 模块 - New-ReadmeFile 单元测试
 .DESCRIPTION
-    按 doc/单元测试方法论.md 五个级别覆盖 New-ReadmeFile 的全部分支与输出字段：
+    按 docs/单元测试方法论.md 五个级别覆盖 New-ReadmeFile 的全部分支与输出字段：
     L1 正常流程      —— Context 'L1 正常执行路径'
     L2 异常流程      —— Context 'L2 异常流程'
     L3 边界数据      —— Context 'L3 参数契约与边界数据'
@@ -21,7 +21,7 @@
     2. 源码 Out-File 未加 -NoNewline，导致文件尾部多一个空行；已修复，
        由「文件末尾不应有多余空行」用例钉住。
     3. BeforeEach 静默 Mock 内部日志函数 Write-LogEntry，与「只 Mock 模块外部依赖」
-       规则的冲突已登记至 doc/将来要改的地方.md。
+       规则的冲突已登记至 docs/将来要改的地方.md。
 #>
 
 Describe 'New-ReadmeFile Unit Tests' -Tag 'New-ReadmeFile', 'IPAP' {
@@ -41,7 +41,7 @@ Describe 'New-ReadmeFile Unit Tests' -Tag 'New-ReadmeFile', 'IPAP' {
             Select-Object -ExpandProperty FullName
         [string]$Script:ReadmePath = Join-Path $Script:TestProjectDir 'README.md'
 
-        # 静默内部日志函数（纯噪声抑制，规则例外见 doc/将来要改的地方.md）
+        # 静默内部日志函数（纯噪声抑制，规则例外见 docs/将来要改的地方.md）
         Mock Write-LogEntry -ModuleName IPAP { }
 
         # 共享基础数据（人造，不读取真实磁盘内容）

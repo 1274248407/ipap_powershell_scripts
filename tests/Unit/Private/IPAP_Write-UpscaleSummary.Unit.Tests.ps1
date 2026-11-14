@@ -4,7 +4,7 @@
 .SYNOPSIS
     IPAP 模块 - Write-UpscaleSummary 单元测试
 .DESCRIPTION
-    按 doc/单元测试方法论.md 的 L1-L5 覆盖结果聚合：
+    按 docs/单元测试方法论.md 的 L1-L5 覆盖结果聚合：
     - L1 正常流程：全部成功时计数正确、逐图输出 Info 日志、不产生 Warning
     - L2 异常流程：-Results 为 $null 时由参数绑定拒绝，抛
       ParameterBindingException 家族（空数组是合法输入，见 L3）

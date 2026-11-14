@@ -6,7 +6,7 @@
 .DESCRIPTION
     测试 IPAPConfiguration 聚合类的构造函数、静态 Load 方法、
     ReadConfigFile（TOML 读取与 Windows 路径转义修复）和 MergeSettings（浅合并逻辑）。
-    按 doc/单元测试方法论.md 的 L1-L5 覆盖：
+    按 docs/单元测试方法论.md 的 L1-L5 覆盖：
     - L1 正常流程：四子配置聚合、TOML 解析与合并、ReadConfigFile 读取
     - L2 异常流程：TOML 解析失败、转义修复失败、配置块类型非法
     - L3 边界数据：配置文件缺失 / 空文件、PSToml 不可用、多种配置组合

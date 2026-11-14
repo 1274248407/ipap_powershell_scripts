@@ -4,7 +4,7 @@
 .SYNOPSIS
     IPAP 模块 - Get-ImageInfo 单元测试
 .DESCRIPTION
-    按 doc/单元测试方法论.md 五级要求编写，测试 Get-ImageInfo 的图片目录
+    按 docs/单元测试方法论.md 五级要求编写，测试 Get-ImageInfo 的图片目录
     分析与统计功能（Mock 隔离外部依赖，无需真实图片夹具）：
     - Level1 正常流程：混合格式过滤、WebP 支持、数量/平均大小数值计算
     - Level2 异常流程：源目录不存在抛 [System.ArgumentException] 强类型异常

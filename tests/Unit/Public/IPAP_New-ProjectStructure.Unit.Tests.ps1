@@ -4,7 +4,7 @@
 .SYNOPSIS
     IPAP 模块 - New-ProjectStructure 单元测试
 .DESCRIPTION
-    按 doc/单元测试方法论.md 五个级别覆盖 New-ProjectStructure 的全部分支与输出字段：
+    按 docs/单元测试方法论.md 五个级别覆盖 New-ProjectStructure 的全部分支与输出字段：
     L1 正常流程      —— Context 'L1 正常执行路径'
     L2 异常流程      —— Context 'L2 异常流程'
     L3 边界数据      —— Context 'L3 参数契约与边界数据'
@@ -24,10 +24,10 @@
     1. 「Write-LogEntry 抛异常时真实中断类型为 RuntimeException」已随 Write-LogEntry
        回归纯日志函数（Error 级不再 throw）删除。
     2. 「空白字符串 BaseDir 不被 Mandatory 校验拦截，应进入函数体」已随源码补参数空白与尾点守卫
-       改写为断言函数入口拒绝。判据、探针实证与实施记录见 doc/将来要改的地方.md。
+       改写为断言函数入口拒绝。判据、探针实证与实施记录见 docs/将来要改的地方.md。
 
     跨文件标记不一致（IPAP_Get-ImageInfo、IPAP_Invoke-ParallelUpscale 中的同类条件断言
-    未加【临时】前缀与 Tag）已登记至 doc/将来要改的地方.md，本轮按裁决不改动那两个文件。
+    未加【临时】前缀与 Tag）已登记至 docs/将来要改的地方.md，本轮按裁决不改动那两个文件。
 .INPUTS
     无
 .OUTPUTS

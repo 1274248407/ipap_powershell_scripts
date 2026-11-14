@@ -4,7 +4,7 @@
 .SYNOPSIS
     IPAP 模块 - Invoke-MultiLineReader 单元测试
 .DESCRIPTION
-    按 doc/单元测试方法论.md 覆盖多行输入循环：
+    按 docs/单元测试方法论.md 覆盖多行输入循环：
     L1 多行累积、L2 空输入、L3 空行边界、
     L4 全部分支与渲染、L5 返回行数组与渲染输出逐项验证。
     ReadKey / WriteOutput 全部注入假实现，不触碰真实控制台。

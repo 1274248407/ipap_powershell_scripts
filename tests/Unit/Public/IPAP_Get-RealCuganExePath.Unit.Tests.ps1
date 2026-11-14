@@ -4,7 +4,7 @@
 .SYNOPSIS
     IPAP 模块 - Get-RealCuganExePath 单元测试
 .DESCRIPTION
-    按 doc/单元测试方法论.md 五级要求覆盖 Get-RealCuganExePath：
+    按 docs/单元测试方法论.md 五级要求覆盖 Get-RealCuganExePath：
     L1 正常流程 —— Context 'L1 正常流程'
     L2 异常流程 —— Context 'L2 异常流程'
     L3 边界数据 —— Context 'L3 边界数据'

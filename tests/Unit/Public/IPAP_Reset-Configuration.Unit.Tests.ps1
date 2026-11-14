@@ -4,7 +4,7 @@
 .SYNOPSIS
     IPAP 模块 - Reset-Configuration 单元测试
 .DESCRIPTION
-    按 doc/单元测试方法论.md 五级要求覆盖 Reset-Configuration：
+    按 docs/单元测试方法论.md 五级要求覆盖 Reset-Configuration：
     L1 正常流程 —— 清空模块配置实例
     L2 异常流程 —— ShouldProcess 返回 false（-WhatIf）时保留实例
     L3 边界数据 —— 实例已是 $null 时调用不抛异常

@@ -4,7 +4,7 @@
 .SYNOPSIS
     IPAP 模块 - Get-FfmpegCodec 单元测试
 .DESCRIPTION
-    按 doc/单元测试方法论.md 的 L1-L5 覆盖「输出格式 -> FFmpeg 编码器」纯映射：
+    按 docs/单元测试方法论.md 的 L1-L5 覆盖「输出格式 -> FFmpeg 编码器」纯映射：
     - L1 正常流程：jpg/jpeg/png/webp 四种格式命中映射表
     - L2 异常流程：Mandatory 字符串参数在绑定阶段拒绝空串 / $null，抛
       ParameterBindingException 家族；本函数无自定义校验

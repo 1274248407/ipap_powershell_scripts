@@ -5,7 +5,7 @@
     IPAP 模块 - ToolConfiguration 单元测试
 .DESCRIPTION
     测试 ToolConfiguration 类的构造函数与工具路径解析逻辑（ResolveToolPath / ResolveRealCuganPath）。
-    按 doc/单元测试方法论.md 覆盖：
+    按 docs/单元测试方法论.md 覆盖：
     L1 正常流程、L2 PathConfig/paths 类型校验、L3 缺失键与目录/空白边界、
     L4 分支（配置优先、PATH 回退、bin 递归查找）、L5 三个路径字段逐一断言。
     夹具：BeforeEach 共享 MockProject 目录并 Mock Get-Command 兜底，AfterEach 清理；

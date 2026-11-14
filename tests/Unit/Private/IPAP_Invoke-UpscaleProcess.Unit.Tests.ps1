@@ -4,7 +4,7 @@
 .SYNOPSIS
     IPAP 模块 - Invoke-UpscaleProcess 单元测试
 .DESCRIPTION
-    按 doc/单元测试方法论.md 的 L1-L5 覆盖单图执行器：
+    按 docs/单元测试方法论.md 的 L1-L5 覆盖单图执行器：
     - L1 成功路径：RealCugan / FFmpeg 各自的成功判据
     - L2 异常路径：进程调用抛异常时捕获并返回失败与错误消息（catch 分支）
     - L3 边界数据：退出码 0/非 0、输出文件存在/不存在、空 exe 路径

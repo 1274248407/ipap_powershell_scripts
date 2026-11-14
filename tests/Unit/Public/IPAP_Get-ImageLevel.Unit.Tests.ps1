@@ -4,7 +4,7 @@
 .SYNOPSIS
     IPAP 模块 - Get-ImageLevel 单元测试
 .DESCRIPTION
-    按 doc/单元测试方法论.md 的 L1-L5 覆盖编排层：
+    按 docs/单元测试方法论.md 的 L1-L5 覆盖编排层：
     - L1 正常流程：单图返回五字段完整结果，两次工具路径解析各调用一次
     - L2 异常流程：工具路径解析抛 FileNotFoundException 时原样向上传播（函数体不吞异常）
     - L3 边界数据：空图片数组无输出，且记录 0 计数日志

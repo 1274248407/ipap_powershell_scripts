@@ -4,7 +4,7 @@
 .SYNOPSIS
     IPAP 模块 - ProjectConfiguration 单元测试
 .DESCRIPTION
-    按 doc/单元测试方法论.md 覆盖 ProjectConfiguration 构造函数：
+    按 docs/单元测试方法论.md 覆盖 ProjectConfiguration 构造函数：
     L1 正常流程、L2 非法 project 值、L3 缺失键/空值/有序字典边界、
     L4 分支（含非空 settings 缺 project 键）、L5 5 个属性逐一断言。
     本文件是纯类测试：不 Mock、不做文件 IO、不共享跨用例状态；输入即测试数据，故不设共享夹具。

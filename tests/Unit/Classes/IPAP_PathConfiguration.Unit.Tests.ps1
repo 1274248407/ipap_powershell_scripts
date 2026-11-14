@@ -6,7 +6,7 @@
 .DESCRIPTION
     测试 PathConfiguration 的构造函数：ProjectRoot 规范化与校验、BinPath/ConfigPath 自动拼接、
     可选参数透传、属性类型与实例独立性。覆盖正常路径、可选参数组合和输入验证边界。
-    按 doc/单元测试方法论.md 的 L1-L5 覆盖：
+    按 docs/单元测试方法论.md 的 L1-L5 覆盖：
     - L1 正常流程：ProjectRoot 设置、BinPath/ConfigPath 自动拼接、构造函数可用性
     - L2 异常流程：ProjectRoot 空 / 空白 / 不存在 / 指向文件时抛强类型异常
     - L3 边界数据：可选参数组合、空字符串接受、尾随空格规范化

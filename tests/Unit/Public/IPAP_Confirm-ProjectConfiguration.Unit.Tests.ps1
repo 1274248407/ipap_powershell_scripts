@@ -4,7 +4,7 @@
 .SYNOPSIS
     IPAP 模块 - Confirm-ProjectConfiguration 单元测试
 .DESCRIPTION
-    按 doc/单元测试方法论.md 覆盖 Confirm-ProjectConfiguration：
+    按 docs/单元测试方法论.md 覆盖 Confirm-ProjectConfiguration：
     L1 正常流程、L2 非交互与异常流程、L3 边界输入、
     L4 分支与递归、L5 输出对象字段。
     夹具（§7.2 / §7.7）：BeforeEach 在模块作用域构造完整 IPAPConfiguration

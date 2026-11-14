@@ -4,7 +4,7 @@
 .SYNOPSIS
     IPAP 模块 - Invoke-ParallelUpscale 单元测试
 .DESCRIPTION
-    按 doc/单元测试方法论.md 五级要求编写，测试 Invoke-ParallelUpscale 的函数契约、
+    按 docs/单元测试方法论.md 五级要求编写，测试 Invoke-ParallelUpscale 的函数契约、
     引擎缺失异常、参数边界与并行失败路径计数（Mock 隔离外部依赖，无需真实引擎）：
     - Level1 正常流程：单图成功路径已抽到 Invoke-UpscaleProcess，由其单测覆盖；
       本文件继续验证编排层（失败计数、输出目录、参数契约、返回结构）

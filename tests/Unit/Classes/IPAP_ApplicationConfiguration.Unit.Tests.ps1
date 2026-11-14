@@ -7,7 +7,7 @@
     测试 ApplicationConfiguration 类的构造函数、三层嵌套配置读取逻辑、
     默认值回退、MaxWorkers 动态计算和静态工厂方法 Load。
     覆盖 app_settings、upscale、webp 三个配置区块的完整边界情况。
-    按 doc/单元测试方法论.md 的 L1-L5 覆盖：
+    按 docs/单元测试方法论.md 的 L1-L5 覆盖：
     - L1 正常流程：完整配置读取、MaxWorkers 动态计算、构造函数可用性
     - L2 异常流程：非法输入抛 ArgumentException
     - L3 边界数据：区块缺失 / 空设置 / 默认值回退 / 越界钳制 / 字符串数字与布尔转换

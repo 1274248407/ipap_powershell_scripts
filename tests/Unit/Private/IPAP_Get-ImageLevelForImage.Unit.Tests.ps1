@@ -4,7 +4,7 @@
 .SYNOPSIS
     IPAP 模块 - Get-ImageLevelForImage 单元测试
 .DESCRIPTION
-    按 doc/单元测试方法论.md 覆盖单图分级：
+    按 docs/单元测试方法论.md 覆盖单图分级：
     L1 正常分级、L2 外部进程失败/异常、L3 阈值边界、
     L4 分支与临时目录清理、L5 五字段验证。
     外部进程通过 -InvokeFfprobe / -InvokeFfmpeg 注入假实现，

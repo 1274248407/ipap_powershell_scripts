@@ -4,7 +4,7 @@
 .SYNOPSIS
     IPAP 模块 - Get-NaturalSortKey 单元测试
 .DESCRIPTION
-    按 doc/单元测试方法论.md 五级要求编写，测试 Get-NaturalSortKey 纯函数
+    按 docs/单元测试方法论.md 五级要求编写，测试 Get-NaturalSortKey 纯函数
     （正则分割数字 + 10 位零填充拼接）的输入输出契约：
     - Level1 正常流程：含数字字符串、纯数字、多数字、文件名数字
     - Level2 异常流程：本函数无自定义逻辑异常分支，空字符串与 $null 输入由

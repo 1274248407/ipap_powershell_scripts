@@ -4,7 +4,7 @@
 .SYNOPSIS
     IPAP 模块 - Write-LogEntry 单元测试
 .DESCRIPTION
-    按 doc/单元测试方法论.md 五级要求编写：
+    按 docs/单元测试方法论.md 五级要求编写：
     - Level1 正常流程：各级别输出 5 段完整日志（时间戳/级别/调用者/消息/换行）
     - Level2 异常流程：Error 级别不抛异常、不中断执行，输出仍为完整 5 段
     - Level3 边界数据：空串与 $null 消息原样输出、非 Error 空消息、超长/多行/Unicode 消息
