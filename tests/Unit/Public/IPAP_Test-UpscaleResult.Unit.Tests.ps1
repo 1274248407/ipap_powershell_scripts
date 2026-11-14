@@ -11,7 +11,7 @@
     L4 分支与循环    —— Context 'L4 分支与循环'
     L5 输出字段验证  —— Context 'L5 输出字段验证'
 
-    该函数是纯判断函数：输入预期数量与输出目录，输出一个 bool（或抛异常）。
+    该函数是纯判断函数：输入预期数量、输出目录与期望格式，输出一个 bool（或抛异常）。
     L5 的「字段」即这个布尔值本身，因此以「精确值 + 类型 + 无多余输出」验证。
 
     夹具全部人造：
@@ -61,12 +61,12 @@ Describe 'Test-UpscaleResult Unit Tests' -Tag 'Test-UpscaleResult', 'IPAP' {
     }
 
     Context 'L1 正常执行路径' {
-        It '实际数量等于预期时应返回 $true' {
+        It '实际数量等于预期且全部为 webp 时应返回 $true' {
             Mock -ModuleName IPAP Get-ChildItem {
                 return @(
-                    [PSCustomObject]@{ Name = 'image1.jpg'; Extension = '.jpg' }
-                    [PSCustomObject]@{ Name = 'image2.jpg'; Extension = '.jpg' }
-                    [PSCustomObject]@{ Name = 'image3.png'; Extension = '.png' }
+                    [PSCustomObject]@{ Name = 'image1.webp'; Extension = '.webp' }
+                    [PSCustomObject]@{ Name = 'image2.webp'; Extension = '.webp' }
+                    [PSCustomObject]@{ Name = 'image3.webp'; Extension = '.webp' }
                 )
             }
 
@@ -76,12 +76,23 @@ Describe 'Test-UpscaleResult Unit Tests' -Tag 'Test-UpscaleResult', 'IPAP' {
         It '实际数量少于预期时应返回 $false' {
             Mock -ModuleName IPAP Get-ChildItem {
                 return @(
-                    [PSCustomObject]@{ Name = 'image1.jpg'; Extension = '.jpg' }
-                    [PSCustomObject]@{ Name = 'image2.jpg'; Extension = '.jpg' }
+                    [PSCustomObject]@{ Name = 'image1.webp'; Extension = '.webp' }
+                    [PSCustomObject]@{ Name = 'image2.webp'; Extension = '.webp' }
                 )
             }
 
             Test-UpscaleResult -ExpectedCount 5 -OutputDir $Script:OutputDir | Should -BeFalse
+        }
+
+        It '数量对但回退复制了原图（非 webp）时应返回 $false' {
+            Mock -ModuleName IPAP Get-ChildItem {
+                return @(
+                    [PSCustomObject]@{ Name = 'image1.webp'; Extension = '.webp' }
+                    [PSCustomObject]@{ Name = 'image2.jpg'; Extension = '.jpg' }
+                )
+            }
+
+            Test-UpscaleResult -ExpectedCount 2 -OutputDir $Script:OutputDir | Should -BeFalse
         }
     }
 
@@ -178,15 +189,20 @@ Describe 'Test-UpscaleResult Unit Tests' -Tag 'Test-UpscaleResult', 'IPAP' {
 
             $Thrown.FullyQualifiedErrorId | Should -BeLike 'ParameterArgumentValidationErrorEmptyStringNotAllowed*'
         }
+
+        It 'OutputFormat 为无效值时应被参数绑定拒绝' {
+            { Test-UpscaleResult -ExpectedCount 3 -OutputDir $Script:OutputDir -OutputFormat 'gif' } |
+                Should -Throw -ExceptionType ([System.Management.Automation.ParameterBindingException])
+        }
     }
 
     Context 'L3 参数契约与边界数据' {
         It '实际数量多于预期时应返回 $false' {
             Mock -ModuleName IPAP Get-ChildItem {
                 return @(
-                    [PSCustomObject]@{ Name = 'image1.jpg'; Extension = '.jpg' }
-                    [PSCustomObject]@{ Name = 'image2.jpg'; Extension = '.jpg' }
-                    [PSCustomObject]@{ Name = 'image3.jpg'; Extension = '.jpg' }
+                    [PSCustomObject]@{ Name = 'image1.webp'; Extension = '.webp' }
+                    [PSCustomObject]@{ Name = 'image2.webp'; Extension = '.webp' }
+                    [PSCustomObject]@{ Name = 'image3.webp'; Extension = '.webp' }
                 )
             }
 
@@ -196,9 +212,9 @@ Describe 'Test-UpscaleResult Unit Tests' -Tag 'Test-UpscaleResult', 'IPAP' {
         It '应只统计支持的图片格式' {
             Mock -ModuleName IPAP Get-ChildItem {
                 return @(
-                    [PSCustomObject]@{ Name = 'image1.jpg'; Extension = '.jpg' }
+                    [PSCustomObject]@{ Name = 'image1.webp'; Extension = '.webp' }
                     [PSCustomObject]@{ Name = 'image2.txt'; Extension = '.txt' }
-                    [PSCustomObject]@{ Name = 'image3.png'; Extension = '.png' }
+                    [PSCustomObject]@{ Name = 'image3.webp'; Extension = '.webp' }
                     [PSCustomObject]@{ Name = 'image4.pdf'; Extension = '.pdf' }
                 )
             }
@@ -208,17 +224,44 @@ Describe 'Test-UpscaleResult Unit Tests' -Tag 'Test-UpscaleResult', 'IPAP' {
 
         It '预期 1 且实际 1 时应返回 $true' {
             Mock -ModuleName IPAP Get-ChildItem {
-                return @([PSCustomObject]@{ Name = 'image1.jpg'; Extension = '.jpg' })
+                return @([PSCustomObject]@{ Name = 'image1.webp'; Extension = '.webp' })
             }
 
             Test-UpscaleResult -ExpectedCount 1 -OutputDir $Script:OutputDir | Should -BeTrue
+        }
+
+        It 'OutputFormat 为 png 时应接受 png 并拒绝 webp' {
+            Mock -ModuleName IPAP Get-ChildItem {
+                return @(
+                    [PSCustomObject]@{ Name = 'image1.png'; Extension = '.png' }
+                    [PSCustomObject]@{ Name = 'image2.webp'; Extension = '.webp' }
+                )
+            }
+
+            Test-UpscaleResult -ExpectedCount 2 -OutputDir $Script:OutputDir -OutputFormat 'png' | Should -BeFalse
+        }
+
+        It '扩展名大小写不同时应视为同一格式（比较不区分大小写）' {
+            Mock -ModuleName IPAP Get-ChildItem {
+                return @([PSCustomObject]@{ Name = 'image1.WEBP'; Extension = '.WEBP' })
+            }
+
+            Test-UpscaleResult -ExpectedCount 1 -OutputDir $Script:OutputDir | Should -BeTrue
+        }
+
+        It '预期 1 且实际 1 个 webp 时 OutputFormat 显式传 webp 应返回 $true' {
+            Mock -ModuleName IPAP Get-ChildItem {
+                return @([PSCustomObject]@{ Name = 'image1.webp'; Extension = '.webp' })
+            }
+
+            Test-UpscaleResult -ExpectedCount 1 -OutputDir $Script:OutputDir -OutputFormat 'webp' | Should -BeTrue
         }
     }
 
     Context 'L4 分支与循环' {
         It '成功分支应记录 1 次 Info' {
             Mock -ModuleName IPAP Get-ChildItem {
-                return @([PSCustomObject]@{ Name = 'image1.jpg'; Extension = '.jpg' })
+                return @([PSCustomObject]@{ Name = 'image1.webp'; Extension = '.webp' })
             }
 
             $null = Test-UpscaleResult -ExpectedCount 1 -OutputDir $Script:OutputDir
@@ -229,7 +272,7 @@ Describe 'Test-UpscaleResult Unit Tests' -Tag 'Test-UpscaleResult', 'IPAP' {
 
         It '部分成功分支应记录 1 次 Warning' {
             Mock -ModuleName IPAP Get-ChildItem {
-                return @([PSCustomObject]@{ Name = 'image1.jpg'; Extension = '.jpg' })
+                return @([PSCustomObject]@{ Name = 'image1.webp'; Extension = '.webp' })
             }
 
             $null = Test-UpscaleResult -ExpectedCount 3 -OutputDir $Script:OutputDir
@@ -238,9 +281,23 @@ Describe 'Test-UpscaleResult Unit Tests' -Tag 'Test-UpscaleResult', 'IPAP' {
                 -ParameterFilter { $Level -eq 'Warning' } -Times 1 -Exactly
         }
 
+        It '格式不符分支应记录 1 次 Warning 并在消息中点名问题文件' {
+            Mock -ModuleName IPAP Get-ChildItem {
+                return @(
+                    [PSCustomObject]@{ Name = 'image1.webp'; Extension = '.webp' }
+                    [PSCustomObject]@{ Name = 'image2.jpg'; Extension = '.jpg' }
+                )
+            }
+
+            $null = Test-UpscaleResult -ExpectedCount 2 -OutputDir $Script:OutputDir
+
+            Should -Invoke -ModuleName IPAP Write-LogEntry -Times 1 -Exactly `
+                -ParameterFilter { $Level -eq 'Warning' -and $Message -like '*image2.jpg*' -and $Message -like '*期望 .webp*' }
+        }
+
         It '成功分支不应记录 Warning 或 Error' {
             Mock -ModuleName IPAP Get-ChildItem {
-                return @([PSCustomObject]@{ Name = 'image1.jpg'; Extension = '.jpg' })
+                return @([PSCustomObject]@{ Name = 'image1.webp'; Extension = '.webp' })
             }
 
             $null = Test-UpscaleResult -ExpectedCount 1 -OutputDir $Script:OutputDir
@@ -253,7 +310,7 @@ Describe 'Test-UpscaleResult Unit Tests' -Tag 'Test-UpscaleResult', 'IPAP' {
     Context 'L5 输出字段验证' {
         It '返回值类型应为 System.Boolean' {
             Mock -ModuleName IPAP Get-ChildItem {
-                return @([PSCustomObject]@{ Name = 'image1.jpg'; Extension = '.jpg' })
+                return @([PSCustomObject]@{ Name = 'image1.webp'; Extension = '.webp' })
             }
 
             Test-UpscaleResult -ExpectedCount 1 -OutputDir $Script:OutputDir |
@@ -264,12 +321,20 @@ Describe 'Test-UpscaleResult Unit Tests' -Tag 'Test-UpscaleResult', 'IPAP' {
 
         It '单次调用应只输出一个值' {
             Mock -ModuleName IPAP Get-ChildItem {
-                return @([PSCustomObject]@{ Name = 'image1.jpg'; Extension = '.jpg' })
+                return @([PSCustomObject]@{ Name = 'image1.webp'; Extension = '.webp' })
             }
 
             $Result = Test-UpscaleResult -ExpectedCount 1 -OutputDir $Script:OutputDir
 
             @($Result).Count | Should -Be 1
+        }
+
+        It 'OutputFormat 参数应使用 ValidateSet 且默认可用' {
+            $Cmd = Get-Command Test-UpscaleResult
+            $Param = $Cmd.Parameters['OutputFormat']
+
+            ($Param.Attributes | Where-Object { $PSItem.GetType().Name -eq 'ValidateSetAttribute' }).ValidValues |
+                Should -Be @('jpg', 'png', 'webp')
         }
     }
 }

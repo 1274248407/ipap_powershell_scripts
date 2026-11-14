@@ -148,6 +148,71 @@ Describe 'Invoke-ParallelUpscale Unit Tests' -Tag 'Invoke-ParallelUpscale', 'IPA
             $Cmd = Get-Command Invoke-ParallelUpscale
             @($Cmd.OutputType.Type.Name) | Should -Contain 'Hashtable'
         }
+
+        It 'Engine 参数应使用 ValidateSet 且包含 RealCugan / FFmpeg / Webp' {
+            $Cmd = Get-Command Invoke-ParallelUpscale
+            $Param = $Cmd.Parameters['Engine']
+            $SetAttr = $Param.Attributes | Where-Object { $PSItem.GetType().Name -eq 'ValidateSetAttribute' }
+
+            $SetAttr.ValidValues | Should -Contain 'RealCugan'
+            $SetAttr.ValidValues | Should -Contain 'FFmpeg'
+            $SetAttr.ValidValues | Should -Contain 'Webp'
+        }
+    }
+
+    Context 'Webp 转码引擎 - L1/L2/L4' {
+        BeforeEach {
+            $script:MockImages = @(
+                [PSCustomObject]@{ Name = 'test1.jpg'; FullName = 'C:\test1.jpg' }
+            )
+            Mock Test-Path -ModuleName IPAP -RemoveParameterType 'Path', 'LiteralPath' { return $true }
+            Mock New-Item -ModuleName IPAP { }
+            Mock Get-FfmpegPath -ModuleName IPAP { return $null }
+        }
+
+        It 'Engine Webp 应以 -NoResize 与 webp 输出格式调用 Get-FfmpegArgument' {
+            Mock Get-FfmpegArgument -ModuleName IPAP { return @('-i', 'C:\test1.jpg', '-y', 'C:\output\test1.webp') }
+
+            $null = Invoke-ParallelUpscale -Images $script:MockImages -OutputDir 'C:\output' -Engine 'Webp' -MaxWorkers 1
+
+            Should -Invoke -ModuleName IPAP Get-FfmpegArgument -Times 1 -Exactly `
+                -ParameterFilter { [bool]$NoResize -eq $true -and $OutputFormat -eq 'webp' }
+        }
+
+        It 'Engine FFmpeg 不应带 -NoResize' {
+            Mock Get-FfmpegArgument -ModuleName IPAP { return @('-i', 'C:\test1.jpg', '-y', 'C:\output\test1.webp') }
+
+            $null = Invoke-ParallelUpscale -Images $script:MockImages -OutputDir 'C:\output' -Engine 'FFmpeg' -MaxWorkers 1
+
+            Should -Invoke -ModuleName IPAP Get-FfmpegArgument -Times 1 -Exactly `
+                -ParameterFilter { [bool]$NoResize -eq $false }
+        }
+
+        It 'Engine Webp 搭配非 webp 输出格式时应抛 ArgumentException' {
+            { Invoke-ParallelUpscale -Images $script:MockImages -OutputDir 'C:\output' -Engine 'Webp' -OutputFormat 'jpg' } |
+                Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "*只能配合*webp*"
+        }
+
+        It 'Engine Webp 搭配 jpg 时应记录一次 Error 日志' {
+            $script:Caught = $null
+            try {
+                Invoke-ParallelUpscale -Images $script:MockImages -OutputDir 'C:\output' -Engine 'Webp' -OutputFormat 'png'
+            }
+            catch {
+                $script:Caught = $PSItem
+            }
+
+            $script:Caught | Should -Not -BeNullOrEmpty
+            Should -Invoke -ModuleName IPAP Write-LogEntry -Times 1 -Exactly `
+                -ParameterFilter { $Level -eq 'Error' -and $Message -like '*只能配合*' }
+        }
+
+        It 'Engine Webp 时 exe 缺失应计入失败计数（不做静默成功）' {
+            $Result = Invoke-ParallelUpscale -Images $script:MockImages -OutputDir 'C:\output' -Engine 'Webp' -MaxWorkers 1
+
+            $Result.SuccessCount | Should -Be 0
+            $Result.FailedCount  | Should -Be 1
+        }
     }
 
     Context '参数行为测试 - L3 边界数据' {

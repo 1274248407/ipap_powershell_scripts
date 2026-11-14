@@ -45,6 +45,32 @@ Describe 'Get-FfmpegArgument Unit Tests' -Tag 'Get-FfmpegArgument', 'IPAP' {
             }
         }
 
+        It '指定 -NoResize 时应去掉放大与锐化滤镜链' {
+            $result = InModuleScope IPAP {
+                Get-FfmpegArgument -ImagePath 'C:\src\a.jpg' -OutputPath 'D:\out\a.webp' -OutputFormat 'webp' -NoResize
+            }
+
+            $expected = @(
+                '-i', 'C:\src\a.jpg',
+                '-c:v', 'libwebp',
+                '-quality', '95',
+                '-y', 'D:\out\a.webp'
+            )
+            $result.Count | Should -Be $expected.Count
+            for ($i = 0; $i -lt $expected.Count; $i++) {
+                $result[$i] | Should -Be $expected[$i]
+            }
+        }
+
+        It '指定 -NoResize 时不应出现 -vf' {
+            $result = InModuleScope IPAP {
+                Get-FfmpegArgument -ImagePath 'C:\src\a.jpg' -OutputPath 'D:\out\a.webp' -OutputFormat 'webp' -NoResize
+            }
+
+            $result | Should -Not -Contain '-vf'
+            ($result -join ' ') | Should -Not -Match 'scale=|unsharp='
+        }
+
         It 'jpg 输出应使用 mjpeg 编码器' {
             $result = InModuleScope IPAP {
                 Get-FfmpegArgument -ImagePath 'C:\src\a.png' -OutputPath 'D:\out\a.jpg' -OutputFormat 'jpg'
@@ -148,6 +174,17 @@ Describe 'Get-FfmpegArgument Unit Tests' -Tag 'Get-FfmpegArgument', 'IPAP' {
 
             ($result -is [object[]]) | Should -BeTrue
             ($result -is [string[]]) | Should -BeFalse
+        }
+
+        It '-NoResize 时应返回 8 个元素且每个元素都是 string' {
+            $result = InModuleScope IPAP {
+                Get-FfmpegArgument -ImagePath 'C:\a.png' -OutputPath 'D:\b.webp' -OutputFormat 'webp' -NoResize
+            }
+
+            $result.Count | Should -Be 8
+            foreach ($item in $result) {
+                $item | Should -BeOfType [string]
+            }
         }
     }
 }

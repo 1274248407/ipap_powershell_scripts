@@ -5,7 +5,7 @@
     IPAP 工作流真实工具链冒烟
 .DESCRIPTION
     用合成图片驱动真实 ffmpeg / Real-CUGAN，验证项目统一等级的四条路径：
-    1. 全部 Level 0 → 不放大，原图只进 raw_source；
+    1. 全部 Level 0 → 不放大，但三张全部转码为 webp；
     2. 全部 Level 1 → 三张都走 FFmpeg 放大，落到 02_Preprocessing；
     3. 有文字图 + 无文字图且同等级 → 分别落到 02_Preprocessing 与 original_non_text_raw；
     4. 全部 Level 2 → 项目整批走 Real-CUGAN；
@@ -161,7 +161,7 @@ else {
 '@, [Text.UTF8Encoding]::new($false))
     }
 
-    Context '场景 1：全 Level 0 项目 → 不放大' {
+    Context '场景 1：全 Level 0 项目 → 转码不放大' {
         BeforeAll {
             # 无子文件夹时选项为 [1] 起始编号 [2] 自定义路径 [3] 跳过
             $script:Run1 = Invoke-SmokeRunner -RunnerArguments @(
@@ -184,11 +184,24 @@ else {
             $script:Run1.Output | Should -Match '项目统一等级: Level 0'
         }
 
-        It '02_Preprocessing 根目录不应产出 webp' {
+        It '三张图应全部转码为 webp' {
             $script:Project1.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
             $preprocessing = Join-Path $script:Project1[0].FullName '02_Preprocessing'
             @(Get-ChildItem -LiteralPath $preprocessing -File -Filter '*.webp' -ErrorAction SilentlyContinue).Count |
+                Should -Be 3
+        }
+
+        It '根目录不应残留非 webp 的图片文件' {
+            $script:Project1.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
+            $preprocessing = Join-Path $script:Project1[0].FullName '02_Preprocessing'
+            @(Get-ChildItem -LiteralPath $preprocessing -File |
+                    Where-Object { $PSItem.Extension -in @('.jpg', '.jpeg', '.png') }).Count |
                 Should -Be 0
+        }
+
+        It '日志应显示转码而不是放大' {
+            $script:Run1.Output | Should -Match '有文字图: 转码 3 张为 webp'
+            $script:Run1.Output | Should -Not -Match 'FFmpeg 锐化'
         }
 
         It 'raw_source 应保留三张原图' {

@@ -372,24 +372,15 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
                 -ParameterFilter { $Level -eq 'Warning' -and $Message -like '*项目等级为 Level 2*未找到可执行文件*' } -Times 1 -Exactly
         }
 
-        It '复制无文字图 Level 0 失败时应包装为 IOException 并保留内层异常' {
+        It 'Level 0 的转码失败应由 Invoke-ParallelUpscale 计数而不是中断工作流' {
             Mock -ModuleName IPAP Select-NonTextImage { return $Script:Image2 }
-            Mock -ModuleName IPAP Copy-Item -ParameterFilter { $Destination -like '*original_non_text_raw' } { throw 'disk full' }
+            Mock -ModuleName IPAP Invoke-ParallelUpscale { return @{ SuccessCount = 0; FailedCount = 1 } }
             $Script:LevelByImage = @{ '1.jpg' = 0; '2.jpg' = 0 }
-            $Thrown = $null
 
-            try {
-                Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
-            }
-            catch {
-                $Thrown = $PSItem
-            }
+            { Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images' } | Should -Not -Throw
 
-            $Thrown.Exception | Should -BeOfType ([System.IO.IOException])
-            $Thrown.Exception.Message | Should -BeLike '复制 Level 0 无文字图失败: *'
-            $Thrown.Exception.InnerException.Message | Should -BeExactly 'disk full'
             Should -Invoke -ModuleName IPAP Write-LogEntry `
-                -ParameterFilter { $Level -eq 'Error' -and $Message -eq '复制 Level 0 无文字图失败: disk full' } -Times 1 -Exactly
+                -ParameterFilter { $Message -like '*Level 0 完成: 成功=0, 失败=1*' } -Times 2 -Exactly
         }
         It '存在无文字图时应有文字图取差集' {
             Mock -ModuleName IPAP Select-NonTextImage { return $Script:Image2 }
@@ -415,28 +406,31 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
                 -Times 1 -Exactly
         }
 
-        It '无文字图 Level 0 应复制到 original_non_text_raw 并补建目录' {
+        It 'Level 0 时无文字图应转码到 original_non_text_raw 而不是复制原图' {
             Mock -ModuleName IPAP Select-NonTextImage { return $Script:Image2 }
-            Mock -ModuleName IPAP Test-Path { return $false }
             $Script:LevelByImage = @{ '1.jpg' = 0; '2.jpg' = 0 }
 
             Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
 
-            Should -Invoke -ModuleName IPAP New-Item `
-                -ParameterFilter { $Path -like '*original_non_text_raw' } -Times 1 -Exactly
-            Should -Invoke -ModuleName IPAP Copy-Item `
-                -ParameterFilter { $LiteralPath -eq 'C:\src\2.jpg' -and $Destination -like '*original_non_text_raw' } `
-                -Times 1 -Exactly
+            Should -Invoke -ModuleName IPAP Invoke-ParallelUpscale -Times 1 -Exactly `
+                -ParameterFilter {
+                    $Engine -eq 'Webp' -and $OutputDir -like '*original_non_text_raw' -and @($Images).Count -eq 1
+                }
+            Should -Invoke -ModuleName IPAP Copy-Item -Times 0 -Exactly `
+                -ParameterFilter { $Destination -like '*original_non_text_raw' }
         }
 
-        It '项目统一等级为 Level 0 时不应调用高清化' {
+        It '项目统一等级为 Level 0 时不应调用放大引擎，只做转码' {
             $Script:LevelByImage = @{ '1.jpg' = 0; '2.jpg' = 0 }
 
             Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
 
-            Should -Invoke -ModuleName IPAP Invoke-ParallelUpscale -Times 0 -Exactly
+            Should -Invoke -ModuleName IPAP Invoke-ParallelUpscale -Times 0 -Exactly `
+                -ParameterFilter { $Engine -in @('FFmpeg', 'RealCugan') }
+            Should -Invoke -ModuleName IPAP Invoke-ParallelUpscale -Times 1 -Exactly `
+                -ParameterFilter { $Engine -eq 'Webp' -and $OutputDir -like '*02_Preprocessing' }
             Should -Invoke -ModuleName IPAP Write-LogEntry `
-                -ParameterFilter { $Message -eq '项目统一等级为 Level 0，不执行高清化' } -Times 1 -Exactly
+                -ParameterFilter { $Message -like '有文字图: 转码 2 张为 webp*' } -Times 1 -Exactly
         }
 
         It 'BaseDir 与 SourceDir 在配置中也为空时应通过 Read-Host 获取' {
@@ -477,28 +471,32 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
                 -ParameterFilter { $Message -like '项目统一等级: Level 1*' } -Times 1 -Exactly
         }
 
-        It '有文字图多数为 Level 0 时应压制单图 Level 1 且不做任何放大' {
+        It '有文字图多数为 Level 0 时应压制单图 Level 1，只转码不放大' {
             $Script:Images = @($Script:Image1, $Script:Image2, $Script:Image3)
             $Script:LevelByImage = @{ '1.jpg' = 0; '2.jpg' = 0; '3.jpg' = 1 }
 
             Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
 
-            Should -Invoke -ModuleName IPAP Invoke-ParallelUpscale -Times 0 -Exactly
-            Should -Invoke -ModuleName IPAP Test-UpscaleResult -Times 0 -Exactly
+            Should -Invoke -ModuleName IPAP Invoke-ParallelUpscale -Times 0 -Exactly `
+                -ParameterFilter { $Engine -in @('FFmpeg', 'RealCugan') }
+            Should -Invoke -ModuleName IPAP Invoke-ParallelUpscale -Times 1 -Exactly `
+                -ParameterFilter { $Engine -eq 'Webp' -and @($Images).Count -eq 3 }
             Should -Invoke -ModuleName IPAP Write-LogEntry `
                 -ParameterFilter { $Message -like '项目统一等级: Level 0*' } -Times 1 -Exactly
         }
 
-        It '有文字图判 Level 0 时无文字图的 Level 2 不应放大，只复制到目标目录' {
+        It '有文字图判 Level 0 时无文字图的 Level 2 不应放大，只转码到目标目录' {
             Mock -ModuleName IPAP Select-NonTextImage { return $Script:Image2 }
             $Script:LevelByImage = @{ '1.jpg' = 0; '2.jpg' = 2 }
 
             Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
 
-            Should -Invoke -ModuleName IPAP Invoke-ParallelUpscale -Times 0 -Exactly
-            Should -Invoke -ModuleName IPAP Copy-Item `
-                -ParameterFilter { $LiteralPath -eq 'C:\src\2.jpg' -and $Destination -like '*original_non_text_raw' } `
-                -Times 1 -Exactly
+            Should -Invoke -ModuleName IPAP Invoke-ParallelUpscale -Times 0 -Exactly `
+                -ParameterFilter { $Engine -in @('FFmpeg', 'RealCugan') }
+            Should -Invoke -ModuleName IPAP Invoke-ParallelUpscale -Times 1 -Exactly `
+                -ParameterFilter {
+                    $Engine -eq 'Webp' -and $OutputDir -like '*original_non_text_raw' -and @($Images).Count -eq 1
+                }
         }
 
         It '无文字图应跟随有文字图等级而不是自身等级' {
@@ -602,7 +600,17 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
             Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
 
             Should -Invoke -ModuleName IPAP Test-UpscaleResult `
-                -ParameterFilter { $ExpectedCount -eq 2 } -Times 1 -Exactly
+                -ParameterFilter { $ExpectedCount -eq 2 -and $OutputFormat -eq 'webp' } -Times 1 -Exactly
+        }
+
+        It 'Level 0 时 -ExpectedCount 应包含单图判 Level 1 的页面' {
+            $Script:Images = @($Script:Image1, $Script:Image2, $Script:Image3)
+            $Script:LevelByImage = @{ '1.jpg' = 0; '2.jpg' = 0; '3.jpg' = 1 }
+
+            Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
+
+            Should -Invoke -ModuleName IPAP Test-UpscaleResult `
+                -ParameterFilter { $ExpectedCount -eq 3 -and $OutputFormat -eq 'webp' } -Times 1 -Exactly
         }
     }
 }

@@ -6,6 +6,7 @@
     支持交互式输入或参数指定，处理过程中若发生错误则记录日志并退出。
     使用 Get-ImageLevel 进行图片分级（Level 0/1/2），再用 Get-ProjectLevel 归并出项目统一等级；
     同一项目内全部页面按该等级整批处理，保证输出宽高一致。
+    Level 0 不放大，但统一转码为 webp，使 02_Preprocessing 全目录格式一致。
     参数优先级：函数参数 > 配置文件 > 交互式输入。
 .PARAMETER Config
     (IPAPConfiguration) 配置实例（可选），若未指定则从全局配置获取。
@@ -210,42 +211,26 @@ function Start-IPAPWorkflow {
                         }
                     }
                     else {
-                        # Level 0：不放大；无文字图仍需落到 original_non_text_raw，保证页序完整
-                        if ($nonTextImages.Count -gt 0) {
-                            Write-LogEntry -Level Info -Message "无文字图: 复制 $($nonTextImages.Count) 张高清图片到 original_non_text_raw 目录"
-
-                            try {
-                                if (-not (Test-Path -LiteralPath $nonTextRawDir)) {
-                                    New-Item -ItemType Directory -Path $nonTextRawDir -Force | Out-Null
-                                }
-                                foreach ($image in $nonTextImages) {
-                                    Copy-Item -LiteralPath $image.FullName -Destination $nonTextRawDir -Force
-                                }
-                                Write-LogEntry -Level Info -Message "已复制 $($nonTextImages.Count) 张 Level 0 无文字图到 original_non_text_raw 目录"
-                            }
-                            catch {
-                                # 记录上下文后抛出包装异常并保留 InnerException（禁止吞异常）
-                                Write-LogEntry -Level Error -Message "复制 Level 0 无文字图失败: $($PSItem.Exception.Message)"
-                                throw [System.IO.IOException]::new("复制 Level 0 无文字图失败: $($PSItem.Exception.Message)", $PSItem.Exception)
-                            }
-                        }
-
-                        Write-LogEntry -Level Info -Message '项目统一等级为 Level 0，不执行高清化'
-                    }
-
-                    # 验证产出数量：ExpectedCount 取该类别全部图片数，而不是「需要放大的图片数」
-                    if ($ProjectLevel -eq 0) {
-                        if ($nonTextImages.Count -gt 0) {
-                            $null = Test-UpscaleResult -ExpectedCount $nonTextImages.Count -OutputDir $nonTextRawDir
-                        }
-                    }
-                    else {
+                        # Level 0：不放大，但统一转码为 webp，保证 02_Preprocessing 全目录格式一致
                         if ($textImages.Count -gt 0) {
-                            $null = Test-UpscaleResult -ExpectedCount $textImages.Count -OutputDir $preprocessingDir
+                            Write-LogEntry -Level Info -Message "有文字图: 转码 $($textImages.Count) 张为 webp（不放大）"
+                            $textResult = Invoke-ParallelUpscale -Images $textImages -OutputDir $preprocessingDir -Engine 'Webp' -MaxWorkers $maxWorkers
+                            Write-LogEntry -Level Info -Message "有文字图 Level 0 完成: 成功=$($textResult.SuccessCount), 失败=$($textResult.FailedCount)"
                         }
+
                         if ($nonTextImages.Count -gt 0) {
-                            $null = Test-UpscaleResult -ExpectedCount $nonTextImages.Count -OutputDir $nonTextRawDir
+                            Write-LogEntry -Level Info -Message "无文字图: 转码 $($nonTextImages.Count) 张为 webp（不放大）"
+                            $nonTextResult = Invoke-ParallelUpscale -Images $nonTextImages -OutputDir $nonTextRawDir -Engine 'Webp' -MaxWorkers $maxWorkers
+                            Write-LogEntry -Level Info -Message "无文字图 Level 0 完成: 成功=$($nonTextResult.SuccessCount), 失败=$($nonTextResult.FailedCount)"
                         }
+                    }
+
+                    # 验证产出：数量取该类别全部图片数，扩展名必须统一为 webp
+                    if ($textImages.Count -gt 0) {
+                        $null = Test-UpscaleResult -ExpectedCount $textImages.Count -OutputDir $preprocessingDir -OutputFormat 'webp'
+                    }
+                    if ($nonTextImages.Count -gt 0) {
+                        $null = Test-UpscaleResult -ExpectedCount $nonTextImages.Count -OutputDir $nonTextRawDir -OutputFormat 'webp'
                     }
 
                     # 处理与校验全部通过后才标记完成，提示音只在真正跑完时播放
