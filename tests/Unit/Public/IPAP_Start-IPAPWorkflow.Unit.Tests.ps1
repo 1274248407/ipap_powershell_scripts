@@ -203,6 +203,45 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
             $Thrown.Exception.InnerException.Message | Should -BeExactly 'disk full'
         }
 
+        It '预处理校验返回 $false 时应抛 InvalidOperationException 并记录 Error' {
+            Mock -ModuleName IPAP Test-UpscaleResult { return $false }
+
+            { Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images' } |
+                Should -Throw -ExceptionType ([System.InvalidOperationException]) -ExpectedMessage '*预处理输出校验未通过*'
+
+            Should -Invoke -ModuleName IPAP Write-LogEntry -Times 1 -Exactly `
+                -ParameterFilter { $Level -eq 'Error' -and $Message -like '预处理输出校验未通过*' }
+        }
+
+        It '预处理校验失败时不应播放完成音' {
+            Mock -ModuleName IPAP Test-UpscaleResult { return $false }
+
+            { Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images' } | Should -Throw
+
+            Should -Invoke -ModuleName IPAP Invoke-CompletionSound -Times 0 -Exactly
+        }
+
+        It '只有无文字图校验失败时也应中断' {
+            Mock -ModuleName IPAP Select-NonTextImage { return $Script:Image2 }
+            Mock -ModuleName IPAP Test-UpscaleResult { return $OutputDir -notlike '*original_non_text_raw' }
+            $Script:LevelByImage = @{ '1.jpg' = 1; '2.jpg' = 1 }
+
+            { Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images' } |
+                Should -Throw -ExceptionType ([System.InvalidOperationException])
+
+            Should -Invoke -ModuleName IPAP Test-UpscaleResult -Times 2 -Exactly
+            Should -Invoke -ModuleName IPAP Invoke-CompletionSound -Times 0 -Exactly
+        }
+
+        It '两类校验都通过时应播放完成音' {
+            $Script:LevelByImage = @{ '1.jpg' = 1; '2.jpg' = 1 }
+
+            Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
+
+            Should -Invoke -ModuleName IPAP Test-UpscaleResult -Times 1 -Exactly
+            Should -Invoke -ModuleName IPAP Invoke-CompletionSound -Times 1 -Exactly
+        }
+
         It 'BaseDir 交互输入为空时应抛 InvalidOperationException 并记录 Error' {
             Mock -ModuleName IPAP Read-Host { return $null }
 

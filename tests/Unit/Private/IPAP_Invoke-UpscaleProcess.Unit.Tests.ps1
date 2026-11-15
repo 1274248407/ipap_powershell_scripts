@@ -293,6 +293,21 @@ Describe 'Invoke-UpscaleProcess Unit Tests' -Tag 'Invoke-UpscaleProcess', 'IPAP'
             (Test-Path -LiteralPath $outputPath) | Should -BeFalse
         }
 
+        It '失败时残留的 0 字节输出应先清除，避免目录里多出一页' {
+            [string]$sourcePath = Join-Path $script:SrcDir 'partial-page.jpg'
+            [IO.File]::WriteAllBytes($sourcePath, [byte[]]::new(42))
+            [string]$outputPath = Join-Path $script:OutDir 'partial-page.webp'
+            [IO.File]::WriteAllBytes($outputPath, [byte[]]::new(0))
+
+            $result = Invoke-ProcessTest -Engine 'Webp' -OutputPath $outputPath -ImagePath $sourcePath `
+                -CopyOriginalOnFailure -FakeProcess { param($P, $A) return 1 }
+
+            $result.Success | Should -BeFalse
+            (Test-Path -LiteralPath $outputPath) | Should -BeFalse
+            @(Get-ChildItem -LiteralPath $script:OutDir -File).Count | Should -Be 1
+            (Test-Path -LiteralPath (Join-Path $script:OutDir 'partial-page.jpg')) | Should -BeTrue
+        }
+
         It '转码成功时不应复制原图' {
             [string]$sourcePath = Join-Path $script:SrcDir 'ok-page.jpg'
             [IO.File]::WriteAllBytes($sourcePath, [byte[]]::new(42))

@@ -94,6 +94,10 @@ function Invoke-UpscaleProcess {
     # 转码兜底：失败时保留原图（原扩展名），由上层格式校验判为失败而不是悄悄放过
     if (-not $success -and $CopyOriginalOnFailure) {
         try {
+            # ffmpeg 失败时可能已留下 0 字节的残缺输出，先清掉再回退，避免目录里多出一页
+            if (Test-Path -LiteralPath $OutputPath) {
+                Remove-Item -LiteralPath $OutputPath -Force -ErrorAction Stop
+            }
             [string]$fallbackPath = Join-Path ([System.IO.Path]::GetDirectoryName($OutputPath)) ([System.IO.Path]::GetFileName($Image.FullName))
             Copy-Item -LiteralPath $Image.FullName -Destination $fallbackPath -Force -ErrorAction Stop
         }

@@ -123,6 +123,47 @@ Describe 'Get-ImageLevelForImage Unit Tests' -Tag 'Get-ImageLevelForImage', 'IPA
             $result.YDIF | Should -Be 5.0
         }
 
+        It 'ffprobe 输出为多行数组时应拼接后解析，而不是抛内部索引异常' {
+            $result = InModuleScope IPAP -Parameters @{ TargetImage = $script:Image } -ScriptBlock {
+                param($TargetImage)
+                $probe = {
+                    param($Path, $Arguments)
+                    return [PSCustomObject]@{ Output = @('1920x1080', ''); ExitCode = 0 }
+                }
+                $ffmpeg = {
+                    param($Path, $Arguments)
+                    [IO.File]::WriteAllBytes($Arguments[-1], [byte[]]::new(6144))
+                    return [PSCustomObject]@{ Output = ''; ExitCode = 0 }
+                }
+                Get-ImageLevelForImage -Index 0 -Image $TargetImage `
+                    -FfprobePath 'fake-ffprobe' -FfmpegPath 'fake-ffmpeg' `
+                    -InvokeFfprobe $probe -InvokeFfmpeg $ffmpeg
+            }
+
+            $result.LongEdge | Should -Be 1920
+            $result.DetailError | Should -Be ''
+        }
+
+        It 'ffprobe 多行数组中不含尺寸时应给出可读原因而不是内部异常消息' {
+            $result = InModuleScope IPAP -Parameters @{ TargetImage = $script:Image } -ScriptBlock {
+                param($TargetImage)
+                $probe = {
+                    param($Path, $Arguments)
+                    return [PSCustomObject]@{ Output = @('Invalid data found when processing input', ''); ExitCode = 0 }
+                }
+                $ffmpeg = {
+                    param($Path, $Arguments)
+                    return [PSCustomObject]@{ Output = ''; ExitCode = 1 }
+                }
+                Get-ImageLevelForImage -Index 0 -Image $TargetImage `
+                    -FfprobePath 'fake-ffprobe' -FfmpegPath 'fake-ffmpeg' `
+                    -InvokeFfprobe $probe -InvokeFfmpeg $ffmpeg
+            }
+
+            $result.YDIF | Should -Be 5.0
+            $result.DetailError | Should -Be 'FFprobe 未能解析出分辨率'
+        }
+
         It 'ffmpeg 非零退出时应保留长边并使用 YDIF 5.0' {
             $result = Invoke-LevelWorker -Image $script:Image -FfmpegExit 1
 

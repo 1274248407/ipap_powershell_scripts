@@ -66,8 +66,14 @@ function Test-UpscaleResult {
     $successRate = [math]::Round(($actualCount / $ExpectedCount) * 100, 1)
 
     if ($actualCount -ne $ExpectedCount) {
-        $failedCount = $ExpectedCount - $actualCount
-        Write-LogEntry -Level Warning -Message "并行处理部分完成 - 预期: $ExpectedCount, 实际: $actualCount, 失败: $failedCount ($successRate%)"
+        if ($actualCount -lt $ExpectedCount) {
+            $missingCount = $ExpectedCount - $actualCount
+            Write-LogEntry -Level Warning -Message "并行处理部分完成 - 预期: $ExpectedCount, 实际: $actualCount, 缺少: $missingCount ($successRate%)"
+        }
+        else {
+            $extraCount = $actualCount - $ExpectedCount
+            Write-LogEntry -Level Warning -Message "输出数量多于预期，可能存在残留文件 - 预期: $ExpectedCount, 实际: $actualCount, 多出: $extraCount"
+        }
         return $false
     }
 

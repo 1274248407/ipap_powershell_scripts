@@ -9,6 +9,7 @@
     2. 全部 Level 1 → 三张都走 FFmpeg 放大，落到 02_Preprocessing；
     3. 有文字图 + 无文字图且同等级 → 分别落到 02_Preprocessing 与 original_non_text_raw；
     4. 全部 Level 2 → 项目整批走 Real-CUGAN；
+    5. 含损坏图片 → 转码失败兜底复制原图、校验失败、退出码非零；
     另有 Real-CUGAN 直接调用，单独验证推理链路与 GPU 可用性。
 
     同一项目内所有页面必须同一等级（见 GLOSSARY「统一等级」），
@@ -45,10 +46,12 @@ Describe 'IPAP Workflow Smoke' -Tag 'Smoke', 'IPAP' {
         $script:SrcL1 = Join-Path $script:WorkRoot 'src-l1'
         $script:SrcL2 = Join-Path $script:WorkRoot 'src-l2'
         $script:SrcMixed = Join-Path $script:WorkRoot 'src-mixed'
+        $script:SrcBroken = Join-Path $script:WorkRoot 'src-broken'
         $script:BaseL0 = Join-Path $script:WorkRoot 'base-l0'
         $script:BaseL1 = Join-Path $script:WorkRoot 'base-l1'
         $script:BaseL2 = Join-Path $script:WorkRoot 'base-l2'
         $script:BaseMixed = Join-Path $script:WorkRoot 'base-mixed'
+        $script:BaseBroken = Join-Path $script:WorkRoot 'base-broken'
         $script:OutRc = Join-Path $script:WorkRoot 'out-rc'
 
         # 定位真实工具
@@ -120,6 +123,12 @@ Describe 'IPAP Workflow Smoke' -Tag 'Smoke', 'IPAP' {
         # 有文字图 1 张 + 无文字图 1 张，两者单图等级都是 Level 1
         New-SyntheticImage -Path (Join-Path $script:SrcMixed 'page1.png') -Size '1200x1700' -Filter 'drawgrid=w=40:h=40:t=2:c=black'
         New-SyntheticImage -Path (Join-Path $script:SrcMixed 'nontext\bg.png') -Size '1200x1600' -Filter 'drawbox=x=100:y=100:w=800:h=1000:c=green:t=fill'
+
+        # 故意损坏的图片：扩展名合法但内容不是图片，用于验证「转码失败 → 兜底复制 → 校验失败 → 退出码非零」
+        New-SyntheticImage -Path (Join-Path $script:SrcBroken 'page1.png') -Size '2000x2800' -Filter 'noise=alls=80:allf=t+u'
+        New-SyntheticImage -Path (Join-Path $script:SrcBroken 'page2.png') -Size '2000x2800' -Filter 'noise=alls=80:allf=t+u'
+        $null = New-Item -ItemType Directory -Path $script:SrcBroken -Force
+        [IO.File]::WriteAllText((Join-Path $script:SrcBroken 'broken.jpg'), 'this is not an image')
 
         # 子进程 runner：隔离模块状态，并由标准输入驱动交互选择
         $script:Runner = Join-Path $script:WorkRoot 'runner.ps1'
@@ -324,6 +333,40 @@ else {
             $preprocessing = Join-Path $script:Project5[0].FullName '02_Preprocessing'
             @(Get-ChildItem -LiteralPath $preprocessing -File -Filter '*.webp' -ErrorAction SilentlyContinue).Count |
                 Should -Be 2
+        }
+    }
+
+    Context '场景 6：转码失败 → 兜底复制原图 → 校验失败 → 退出码非零' {
+        BeforeAll {
+            $script:Run6 = Invoke-SmokeRunner -RunnerArguments @(
+                '-Mode', 'workflow', '-Repo', $script:Repo, '-BaseDir', $script:BaseBroken, '-SourceDir', $script:SrcBroken
+            ) -InputText "3`n"
+            [IO.File]::WriteAllText((Join-Path $script:LogDir 'run6-broken.log'), $script:Run6.Output, [Text.UTF8Encoding]::new($false))
+
+            $script:Project6 = @(Get-ChildItem -LiteralPath $script:BaseBroken -Directory -ErrorAction SilentlyContinue)
+        }
+
+        It '工作流退出码应为非零' {
+            $script:Run6.ExitCode | Should -Not -Be 0
+        }
+
+        It '损坏图片应记录处理失败警告' {
+            $script:Run6.Output | Should -Match '图片处理失败: broken\.jpg'
+        }
+
+        It '校验未通过应记录 Error 并给出结论' {
+            $script:Run6.Output | Should -Match '预处理输出校验未通过'
+        }
+
+        It '失败页应兜底复制为原扩展名而不是整页丢失' {
+            $script:Project6.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
+            Test-Path -LiteralPath (Join-Path $script:Project6[0].FullName '02_Preprocessing\broken.jpg') | Should -BeTrue
+        }
+
+        It '其余页面仍应正常产出 webp（单张失败不中断批次）' {
+            $script:Project6.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
+            Test-Path -LiteralPath (Join-Path $script:Project6[0].FullName '02_Preprocessing\page1.webp') | Should -BeTrue
+            Test-Path -LiteralPath (Join-Path $script:Project6[0].FullName '02_Preprocessing\page2.webp') | Should -BeTrue
         }
     }
 }

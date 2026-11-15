@@ -86,7 +86,9 @@ function Get-ImageLevelForImage {
         )
         [object]$probeResult = & $InvokeFfprobe $FfprobePath $ffprobeArgs
 
-        if ($probeResult.ExitCode -eq 0 -and $probeResult.Output -match '(\d+)x(\d+)') {
+        # 输出可能是多行数组：先拼成字符串再做 -match，避免数组左值时 $Matches 未被填充
+        [string]$probeText = [string]($probeResult.Output -join "`n")
+        if ($probeResult.ExitCode -eq 0 -and $probeText -match '(\d+)x(\d+)') {
             [int]$width = [int]$Matches[1]
             [int]$height = [int]$Matches[2]
             $longEdge = [math]::Max($width, $height)

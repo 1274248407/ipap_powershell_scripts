@@ -226,11 +226,20 @@ function Start-IPAPWorkflow {
                     }
 
                     # 验证产出：数量取该类别全部图片数，扩展名必须统一为 webp
+                    [bool]$TextVerified = $true
+                    [bool]$NonTextVerified = $true
                     if ($textImages.Count -gt 0) {
-                        $null = Test-UpscaleResult -ExpectedCount $textImages.Count -OutputDir $preprocessingDir -OutputFormat 'webp'
+                        $TextVerified = [bool](Test-UpscaleResult -ExpectedCount $textImages.Count -OutputDir $preprocessingDir -OutputFormat 'webp')
                     }
                     if ($nonTextImages.Count -gt 0) {
-                        $null = Test-UpscaleResult -ExpectedCount $nonTextImages.Count -OutputDir $nonTextRawDir -OutputFormat 'webp'
+                        $NonTextVerified = [bool](Test-UpscaleResult -ExpectedCount $nonTextImages.Count -OutputDir $nonTextRawDir -OutputFormat 'webp')
+                    }
+
+                    # 校验不通过属于交付缺陷：单张失败不中断批次，但整批结论必须失败（退出码非零、不播放完成音）
+                    if (-not ($TextVerified -and $NonTextVerified)) {
+                        $ErrorMessage = '预处理输出校验未通过：存在数量不足或格式不正确的图片，详见上方 Warning'
+                        Write-LogEntry -Level Error -Message $ErrorMessage
+                        throw [System.InvalidOperationException]::new($ErrorMessage)
                     }
 
                     # 处理与校验全部通过后才标记完成，提示音只在真正跑完时播放
