@@ -219,9 +219,17 @@ else {
                 Should -Be 3
         }
 
-        It 'README.md 存在' {
+        It 'README.md 存在并记录项目等级与张数' {
             $script:Project1.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
-            Test-Path -LiteralPath (Join-Path $script:Project1[0].FullName 'README.md') | Should -BeTrue
+            $readme = Join-Path $script:Project1[0].FullName 'README.md'
+            Test-Path -LiteralPath $readme | Should -BeTrue
+
+            $lines = Get-Content -LiteralPath $readme -Encoding UTF8
+            $lines | Should -Contain '- 有文字图: 3 张'
+            $lines | Should -Contain '- 无文字图: 0 张'
+            $lines | Should -Contain '- 合计: 3 张'
+            $lines | Should -Contain '- 项目统一等级: Level 0（已高清，不放大）'
+            $lines | Should -Contain '- 原始文件是否需要高清化: [ ]'
         }
     }
 
@@ -307,6 +315,15 @@ else {
             $script:Project4.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
             Test-Path -LiteralPath (Join-Path $script:Project4[0].FullName '02_Preprocessing\original_non_text_raw\bg.webp') |
                 Should -BeTrue
+        }
+
+        It 'README 应记录两类张数合计' {
+            $script:Project4.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
+            $lines = Get-Content -LiteralPath (Join-Path $script:Project4[0].FullName 'README.md') -Encoding UTF8
+            $lines | Should -Contain '- 有文字图: 1 张'
+            $lines | Should -Contain '- 无文字图: 1 张'
+            $lines | Should -Contain '- 合计: 2 张'
+            $lines | Should -Contain '- 项目统一等级: Level 1（FFmpeg 1.2 倍放大 + 锐化）'
         }
     }
 

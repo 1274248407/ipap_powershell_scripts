@@ -152,28 +152,18 @@ function Start-IPAPWorkflow {
                         -TextLevels @($textImageLevels | ForEach-Object { [int]$PSItem.Level }) `
                         -NonTextLevels @($nonTextImageLevels | ForEach-Object { [int]$PSItem.Level })
 
-                    [string]$ProjectLevelText = switch ($ProjectLevel) {
-                        0 { 'Level 0（已高清，不放大）' }
-                        1 { 'Level 1（FFmpeg 1.2 倍锐化）' }
-                        2 { 'Level 2（Real-CUGAN 2 倍超分）' }
-                    }
+                    [string]$ProjectLevelText = Format-ProjectLevelText -Level $ProjectLevel -RealCuganScale $Config.App.UpscaleRatio
                     Write-LogEntry -Level Info -Message "项目统一等级: $ProjectLevelText；有文字图 $($textImages.Count) 张，无文字图 $($nonTextImages.Count) 张"
 
-                    # README 的分级明细按项目等级归位：整批页面都按同一档位处理，
-                    # 因此把该类别的全部图片放进与项目等级对应的数组，而不是按单图等级拆开
-                    $textLevel1Levels = $ProjectLevel -eq 1 ? $textImageLevels : @()
-                    $textLevel2Levels = $ProjectLevel -eq 2 ? $textImageLevels : @()
-                    $nonTextLevel1Levels = $ProjectLevel -eq 1 ? $nonTextImageLevels : @()
-                    $nonTextLevel2Levels = $ProjectLevel -eq 2 ? $nonTextImageLevels : @()
-
-                    # 判断是否需要高清化：只有项目统一等级 > 0 才放大
-                    [bool]$needUpscale = $ProjectLevel -gt 0
-
-                    # 一次性生成 README（包含有文字图和无文字图的高清化详情）
-                    New-ReadmeFile -ProjectDir $projectDir -ProjectName $ProjectName -ImageCount $imageInfo.Count -NeedUpscale:$needUpscale -UpscaleRatio $Config.App.UpscaleRatio -BriefText $briefText -Level1ImageLevels $textLevel1Levels -Level2ImageLevels $textLevel2Levels -NonTextLevel1ImageLevels $nonTextLevel1Levels -NonTextLevel2ImageLevels $nonTextLevel2Levels
+                    # 一次性生成 README：张数、统一等级与倍数全部由分级结果派生
+                    New-ReadmeFile -ProjectDir $projectDir -ProjectName $ProjectName -ProjectLevel $ProjectLevel `
+                        -TextImageLevels $textImageLevels -NonTextImageLevels $nonTextImageLevels `
+                        -RealCuganScale $Config.App.UpscaleRatio -BriefText $briefText
 
                     $preprocessingDir = Join-Path -Path $projectDir -ChildPath '02_Preprocessing'
                     $maxWorkers = $Config.App.MaxWorkers
+                    # Real-CUGAN 的实际倍率来自配置，必须显式传给引擎，否则永远吃默认 2
+                    [int]$realCuganScale = $Config.App.UpscaleRatio
 
                     # 按项目统一等级整批路由：同项目不允许一部分页面放大、另一部分不放大
                     if ($ProjectLevel -eq 1) {
@@ -199,13 +189,13 @@ function Start-IPAPWorkflow {
 
                             if ($textImages.Count -gt 0) {
                                 Write-LogEntry -Level Info -Message "有文字图: 处理 $($textImages.Count) 张重度模糊图片 (Real-CUGAN)"
-                                $textResult = Invoke-ParallelUpscale -Images $textImages -OutputDir $preprocessingDir -Engine 'RealCugan' -MaxWorkers $maxWorkers -ModelPath $modelPath
+                                $textResult = Invoke-ParallelUpscale -Images $textImages -OutputDir $preprocessingDir -Engine 'RealCugan' -MaxWorkers $maxWorkers -Scale $realCuganScale -ModelPath $modelPath
                                 Write-LogEntry -Level Info -Message "有文字图 Level 2 完成: 成功=$($textResult.SuccessCount), 失败=$($textResult.FailedCount)"
                             }
 
                             if ($nonTextImages.Count -gt 0) {
                                 Write-LogEntry -Level Info -Message "无文字图: 处理 $($nonTextImages.Count) 张重度模糊图片 (Real-CUGAN)"
-                                $nonTextResult = Invoke-ParallelUpscale -Images $nonTextImages -OutputDir $nonTextRawDir -Engine 'RealCugan' -MaxWorkers $maxWorkers -ModelPath $modelPath
+                                $nonTextResult = Invoke-ParallelUpscale -Images $nonTextImages -OutputDir $nonTextRawDir -Engine 'RealCugan' -MaxWorkers $maxWorkers -Scale $realCuganScale -ModelPath $modelPath
                                 Write-LogEntry -Level Info -Message "无文字图 Level 2 完成: 成功=$($nonTextResult.SuccessCount), 失败=$($nonTextResult.FailedCount)"
                             }
                         }

@@ -13,7 +13,7 @@
 
     该函数是编排器：[OutputType([void])]，没有返回值，输出全部体现为
     「对协作者的调用」与「抛出的异常」。因此 L5 验证的是协作调用契约
-    （Engine / OutputDir / Images / NeedUpscale / ExpectedCount 等），而不是返回值字段。
+    （Engine / OutputDir / Images / ProjectLevel / ExpectedCount 等），而不是返回值字段。
 
     夹具全部人造：
     - 配置实例在模块作用域内用 [IPAPConfiguration]::new(...) 构造，ProjectRoot 指向 TestDrive，
@@ -579,38 +579,58 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
                 -Times 1 -Exactly
         }
 
-        It 'New-ReadmeFile 应收到项目目录、数量、倍数与简报文本' {
+        It 'New-ReadmeFile 应收到项目目录、统一等级、分级数组与简报文本' {
             Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
 
             Should -Invoke -ModuleName IPAP New-ReadmeFile -ParameterFilter {
                 $ProjectDir -eq 'C:\Projects\2026-01-01_TestProject' -and
                 $ProjectName -eq 'TestProject' -and
-                $ImageCount -eq 2 -and
-                $UpscaleRatio -eq 2 -and
+                $ProjectLevel -eq 0 -and
+                @($TextImageLevels).Count -eq 2 -and
+                @($NonTextImageLevels).Count -eq 0 -and
+                $RealCuganScale -eq 2 -and
                 $BriefText -eq 'Brief text'
             } -Times 1 -Exactly
         }
 
-        It 'New-ReadmeFile 的 -NeedUpscale 与 Level 数组应反映分级结果' {
-            $Script:LevelByImage = @{ '1.jpg' = 1; '2.jpg' = 1 }
+        It 'New-ReadmeFile 的 -ProjectLevel 与分级数组应反映分级结果' {
+            $Script:LevelByImage = @{ '1.jpg' = 1; '2.jpg' = 2 }
 
             Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
 
+            # 平票取高 → Level 2；两个页面都进 TextImageLevels
             Should -Invoke -ModuleName IPAP New-ReadmeFile -ParameterFilter {
-                [bool]$NeedUpscale -eq $true -and
-                @($Level1ImageLevels).Count -eq 2 -and
-                @($Level2ImageLevels).Count -eq 0
+                $ProjectLevel -eq 2 -and @($TextImageLevels).Count -eq 2
             } -Times 1 -Exactly
         }
 
-        It 'New-ReadmeFile 在全部 Level 0 时 -NeedUpscale 应为 false' {
+        It 'New-ReadmeFile 在全部 Level 0 时应收到 -ProjectLevel 0' {
             Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
 
             Should -Invoke -ModuleName IPAP New-ReadmeFile -ParameterFilter {
-                [bool]$NeedUpscale -eq $false -and
-                @($Level1ImageLevels).Count -eq 0 -and
-                @($Level2ImageLevels).Count -eq 0
+                $ProjectLevel -eq 0
             } -Times 1 -Exactly
+        }
+
+        It 'Real-CUGAN 调用应带 -Scale，取值来自配置的 upscale_ratio' {
+            $Config = InModuleScope IPAP -Parameters @{ Root = $Script:ConfigRoot } -ScriptBlock {
+                param($Root)
+                $paths = [PathConfiguration]::new($Root, 'C:\Projects', 'C:\Images')
+                $tools = [ToolConfiguration]::new($paths, @{})
+                $tools.RealCuganExePath = 'C:\bin\realcugan-ncnn-vulkan.exe'
+                $app = [ApplicationConfiguration]::new(@{ upscale = @{ upscale_ratio = 3 } })
+                $app.MaxWorkers = 8
+                $project = [ProjectConfiguration]::new(@{})
+                [IPAPConfiguration]::new($paths, $tools, $app, $project)
+            }
+            $Script:LevelByImage = @{ '1.jpg' = 2; '2.jpg' = 2 }
+
+            Start-IPAPWorkflow -Config $Config -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
+
+            Should -Invoke -ModuleName IPAP Invoke-ParallelUpscale `
+                -ParameterFilter { $Engine -eq 'RealCugan' -and $Scale -eq 3 } -Times 1 -Exactly
+            Should -Invoke -ModuleName IPAP New-ReadmeFile `
+                -ParameterFilter { $RealCuganScale -eq 3 } -Times 1 -Exactly
         }
 
         It 'Invoke-ParallelUpscale 的 -MaxWorkers 应来自配置' {

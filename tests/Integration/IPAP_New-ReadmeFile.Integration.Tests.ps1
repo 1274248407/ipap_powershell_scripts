@@ -27,6 +27,14 @@ Describe 'New-ReadmeFile 集成测试（真实文件系统协作）' -Tag 'Integ
         # 日志函数 Mock：Write-LogEntry 为纯日志函数，全级别静默记录
         Mock Write-LogEntry -ModuleName IPAP { }
 
+        # 分级夹具：只需 Image.FullName / Level / LongEdge / YDIF 四个字段
+        $Script:TextLevels = @(
+            [PSCustomObject]@{ Image = [PSCustomObject]@{ FullName = 'C:\fake\page_001.jpg' }; Level = 1; LongEdge = 2400; YDIF = 4.2 }
+            [PSCustomObject]@{ Image = [PSCustomObject]@{ FullName = 'C:\fake\page_002.jpg' }; Level = 0; LongEdge = 1920; YDIF = 9.1 }
+        )
+        $Script:NonTextLevels = @(
+            [PSCustomObject]@{ Image = [PSCustomObject]@{ FullName = 'C:\fake\bg_001.jpg' }; Level = 1; LongEdge = 1700; YDIF = 8.8 }
+        )
     }
 
     AfterAll {
@@ -36,11 +44,12 @@ Describe 'New-ReadmeFile 集成测试（真实文件系统协作）' -Tag 'Integ
     }
 
     Context '正常路径 - README.md 生成' {
-        It '应在项目目录真实生成 README.md 且包含需要高清化的关键模板行' {
+        It '应在项目目录真实生成 README.md 且派生张数、等级与倍数' {
             [string]$ProjectDir = Join-Path $Script:TestDriveRoot 'readme_upscale'
             New-Item -ItemType Directory -Path $ProjectDir | Out-Null
 
-            New-ReadmeFile -ProjectDir $ProjectDir -ProjectName 'TestProject' -ImageCount 42 -NeedUpscale -UpscaleRatio 2
+            New-ReadmeFile -ProjectDir $ProjectDir -ProjectName 'TestProject' -ProjectLevel 1 `
+                -TextImageLevels $Script:TextLevels -NonTextImageLevels $Script:NonTextLevels -RealCuganScale 2
 
             # 验证文件真实生成
             [string]$ReadmePath = Join-Path $ProjectDir 'README.md'
@@ -49,30 +58,38 @@ Describe 'New-ReadmeFile 集成测试（真实文件系统协作）' -Tag 'Integ
             # 逐行验证模板关键行（完整行精确匹配，以源码模板为准）
             [string[]]$Lines = Get-Content -LiteralPath $ReadmePath
             ($Lines | Where-Object { $PSItem -match '^# 项目记录: TestProject \(\d{4}-\d{2}-\d{2}\)$' }) | Should -Not -BeNullOrEmpty
-            $Lines | Should -Contain '- 原始文件数量: 42 张'
+            $Lines | Should -Contain '- 有文字图: 2 张'
+            $Lines | Should -Contain '- 无文字图: 1 张'
+            $Lines | Should -Contain '- 合计: 3 张'
+            $Lines | Should -Contain '- 项目统一等级: Level 1（FFmpeg 1.2 倍放大 + 锐化）'
             $Lines | Should -Contain '- 原始文件是否需要高清化: [X]'
-            $Lines | Should -Contain '- 使用高清化倍数: 2'
+            $Lines | Should -Contain '- 使用高清化倍数: 1.2'
             $Lines | Should -Contain '- [ ] 文件整理与分离'
             $Lines | Should -Contain '- [ ] 最终质量检查'
         }
 
-        It '不需要高清化时应写入空白状态占位与 N/A 倍数' {
+        It 'Level 0 项目应写入空白状态占位、N/A 倍数并列出异类页' {
             [string]$ProjectDir = Join-Path $Script:TestDriveRoot 'readme_no_upscale'
             New-Item -ItemType Directory -Path $ProjectDir | Out-Null
 
-            New-ReadmeFile -ProjectDir $ProjectDir -ProjectName 'PlainProject' -ImageCount 3
+            New-ReadmeFile -ProjectDir $ProjectDir -ProjectName 'PlainProject' -ProjectLevel 0 `
+                -TextImageLevels $Script:TextLevels
 
             [string[]]$Lines = Get-Content -LiteralPath (Join-Path $ProjectDir 'README.md')
-            $Lines | Should -Contain '- 原始文件数量: 3 张'
+            $Lines | Should -Contain '- 有文字图: 2 张'
+            $Lines | Should -Contain '- 无文字图: 0 张'
             $Lines | Should -Contain '- 原始文件是否需要高清化: [ ]'
             $Lines | Should -Contain '- 使用高清化倍数: N/A'
+            # page_001 单图判 Level 1，与项目 Level 0 不一致，应出现在异类页表
+            $Lines | Should -Contain '### 与项目等级不一致的页面（1 张）'
+            $Lines | Should -Contain '| page_001.jpg | 有文字图 | Level 1 | 2400px | 4.2 |'
         }
 
         It '提供 BriefText 时应真实写入项目信息段落' {
             [string]$ProjectDir = Join-Path $Script:TestDriveRoot 'readme_brief'
             New-Item -ItemType Directory -Path $ProjectDir | Out-Null
 
-            New-ReadmeFile -ProjectDir $ProjectDir -ProjectName 'BriefProject' -ImageCount 5 -BriefText '这是测试项目简介'
+            New-ReadmeFile -ProjectDir $ProjectDir -ProjectName 'BriefProject' -ProjectLevel 0 -BriefText '这是测试项目简介'
 
             [string[]]$Lines = Get-Content -LiteralPath (Join-Path $ProjectDir 'README.md')
             $Lines | Should -Contain '## 项目信息'
@@ -88,12 +105,12 @@ Describe 'New-ReadmeFile 集成测试（真实文件系统协作）' -Tag 'Integ
             # 预先放置旧内容，验证覆盖行为
             Set-Content -LiteralPath (Join-Path $ProjectDir 'README.md') -Value 'OLD-STALE-CONTENT-MARKER'
 
-            New-ReadmeFile -ProjectDir $ProjectDir -ProjectName 'OverwriteProject' -ImageCount 7
+            New-ReadmeFile -ProjectDir $ProjectDir -ProjectName 'OverwriteProject' -ProjectLevel 0
 
             [string[]]$Lines = Get-Content -LiteralPath (Join-Path $ProjectDir 'README.md')
             # 旧内容消失且新模板生效
             ($Lines | Where-Object { $PSItem -match 'OLD-STALE-CONTENT-MARKER' }) | Should -BeNullOrEmpty
-            $Lines | Should -Contain '- 原始文件数量: 7 张'
+            $Lines | Should -Contain '- 合计: 0 张'
             ($Lines | Where-Object { $PSItem -match '^# 项目记录: OverwriteProject \(\d{4}-\d{2}-\d{2}\)$' }) | Should -Not -BeNullOrEmpty
         }
     }
@@ -102,7 +119,7 @@ Describe 'New-ReadmeFile 集成测试（真实文件系统协作）' -Tag 'Integ
         It '项目目录不存在时应记录错误并抛出终止错误' {
             [string]$MissingDir = Join-Path $Script:TestDriveRoot 'no_such_project_dir'
 
-            { New-ReadmeFile -ProjectDir $MissingDir -ProjectName 'X' -ImageCount 1 -NeedUpscale } | Should -Throw '*项目目录不存在*'
+            { New-ReadmeFile -ProjectDir $MissingDir -ProjectName 'X' -ProjectLevel 1 } | Should -Throw '*项目目录不存在*'
         }
     }
 }

@@ -46,7 +46,7 @@ function Confirm-ProjectConfiguration {
 
     Write-LogEntry -Level Warning -Message '【应用配置】'
     Write-LogEntry -Level Info -Message "  最大工作线程数: $($Config.App.MaxWorkers)"
-    Write-LogEntry -Level Info -Message "  放大倍数: $($Config.App.UpscaleRatio)"
+    Write-LogEntry -Level Info -Message "  Real-CUGAN 放大倍数: $($Config.App.UpscaleRatio)（FFmpeg 路径固定 1.2 倍）"
     Write-LogEntry -Level Info -Message "  模型选择: $($Config.App.ModelSelect)"
 
     # 安全默认：仅显式 Y/y 视为应用；回车、EOF 与其它任何输入一律视为不应用
