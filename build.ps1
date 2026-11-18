@@ -645,13 +645,17 @@ function Get-ModuleVersion
 .SYNOPSIS
     打包发布 zip
 .DESCRIPTION
-    组装发布暂存目录，包含：模块代码（IPAP/）、Main.ps1、
-    config.toml（由 config.toml.example 生成）、RequiredModules/PSToml。
+    组装发布暂存目录，包含：模块代码（IPAP/）、Main.ps1、运行时二进制（bin/）、
+    config.toml.example、README.md（由 docs/QUICKSTART.md 生成）、RequiredModules/PSToml。
     最终压缩为 output/IPAP-v<Version>.zip。
+    不生成 config.toml——首次运行时由 Main.ps1 从 config.toml.example 复制，
+    这样升级解压不会覆盖用户已填的配置。
 
     前置校验：
     1. Build 产物存在（output/IPAP/）
-    2. PSToml 已下载（output/RequiredModules/PSToml/）
+    2. bin 下恰有一个 ffmpeg-*-shared 目录与一个 realcugan-* 目录
+    3. docs/QUICKSTART.md 存在
+    4. PSToml 已下载（output/RequiredModules/PSToml/）
 .OUTPUTS
     [void]
 .NOTES
@@ -700,17 +704,52 @@ function Invoke-PackTask
     $mainPs1DestPath = Join-Path -Path $stagingPath -ChildPath 'Main.ps1'
     Copy-Item -Path $mainPs1SourcePath -Destination $mainPs1DestPath -Force -ErrorAction Stop
 
-    # 步骤 7：复制配置模板为 config.toml（发布包内自带默认配置，用户按需修改）
+    # 步骤 7：复制运行时二进制（ffmpeg shared 构建 + Real-CUGAN）
+    # shared 构建必须连 DLL 一起复制，只带 exe 会启动失败
+    $binSourceRoot = Join-Path -Path $script:ModulePath -ChildPath 'bin'
+    $binRequirements = @(
+        @{ Pattern = 'ffmpeg-*-shared'; Label = 'ffmpeg shared 构建' }
+        @{ Pattern = 'realcugan-*'; Label = 'Real-CUGAN 与模型' }
+    )
+    $binDestRoot = Join-Path -Path $stagingPath -ChildPath 'bin'
+    New-Item -ItemType Directory -Path $binDestRoot -Force | Out-Null
+    $binDirNames = @{}
+    foreach ($requirement in $binRequirements)
+    {
+        $matched = @(Get-ChildItem -Path $binSourceRoot -Directory -Filter $requirement.Pattern -ErrorAction SilentlyContinue)
+        if ($matched.Count -ne 1)
+        {
+            Write-Error "bin 下应恰好有一个 $($requirement.Pattern) 目录（实际 $($matched.Count) 个）：$binSourceRoot"
+            exit 1
+        }
+        Copy-Item -Path $matched[0].FullName -Destination $binDestRoot -Recurse -Force -ErrorAction Stop
+        $binDirNames[$requirement.Pattern] = $matched[0].Name
+    }
+
+    # 步骤 8：复制配置模板（不直接生成 config.toml，避免升级覆盖用户已填的配置）
     $configSourcePath = Join-Path -Path $script:ModulePath -ChildPath 'config.toml.example'
     if (-not (Test-Path -LiteralPath $configSourcePath))
     {
         Write-Error "配置模板不存在：$configSourcePath"
         exit 1
     }
-    $configDestPath = Join-Path -Path $stagingPath -ChildPath 'config.toml'
-    Copy-Item -Path $configSourcePath -Destination $configDestPath -Force -ErrorAction Stop
+    # 把模板里的占位目录名替换成实际目录名，保证解压后配置里的路径即真实可用
+    $configTemplate = Get-Content -LiteralPath $configSourcePath -Raw -Encoding utf8
+    $configTemplate = $configTemplate.Replace('bin/ffmpeg-xxx/', "bin/$($binDirNames['ffmpeg-*-shared'])/")
+    $configTemplate = $configTemplate.Replace('bin/realcugan-ncnn-vulkan-xxx/', "bin/$($binDirNames['realcugan-*'])/")
+    $configDestPath = Join-Path -Path $stagingPath -ChildPath 'config.toml.example'
+    Set-Content -LiteralPath $configDestPath -Value $configTemplate -Encoding utf8 -NoNewline
 
-    # 步骤 8：复制 RequiredModules/PSToml
+    # 步骤 9：复制快速开始文档为包内 README.md（仓库 .gitignore 忽略 **/README.md，故源文件叫 QUICKSTART.md）
+    $quickStartSourcePath = Join-Path -Path $script:ModulePath -ChildPath 'docs\QUICKSTART.md'
+    if (-not (Test-Path -LiteralPath $quickStartSourcePath))
+    {
+        Write-Error "快速开始文档不存在：$quickStartSourcePath"
+        exit 1
+    }
+    Copy-Item -Path $quickStartSourcePath -Destination (Join-Path -Path $stagingPath -ChildPath 'README.md') -Force -ErrorAction Stop
+
+    # 步骤 10：复制 RequiredModules/PSToml
     $pstomlSourcePath = Join-Path -Path $script:RequiredModulesPath -ChildPath 'PSToml'
     if (-not (Test-Path -LiteralPath $pstomlSourcePath))
     {
@@ -721,7 +760,7 @@ function Invoke-PackTask
     New-Item -ItemType Directory -Path (Split-Path -Path $pstomlDestPath -Parent) -Force | Out-Null
     Copy-Item -Path $pstomlSourcePath -Destination $pstomlDestPath -Recurse -Force -ErrorAction Stop
 
-    # 步骤 9：压缩 zip
+    # 步骤 11：压缩 zip
     $zipPath = Join-Path -Path $script:OutputPath -ChildPath "$($script:ModuleName)-v$version.zip"
     if (Test-Path -LiteralPath $zipPath)
     {

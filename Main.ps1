@@ -48,6 +48,18 @@ if ($null -eq $IpapManifest) {
 Import-Module -Name $IpapManifest -Force -Scope Global
 Write-LogEntry -Level Success -Message "IPAP 模块已导入：$IpapManifest"
 
+# 首次运行守卫：config.toml 不存在时从模板生成，升级时不会覆盖用户已填的配置
+$ConfigPath = Join-Path -Path $PSScriptRoot -ChildPath 'config.toml'
+$ConfigTemplatePath = Join-Path -Path $PSScriptRoot -ChildPath 'config.toml.example'
+if (-not (Test-Path -LiteralPath $ConfigPath)) {
+    if (-not (Test-Path -LiteralPath $ConfigTemplatePath)) {
+        Write-Error "缺少 config.toml 与 config.toml.example：$PSScriptRoot"
+        exit 1
+    }
+    Copy-Item -LiteralPath $ConfigTemplatePath -Destination $ConfigPath -Force
+    Write-LogEntry -Level Warning -Message "未找到 config.toml，已按模板生成：$ConfigPath，请按需修改后重新运行"
+}
+
 # 初始化配置（读取仓库根目录的 config.toml）
 Get-Configuration -ProjectRoot $PSScriptRoot | Out-Null
 Write-LogEntry -Level Success -Message 'IPAP 配置已初始化'
