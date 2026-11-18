@@ -65,20 +65,17 @@ function Get-ProjectBriefInfo {
 
     # 输入作者名（参数为空时交互式获取）
     if ([System.String]::IsNullOrWhiteSpace($Author)) {
-        $Author = Read-Host '作者名'
-        $Author = $Author.Trim()
+        $Author = Read-TrimmedInput -Prompt '作者名'
     }
 
     # 输入原作品名（原文）（参数为空时交互式获取）
     if ([System.String]::IsNullOrWhiteSpace($OriginalTitle)) {
-        $OriginalTitle = Read-Host '原作品名（原文）'
-        $OriginalTitle = $OriginalTitle.Trim()
+        $OriginalTitle = Read-TrimmedInput -Prompt '原作品名（原文）'
     }
 
     # 输入作品中文译名（参数为空时交互式获取）
     if ([System.String]::IsNullOrWhiteSpace($ChineseTitle)) {
-        $ChineseTitle = Read-Host '作品中文译名'
-        $ChineseTitle = $ChineseTitle.Trim()
+        $ChineseTitle = Read-TrimmedInput -Prompt '作品中文译名'
     }
 
     # 归一：Author / OriginalTitle 的唯一汇合点（Read-Host 分支已各自 Trim，此处补齐参数传入来源），

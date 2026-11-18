@@ -242,9 +242,17 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
             Should -Invoke -ModuleName IPAP Invoke-CompletionSound -Times 1 -Exactly
         }
 
+        It 'Read-Host 无输出（EOF）时应给出「未提供」的明确错误而不是空引用异常' {
+            # 回归：EOF 时 Read-Host 返回 AutomationNull，直接 .Trim() 曾抛
+            # 「不能对值为 Null 的表达式调用方法」，掩盖了真正的错误原因
+            Mock -ModuleName IPAP Read-Host { }
+
+            { Start-IPAPWorkflow -Config $Script:EmptyDirConfig -SourceDir 'C:\Images' } |
+                Should -Throw -ExceptionType ([System.InvalidOperationException]) -ExpectedMessage '*基础目录*'
+        }
+
         It 'BaseDir 交互输入为空时应抛 InvalidOperationException 并记录 Error' {
             Mock -ModuleName IPAP Read-Host { return $null }
-
             { Start-IPAPWorkflow -Config $Script:EmptyDirConfig -SourceDir 'C:\Images' } |
                 Should -Throw -ExceptionType ([System.InvalidOperationException]) -ExpectedMessage '*基础目录*'
 

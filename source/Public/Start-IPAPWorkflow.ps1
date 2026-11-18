@@ -65,7 +65,7 @@ function Start-IPAPWorkflow {
             if (-not $PSCmdlet.ShouldProcess('IPAP 工作流', '读取缺失的基础目录输入')) {
                 return
             }
-            $BaseDir = ([string](Read-Host '请输入项目基础目录')).Trim()
+            $BaseDir = Read-TrimmedInput -Prompt '请输入项目基础目录'
             if (-not $BaseDir) {
                 $ErrorMessage = '未提供基础目录（BaseDir），且配置与交互输入均为空'
                 Write-LogEntry -Level Error -Message $ErrorMessage
@@ -81,7 +81,7 @@ function Start-IPAPWorkflow {
             if (-not $PSCmdlet.ShouldProcess('IPAP 工作流', '读取缺失的源图片目录输入')) {
                 return
             }
-            $SourceDir = ([string](Read-Host '请输入源图片目录')).Trim()
+            $SourceDir = Read-TrimmedInput -Prompt '请输入源图片目录'
             if (-not $SourceDir) {
                 $ErrorMessage = '未提供源图片目录（SourceDir），且配置与交互输入均为空'
                 Write-LogEntry -Level Error -Message $ErrorMessage
