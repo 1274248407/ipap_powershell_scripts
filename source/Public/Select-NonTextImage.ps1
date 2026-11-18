@@ -65,6 +65,22 @@ function Select-NonTextImage {
     Write-LogEntry -Level Info -Message '=== 无文字图处理 ==='
     Write-LogEntry -Level Info -Message "检测到 source_dir 下有 $($allFiles.Count) 张图片文件"
 
+    # 先展示排序预览：用户要先看到「第 N 张是哪张」，才能决定起始编号或选哪个选项
+    if ($allFiles.Count -gt 0) {
+        $previewCount = [math]::Min(5, $allFiles.Count)
+        $firstNames = ($allFiles[0..($previewCount - 1)] | ForEach-Object { $PSItem.Name }) -join ', '
+        $firstLabel = $previewCount -eq 1 ? '第 1 张' : "第 1-$previewCount 张"
+        Write-LogEntry -Level Info -Message ''
+        Write-LogEntry -Level Info -Message '图片排序预览（已按自然排序，序号从 1 开始）：'
+        Write-LogEntry -Level Info -Message "  ${firstLabel}: $firstNames"
+        # 图片数量超过预览两倍时才展示末尾一段，避免首尾重叠
+        if ($allFiles.Count -gt $previewCount * 2) {
+            $lastStart = $allFiles.Count - $previewCount + 1
+            $lastNames = ($allFiles[($lastStart - 1)..($allFiles.Count - 1)] | ForEach-Object { $PSItem.Name }) -join ', '
+            Write-LogEntry -Level Info -Message "  第 $lastStart-$($allFiles.Count) 张: $lastNames"
+        }
+    }
+
     # 构建选项菜单
     $options = @()
     $options += '输入起始编号（如从第 N 张开始是无文字图）'
@@ -83,20 +99,6 @@ function Select-NonTextImage {
     # 展示选项
     for ($i = 0; $i -lt $options.Count; $i++) {
         Write-LogEntry -Level Info -Message "  [$($i + 1)] $($options[$i])"
-    }
-
-    # 展示图片排序预览（前 5 张和后 5 张）
-    if ($allFiles.Count -gt 0) {
-        $previewCount = [math]::Min(5, $allFiles.Count)
-        $firstNames = ($allFiles[0..($previewCount - 1)] | ForEach-Object { $PSItem.Name }) -join ', '
-        $lastNames = ($allFiles[($allFiles.Count - $previewCount)..($allFiles.Count - 1)] | ForEach-Object { $PSItem.Name }) -join ', '
-        Write-LogEntry -Level Info -Message ''
-        Write-LogEntry -Level Info -Message '图片排序预览（已按自然排序）：'
-        Write-LogEntry -Level Info -Message "  前 $previewCount 张: $firstNames"
-        # 所有的图片至少要大于10张
-        if ($allFiles.Count -gt $previewCount * 2) {
-            Write-LogEntry -Level Info -Message "  后 $previewCount 张: $lastNames"
-        }
     }
 
     # 获取用户选择（非数字与越界输入均由 Read-NumberInRange 提示后重问）

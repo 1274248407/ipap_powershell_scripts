@@ -375,7 +375,7 @@ Describe 'Select-NonTextImage Unit Tests' -Tag 'Select-NonTextImage', 'IPAP' {
                 -ParameterFilter { $Message -eq '未读到输入（非交互环境），按跳过处理' } -Times 1 -Exactly
         }
 
-        It '图片多于预览两倍时应输出后 5 张预览' {
+        It '图片多于预览两倍时应输出末尾一段预览（含 1 起的序号）' {
             [string]$ManyDir = New-Item -ItemType Directory -Path (Join-Path $Script:WorkRoot 'many') -Force |
                 Select-Object -ExpandProperty FullName
             foreach ($Index in 1..11) {
@@ -386,16 +386,37 @@ Describe 'Select-NonTextImage Unit Tests' -Tag 'Select-NonTextImage', 'IPAP' {
             $null = Select-NonTextImage -SourceDir $ManyDir -SupportedImageFormats $Script:Formats
 
             Should -Invoke -ModuleName IPAP Write-LogEntry `
-                -ParameterFilter { $Message -like '*后 5 张*' } -Times 1 -Exactly
+                -ParameterFilter { $Message -like '*第 7-11 张*' } -Times 1 -Exactly
         }
 
-        It '图片不超过预览两倍时不应输出后 5 张预览' {
+        It '图片不超过预览两倍时只输出一段预览' {
             $Script:InputQueue.Enqueue('3')
 
             $null = Select-NonTextImage -SourceDir $Script:SourceDir -SupportedImageFormats $Script:Formats
 
-            Should -Invoke -ModuleName IPAP Write-LogEntry `
-                -ParameterFilter { $Message -like '*后 5 张*' } -Times 0 -Exactly
+            Should -Invoke -ModuleName IPAP Write-LogEntry -Times 1 -Exactly `
+                -ParameterFilter { $Message -match '第 \d+-\d+ 张' }
+        }
+
+        It '排序预览应输出在选项菜单之前' {
+            $Script:InputQueue.Enqueue('3')
+
+            InModuleScope IPAP -Parameters @{ Dir = $Script:SourceDir; Formats = $Script:Formats } -ScriptBlock {
+                param($Dir, $Formats)
+                $script:LogOrder = [System.Collections.Generic.List[string]]::new()
+                Mock -CommandName Write-LogEntry -ModuleName IPAP {
+                    param($Level, $Message)
+                    $script:LogOrder.Add([string]$Message)
+                }
+
+                $null = Select-NonTextImage -SourceDir $Dir -SupportedImageFormats $Formats
+
+                [int]$PreviewIndex = $script:LogOrder.IndexOf('图片排序预览（已按自然排序，序号从 1 开始）：')
+                [int]$MenuIndex = $script:LogOrder.IndexOf('请选择无文字图来源：')
+                $PreviewIndex | Should -BeGreaterThan -1
+                $MenuIndex | Should -BeGreaterThan -1
+                $PreviewIndex | Should -BeLessThan $MenuIndex
+            }
         }
     }
 

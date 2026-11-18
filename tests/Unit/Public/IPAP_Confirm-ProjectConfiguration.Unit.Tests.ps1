@@ -319,6 +319,62 @@ Describe 'Confirm-ProjectConfiguration Unit Tests' -Tag 'Confirm-ProjectConfigur
         }
     }
 
+    Context 'L4 源目录体检' {
+        It '源目录不存在时应记录 Error 提示' {
+            Set-ConfirmTestState -ReadHostResponses @('Y')
+            InModuleScope IPAP -Parameters @{ Missing = (Join-Path $TestDrive 'no-such-src') } -ScriptBlock {
+                param($Missing)
+                $script:TestConfig.Paths.SourceDir = $Missing
+
+                $null = Confirm-ProjectConfiguration -Config $script:TestConfig
+
+                Should -Invoke -CommandName Write-LogEntry -Times 1 -Exactly `
+                    -ParameterFilter { $Level -eq 'Error' -and $Message -like '*源图片目录不存在*' }
+            }
+        }
+
+        It '源目录存在但没有图片时应记录 Warning 并给出支持的格式' {
+            $EmptyDir = New-Item -ItemType Directory -Path (Join-Path $TestDrive 'empty-src') -Force
+            Set-ConfirmTestState -ReadHostResponses @('Y')
+            InModuleScope IPAP -Parameters @{ Dir = $EmptyDir.FullName } -ScriptBlock {
+                param($Dir)
+                $script:TestConfig.Paths.SourceDir = $Dir
+
+                $null = Confirm-ProjectConfiguration -Config $script:TestConfig
+
+                Should -Invoke -CommandName Write-LogEntry -Times 1 -Exactly `
+                    -ParameterFilter { $Level -eq 'Warning' -and $Message -like '*没有图片文件*' -and $Message -like '*.png*' }
+            }
+        }
+
+        It '源目录有支持格式的图片时应记录 Success 与数量' {
+            $ImageDir = New-Item -ItemType Directory -Path (Join-Path $TestDrive 'with-img') -Force
+            1..2 | ForEach-Object { New-Item -ItemType File -Path (Join-Path $ImageDir.FullName "$_.png") -Force | Out-Null }
+            Set-ConfirmTestState -ReadHostResponses @('Y')
+            InModuleScope IPAP -Parameters @{ Dir = $ImageDir.FullName } -ScriptBlock {
+                param($Dir)
+                $script:TestConfig.Paths.SourceDir = $Dir
+
+                $null = Confirm-ProjectConfiguration -Config $script:TestConfig
+
+                Should -Invoke -CommandName Write-LogEntry -Times 1 -Exactly `
+                    -ParameterFilter { $Level -eq 'Success' -and $Message -like '*检测到 2 张图片*' }
+            }
+        }
+
+        It '源目录未配置时不应做体检' {
+            Set-ConfirmTestState -ReadHostResponses @('Y')
+            InModuleScope IPAP {
+                $script:TestConfig.Paths.SourceDir = ''
+
+                $null = Confirm-ProjectConfiguration -Config $script:TestConfig
+
+                Should -Invoke -CommandName Write-LogEntry -Times 0 -Exactly `
+                    -ParameterFilter { $Message -like '*源图片目录不存在*' -or $Message -like '*没有图片文件*' }
+            }
+        }
+    }
+
     Context 'L5 输出字段验证' {
         It '控制台修改全部字段时应逐字段更新且不影响其余字段' {
             Set-ConfirmTestState `

@@ -37,6 +37,25 @@ function Confirm-ProjectConfiguration {
     Write-LogEntry -Level Info -Message "  基准项目目录: $($Config.Paths.BaseProjectDir ? $Config.Paths.BaseProjectDir : '[未配置]')"
     Write-LogEntry -Level Info -Message "  源图片目录: $($Config.Paths.SourceDir ? $Config.Paths.SourceDir : '[未配置]')"
 
+    # 源目录体检：不存在 → 红；存在但无图片 → 黄；有图片 → 绿。只做提示，不中断流程
+    if ($Config.Paths.SourceDir) {
+        if (-not (Test-Path -LiteralPath $Config.Paths.SourceDir -PathType Container)) {
+            Write-LogEntry -Level Error -Message "  源图片目录不存在: $($Config.Paths.SourceDir)"
+        }
+        else {
+            [int]$SourceImageCount = @(
+                Get-ChildItem -LiteralPath $Config.Paths.SourceDir -File |
+                    Where-Object { Test-SupportedImageFormat -File $PSItem -SupportedFormats $Config.App.SupportedImageFormats }
+            ).Count
+            if ($SourceImageCount -eq 0) {
+                Write-LogEntry -Level Warning -Message "  源图片目录中没有图片文件（支持格式: $($Config.App.SupportedImageFormats -join ' ')）"
+            }
+            else {
+                Write-LogEntry -Level Success -Message "  源图片目录检测到 $SourceImageCount 张图片"
+            }
+        }
+    }
+
     Write-LogEntry -Level Warning -Message '【项目信息】'
     Write-LogEntry -Level Info -Message "  作者: $($Config.Project.Author ? $Config.Project.Author : '[未配置]')"
     Write-LogEntry -Level Info -Message "  原作品名: $($Config.Project.OriginalTitle ? $Config.Project.OriginalTitle : '[未配置]')"
