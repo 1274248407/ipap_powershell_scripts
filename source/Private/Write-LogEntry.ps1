@@ -39,36 +39,31 @@ function Write-LogEntry {
         [string] $Message
     )
 
-    # 获取调用者信息：跳过 Write-LogEntry 自身（索引1），取实际调用者（索引2）
-    # PS7 if 表达式：直接返回匹配分支的值（深栈取 [2]，浅栈取 [1]，单帧返回 $null）
+    # 调用者信息：Get-PSCallStack 的 [0] 是本函数自身，[1] 才是直接调用者
+    # （取 [2] 会落到「调用者的调用者」，把日志记到上一层调用的行号上）
     $CallStack = Get-PSCallStack
-    $CallerFrame = if ($CallStack.Count -ge 3) { $CallStack[2] }
-    elseif ($CallStack.Count -ge 2) { $CallStack[1] }
-    else { $null }
+    $CallerFrame = $CallStack.Count -ge 2 ? $CallStack[1] : $null
 
-    # 解析调用者信息：模块名:函数名:行号
-    $CallerInfo = '<unknown>:<unknown>:0'
+    # 解析调用者信息：模块名:函数名:行号（脚本顶层没有函数段，退化为 模块名:行号）
+    $CallerInfo = '<unknown>:0'
     if ($null -ne $CallerFrame) {
-        # 从脚本路径提取模块名（父目录名）
-        $ScriptPath = $CallerFrame.ScriptName
-        $ModuleName = '<script>'
-        if ($ScriptPath) {
-            $ParentDir = [System.IO.Path]::GetFileName([System.IO.Path]::GetDirectoryName($ScriptPath))
-            if ($ParentDir) {
-                $ModuleName = $ParentDir
-            }
+        # 模块名：模块内函数能取到真实模块名；普通脚本函数取不到时回退到脚本文件名
+        [string]$Owner = $CallerFrame.InvocationInfo?.MyCommand?.ModuleName
+        if (-not $Owner) {
+            [string]$ScriptPath = $CallerFrame.ScriptName
+            $Owner = $ScriptPath ? [System.IO.Path]::GetFileNameWithoutExtension($ScriptPath) : '<script>'
         }
 
-        # 获取函数名（匿名脚本块显示为 <ScriptBlock>）
-        $FuncName = $CallerFrame.FunctionName
-        if ($FuncName -eq '<ScriptBlock>') {
-            $FuncName = '<module>'
+        # 函数名：脚本块与模块顶层不写函数段，避免出现 <ScriptBlock> 之类的噪声
+        [string]$FuncName = $CallerFrame.FunctionName
+        if ($FuncName -in @('<ScriptBlock>', '<module>')) {
+            $FuncName = ''
         }
 
-        # 获取行号（PS7 ?? 操作符：ScriptLineNumber 为 null 时回退到 0）
+        # 行号（PS7 ?? 操作符：ScriptLineNumber 为 null 时回退到 0）
         $LineNumber = $CallerFrame.ScriptLineNumber ?? 0
 
-        $CallerInfo = "${ModuleName}:${FuncName}:${LineNumber}"
+        $CallerInfo = $FuncName ? "${Owner}:${FuncName}:${LineNumber}" : "${Owner}:${LineNumber}"
     }
 
     # 格式化时间戳（精确到毫秒）

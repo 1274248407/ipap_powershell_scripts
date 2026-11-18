@@ -17,9 +17,8 @@
     - Write-LogEntry 四个级别均为纯日志函数：只写终端，不抛异常、不中断执行。
       错误传播由调用方显式 throw 强类型异常负责（见 AGENTS.md 防御性编程条目）。
       空消息与 $null 消息均原样输出，日志函数不改写调用方传入的内容。
-    - Pester 容器内 Get-PSCallStack 深度恒 >= 31，源码恒走深栈分支 $CallStack[2]；
-      浅栈分支（[1]）与无帧分支（'<unknown>:<unknown>:0>'）物理不可达，无法在单元测试
-      中构造，故不设占位用例，此处注释说明。
+    - 调用者取自 Get-PSCallStack 的 [1]（[0] 是 Write-LogEntry 自身）。Pester 内真实调用栈
+      很深，浅栈与无帧分支通过 Mock Get-PSCallStack 构造（见 Context '调用栈解析'）。
 
     PS7 新特性审计（AGENTS.md 三强约束：三元 / ??、??= / &&、||）：
     - 本文件第 100 行 $(if ... else ...) 内联表达式已整改为三元
@@ -98,8 +97,8 @@ Describe 'Write-LogEntry Unit Tests' -Tag 'Write-LogEntry', 'IPAP' {
             $WriteHostCalls[1].BackgroundColor | Should -BeNullOrEmpty
             $WriteHostCalls[1].NoNewline | Should -Be $true
 
-            # 段2：调用者信息（模块:函数:行号 - ），青色，不换行
-            $WriteHostCalls[2].Text | Should -Match '^[^:]+:.+:\d+ - $'
+            # 段2：调用者信息（模块:函数:行号 或 模块:行号 - ），青色，不换行
+            $WriteHostCalls[2].Text | Should -Match '^(?:[^:]+:){1,2}\d+ - $'
             $WriteHostCalls[2].ForegroundColor | Should -Be 'Cyan'
             $WriteHostCalls[2].BackgroundColor | Should -BeNullOrEmpty
             $WriteHostCalls[2].NoNewline | Should -Be $true
@@ -240,11 +239,36 @@ Describe 'Write-LogEntry Unit Tests' -Tag 'Write-LogEntry', 'IPAP' {
         }
     }
 
-    Context '调用栈深度 - L4 分支覆盖' {
-        It '调用栈只有 2 帧时应取第 2 帧作为调用者' {
+    Context '调用栈解析 - L4 分支覆盖' {
+        It '三帧栈应取 [1]（直接调用者）而不是 [2]' {
             Mock -CommandName Get-PSCallStack -ModuleName IPAP {
                 return @(
-                    [PSCustomObject]@{ ScriptName = ''; FunctionName = ''; ScriptLineNumber = 0 },
+                    [PSCustomObject]@{ ScriptName = 'C:\repo\source\Private\Write-LogEntry.ps1'; FunctionName = 'Write-LogEntry'; ScriptLineNumber = 20 }
+                    [PSCustomObject]@{
+                        ScriptName       = 'C:\repo\source\Public\Get-ImageLevel.ps1'
+                        FunctionName     = 'Get-ImageLevel'
+                        ScriptLineNumber = 42
+                        InvocationInfo   = [PSCustomObject]@{ MyCommand = [PSCustomObject]@{ ModuleName = 'IPAP'; Name = 'Get-ImageLevel' } }
+                    }
+                    [PSCustomObject]@{
+                        ScriptName       = 'C:\repo\source\Public\Start-IPAPWorkflow.ps1'
+                        FunctionName     = 'Start-IPAPWorkflow'
+                        ScriptLineNumber = 144
+                        InvocationInfo   = [PSCustomObject]@{ MyCommand = [PSCustomObject]@{ ModuleName = 'IPAP'; Name = 'Start-IPAPWorkflow' } }
+                    }
+                )
+            }
+
+            Write-LogEntry -Level Info -Message '三帧测试'
+
+            # 回归点：曾错取 [2]，把 Get-ImageLevel 的日志记成 Start-IPAPWorkflow:144
+            $script:WriteHostCalls[2].Text | Should -Be 'IPAP:Get-ImageLevel:42 - '
+        }
+
+        It '两帧栈应取 [1] 作为调用者' {
+            Mock -CommandName Get-PSCallStack -ModuleName IPAP {
+                return @(
+                    [PSCustomObject]@{ ScriptName = ''; FunctionName = ''; ScriptLineNumber = 0 }
                     [PSCustomObject]@{
                         ScriptName       = 'C:\Modules\TestModule\TestModule.psm1'
                         FunctionName     = 'Test-Function'
@@ -255,27 +279,81 @@ Describe 'Write-LogEntry Unit Tests' -Tag 'Write-LogEntry', 'IPAP' {
 
             Write-LogEntry -Level Info -Message '浅栈测试'
 
-            $script:WriteHostCalls.Count | Should -Be 5
+            # 无 InvocationInfo 时回退到脚本文件名
             $script:WriteHostCalls[2].Text | Should -Be 'TestModule:Test-Function:42 - '
-            Assert-CompleteLogLine -WriteHostCalls $script:WriteHostCalls `
-                -ExpectedLevelSegment '| INFO    | ' `
-                -ExpectedLevelColor $script:LevelColorMap['Info'] `
-                -ExpectedMessage '浅栈测试'
         }
 
-        It '调用栈只有 1 帧时应回退为 unknown 调用者' {
+        It '只有一帧时应回退为 unknown' {
             Mock -CommandName Get-PSCallStack -ModuleName IPAP {
                 return @([PSCustomObject]@{ ScriptName = ''; FunctionName = ''; ScriptLineNumber = 0 })
             }
 
             Write-LogEntry -Level Info -Message '单帧测试'
 
-            $script:WriteHostCalls.Count | Should -Be 5
-            $script:WriteHostCalls[2].Text | Should -Be '<unknown>:<unknown>:0 - '
-            Assert-CompleteLogLine -WriteHostCalls $script:WriteHostCalls `
-                -ExpectedLevelSegment '| INFO    | ' `
-                -ExpectedLevelColor $script:LevelColorMap['Info'] `
-                -ExpectedMessage '单帧测试'
+            $script:WriteHostCalls[2].Text | Should -Be '<unknown>:0 - '
+        }
+
+        It '模块内函数应显示真实模块名而不是源码目录名' {
+            Mock -CommandName Get-PSCallStack -ModuleName IPAP {
+                return @(
+                    [PSCustomObject]@{ ScriptName = ''; FunctionName = 'Write-LogEntry'; ScriptLineNumber = 0 }
+                    [PSCustomObject]@{
+                        ScriptName       = 'C:\repo\source\Private\Get-ImageLevelForImage.ps1'
+                        FunctionName     = 'Get-ImageLevelForImage'
+                        ScriptLineNumber = 7
+                        InvocationInfo   = [PSCustomObject]@{ MyCommand = [PSCustomObject]@{ ModuleName = 'IPAP'; Name = 'Get-ImageLevelForImage' } }
+                    }
+                )
+            }
+
+            Write-LogEntry -Level Info -Message '模块名测试'
+
+            $script:WriteHostCalls[2].Text | Should -Be 'IPAP:Get-ImageLevelForImage:7 - '
+            $script:WriteHostCalls[2].Text | Should -Not -Match '^Private:'
+        }
+
+        It '普通脚本函数取不到模块名时应回退到脚本文件名' {
+            Mock -CommandName Get-PSCallStack -ModuleName IPAP {
+                return @(
+                    [PSCustomObject]@{ ScriptName = ''; FunctionName = ''; ScriptLineNumber = 0 }
+                    [PSCustomObject]@{ ScriptName = 'C:\tools\Main.ps1'; FunctionName = 'Invoke-Main'; ScriptLineNumber = 12 }
+                )
+            }
+
+            Write-LogEntry -Level Info -Message '脚本名测试'
+
+            $script:WriteHostCalls[2].Text | Should -Be 'Main:Invoke-Main:12 - '
+        }
+
+        It '脚本顶层（<ScriptBlock>）不输出函数段' {
+            Mock -CommandName Get-PSCallStack -ModuleName IPAP {
+                return @(
+                    [PSCustomObject]@{ ScriptName = ''; FunctionName = ''; ScriptLineNumber = 0 }
+                    [PSCustomObject]@{ ScriptName = 'C:\tools\Main.ps1'; FunctionName = '<ScriptBlock>'; ScriptLineNumber = 38 }
+                )
+            }
+
+            Write-LogEntry -Level Info -Message '顶层测试'
+
+            $script:WriteHostCalls[2].Text | Should -Be 'Main:38 - '
+        }
+
+        It '模块顶层（<module>）同样不输出函数段' {
+            Mock -CommandName Get-PSCallStack -ModuleName IPAP {
+                return @(
+                    [PSCustomObject]@{ ScriptName = ''; FunctionName = ''; ScriptLineNumber = 0 }
+                    [PSCustomObject]@{
+                        ScriptName       = 'C:\repo\source\IPAP.psm1'
+                        FunctionName     = '<module>'
+                        ScriptLineNumber = 9
+                        InvocationInfo   = [PSCustomObject]@{ MyCommand = [PSCustomObject]@{ ModuleName = 'IPAP'; Name = 'IPAP.psm1' } }
+                    }
+                )
+            }
+
+            Write-LogEntry -Level Info -Message '模块顶层测试'
+
+            $script:WriteHostCalls[2].Text | Should -Be 'IPAP:9 - '
         }
     }
 
