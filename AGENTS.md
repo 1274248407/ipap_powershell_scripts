@@ -29,6 +29,15 @@ PowerShell 7 图像处理自动化项目（ipap_workflow）。修改任何 `.ps1
   - 断言精确，避免模糊字符串匹配；测试之间不共享状态，`AfterEach/AfterAll` 清理。
   - 编写测试时参考 `docs/单元测试方法论.md` 的5级分级与纯函数/副作用函数原则。
 
+## Git 分支与发布
+
+- 长期分支只有 `main`，它必须始终能通过 `.\build.ps1 -Task Pack`。
+- 改动走短生命周期分支（`feat/...`、`fix/...`），几天内合并回 `main`；1–2 个提交的小改可直接提交 `main`。
+- 发布只从 `main` 打 tag：`.\build.ps1 -Task Release -Bump patch|minor|major`；不建 release 分支、不做发布冻结。
+- 热修直接在 `main` 上修并升 patch，不建 hotfix 分支、不做双向回合并。
+- 合并后删除分支，只保留 tag。
+- 不采用 GitFlow（`develop` / `release-*` / `hotfix-*` 多分支模型），原因见 `docs/adr/0004-trunk-based-branching.md`。
+
 ## Git 提交
 
 - Git commit message 必须使用**简体中文**。
