@@ -1088,7 +1088,7 @@ function Invoke-ReleaseTask
     Write-Output '=========================================='
     Write-Output ''
     Write-Output '即将执行：'
-    Write-Output '  1. git add .（暂存全部变更）'
+    Write-Output '  1. git add .（暂存全部变更；无变更则跳过提交）'
     Write-Output "  2. git commit -m `"chore(release): v$version`""
     Write-Output "  3. git tag -a v$version -m 'Release v$version'"
     Write-Output "  4. git push origin $currentBranch --tags"
@@ -1116,14 +1116,23 @@ function Invoke-ReleaseTask
     Write-Output '暂存区状态：'
     $null = & git status --short
 
-    # 提交
-    Write-Output '提交 commit...'
-    $commitMessage = "chore(release): v$version 稳定发布"
-    $null = & git commit -m $commitMessage
-    if ($LASTEXITCODE -ne 0)
+    # 提交：工作区干净时跳过，避免 "nothing to commit" 中断发布
+    # （正常流程是先把代码提交好，再单独跑 Release 打 tag）
+    $stagedFiles = @(& git diff --cached --name-only)
+    if ($stagedFiles.Count -gt 0)
     {
-        Write-Error 'git commit 失败'
-        exit 1
+        Write-Output '提交 commit...'
+        $commitMessage = "chore(release): v$version 稳定发布"
+        $null = & git commit -m $commitMessage
+        if ($LASTEXITCODE -ne 0)
+        {
+            Write-Error 'git commit 失败'
+            exit 1
+        }
+    }
+    else
+    {
+        Write-Output '工作区无待提交变更，跳过 release commit，直接对当前 HEAD 打 tag'
     }
 
     # 打 tag
