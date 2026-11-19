@@ -31,6 +31,9 @@
     (string) 按 SemVer 推进版本号：major / minor / patch。只与 Pack 或 Release 一起使用：
     先从最后一个版本 tag 算出新版本并写回 source/IPAP.psd1，再执行打包/发布。
     省略时按清单里的版本号执行，并由 Assert-VersionReady 做严格校验。
+.PARAMETER Yes
+    (switch) Release 时跳过 y/n 确认，用于脚本化发布（CI 或自动化）。
+    交互发布时不要传，保留人工确认这一道关。
 .EXAMPLE
     .\build.ps1 -Task Build
     # 仅构建
@@ -62,7 +65,8 @@ param (
     [switch] $ResolveDependency = $true,
     [switch] $UseModuleFast = $true,
     [ValidateSet('major', 'minor', 'patch')]
-    [string] $Bump
+    [string] $Bump,
+    [switch] $Yes
 )
 
 $ErrorActionPreference = 'Stop'
@@ -1096,11 +1100,18 @@ function Invoke-ReleaseTask
     Write-Output ''
 
     # 步骤 5：y/n 网关（不可逆操作前必须确认）
-    $confirmation = Read-Host -Prompt '确认执行 commit + tag + push + gh release？(y/n)'
-    if ($confirmation -ne 'y' -and $confirmation -ne 'Y')
+    if ($Yes)
     {
-        Write-Output '已中止发布。zip 保留在 output/ 目录。'
-        return
+        Write-Output '已指定 -Yes，跳过交互确认'
+    }
+    else
+    {
+        $confirmation = Read-Host -Prompt '确认执行 commit + tag + push + gh release？(y/n)'
+        if ($confirmation -ne 'y' -and $confirmation -ne 'Y')
+        {
+            Write-Output '已中止发布。zip 保留在 output/ 目录。'
+            return
+        }
     }
 
     # 步骤 6：执行 git 操作
