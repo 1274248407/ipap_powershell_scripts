@@ -27,9 +27,16 @@
 .PARAMETER UseModuleFast
     (switch) 是否优先使用 ModuleFast 加速依赖下载，默认 $true。
     ModuleFast 不可用时自动回退到 Save-Module。
+.PARAMETER Bump
+    (string) 按 SemVer 推进版本号：major / minor / patch。只与 Pack 或 Release 一起使用：
+    先从最后一个版本 tag 算出新版本并写回 source/IPAP.psd1，再执行打包/发布。
+    省略时按清单里的版本号执行，并由 Assert-VersionReady 做严格校验。
 .EXAMPLE
     .\build.ps1 -Task Build
     # 仅构建
+.EXAMPLE
+    .\build.ps1 -Task Release -Bump minor
+    # 版本号按 minor 推进后，走完整套 + 打包 + 发布
 .EXAMPLE
     .\build.ps1 -Task Test
     # 自动触发 Build + Analyze + Test
@@ -53,7 +60,9 @@ param (
     [ValidateSet('Build', 'Analyze', 'Test', 'Smoke', 'Pack', 'Release')]
     [string[]] $Task,
     [switch] $ResolveDependency = $true,
-    [switch] $UseModuleFast = $true
+    [switch] $UseModuleFast = $true,
+    [ValidateSet('major', 'minor', 'patch')]
+    [string] $Bump
 )
 
 $ErrorActionPreference = 'Stop'
@@ -606,9 +615,155 @@ function Test-CoverageExemption
 
 <#
 .SYNOPSIS
-    读取 psd1 模块清单中的 ModuleVersion
+    严格校验字符串是否符合 SemVer 2.0.0
 .DESCRIPTION
-    解析 source/IPAP.psd1，返回 ModuleVersion 字段值（如 '1.0.0'）。
+    使用 semver.org 官方正则校验。不能用 [semver]::TryParse 代替：
+    实测它接受 01.2.3、1.2 等规范明确禁止的写法。
+    预发布标识区分大小写，因此使用 -cmatch。
+.PARAMETER Version
+    待校验的版本字符串。
+.OUTPUTS
+    [bool]
+.NOTES
+    Author:  lucas_gold
+    Website: https://github.com/1274248407
+#>
+function Test-SemVerString
+{
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param (
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Version
+    )
+
+    # semver.org 2.0.0 规范附录给出的官方正则
+    $pattern = '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$'
+
+    return $Version -cmatch $pattern
+}
+
+<#
+.SYNOPSIS
+    读取当前最高的版本 tag
+.DESCRIPTION
+    只认 v<semver> 形式的 tag，按版本号降序取第一个；没有可用 tag 时返回 $null。
+.OUTPUTS
+    [string] 形如 v1.0.0；无 tag 时返回 $null
+.NOTES
+    Author:  lucas_gold
+    Website: https://github.com/1274248407
+#>
+function Get-LatestVersionTag
+{
+    [CmdletBinding()]
+    [OutputType([string])]
+    param ()
+
+    $tags = @(& git tag --list 'v*' --sort=-v:refname)
+    foreach ($tag in $tags)
+    {
+        if (Test-SemVerString -Version $tag.Substring(1))
+        {
+            return $tag
+        }
+    }
+
+    return $null
+}
+
+<#
+.SYNOPSIS
+    按 SemVer 规则计算下一个版本号
+.DESCRIPTION
+    major/minor/patch 分别推进对应位并把低位归零；输入只接受正式版（x.y.z）。
+.PARAMETER BaseVersion
+    基准版本（不带 v 前缀），如 1.2.3。
+.PARAMETER Bump
+    推进类型：major / minor / patch。
+.OUTPUTS
+    [string] 新版本号
+.NOTES
+    Author:  lucas_gold
+    Website: https://github.com/1274248407
+#>
+function Get-BumpedVersion
+{
+    [CmdletBinding()]
+    [OutputType([string])]
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$BaseVersion,
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('major', 'minor', 'patch')]
+        [string]$Bump
+    )
+
+    $parsed = [System.Management.Automation.SemanticVersion]::Parse($BaseVersion)
+    switch ($Bump)
+    {
+        'major' { return "$($parsed.Major + 1).0.0" }
+        'minor' { return "$($parsed.Major).$($parsed.Minor + 1).0" }
+        default { return "$($parsed.Major).$($parsed.Minor).$($parsed.Patch + 1)" }
+    }
+}
+
+<#
+.SYNOPSIS
+    把正式版版本号写回模块清单
+.DESCRIPTION
+    只替换 source/IPAP.psd1 的 ModuleVersion 字段，并清除已有的 Prerelease 标签
+    （清单的 ModuleVersion 无法承载预发布后缀，预发布必须写在 PrivateData.PSData.Prerelease）。
+    写回时保持原文件的 UTF-8 BOM 与 LF 行尾。
+.PARAMETER Version
+    正式版版本号（x.y.z）。
+.OUTPUTS
+    [void]
+.NOTES
+    Author:  lucas_gold
+    Website: https://github.com/1274248407
+#>
+function Set-ModuleVersion
+{
+    [CmdletBinding()]
+    [OutputType([void])]
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$Version
+    )
+
+    if ($Version -notmatch '^\d+\.\d+\.\d+$')
+    {
+        Write-Error "写回清单的版本必须是 Major.Minor.Patch（当前：$Version）"
+        exit 1
+    }
+
+    $psd1Path = Join-Path -Path $script:SourcePath -ChildPath "$($script:ModuleName).psd1"
+    [string]$content = Get-Content -LiteralPath $psd1Path -Raw -Encoding utf8
+    # 去掉可能残留的 BOM 字符：Get-Content -Raw 会把它当普通字符读进来，
+    # 写回时再补 BOM 就会叠加成多个 BOM，导致清单无法解析
+    $content = $content.TrimStart([char]0xFEFF)
+    [string]$updated = [regex]::Replace($content, "(?m)^(\s*ModuleVersion\s*=\s*)'[^']*'", "`${1}'$Version'")
+    # 切正式版时清掉预发布标签，避免 1.2.0 与 1.2.0-beta.1 混用
+    $updated = [regex]::Replace($updated, "(?m)^(\s*Prerelease\s*=\s*)'[^']*'\r?\n", '')
+
+    if ($updated -eq $content -and $content -notmatch "ModuleVersion\s*=\s*'$([regex]::Escape($Version))'")
+    {
+        Write-Error '未在清单中找到可替换的 ModuleVersion'
+        exit 1
+    }
+
+    # 保持 UTF-8 BOM（清单原有编码），只替换文本不碰行尾
+    [System.IO.File]::WriteAllText($psd1Path, $updated, [System.Text.UTF8Encoding]::new($true))
+}
+
+<#
+.SYNOPSIS
+    读取 psd1 模块清单中的版本号（含预发布后缀）
+.DESCRIPTION
+    组合 ModuleVersion 与 PrivateData.PSData.Prerelease：
+    清单字段只能写 x.y.z，因此 1.2.3-beta.1 会被还原成完整 SemVer 字符串。
 .OUTPUTS
     [string] 版本号字符串
 .NOTES
@@ -629,8 +784,18 @@ function Get-ModuleVersion
         exit 1
     }
 
-    # 解析 psd1 内容
-    $manifest = Import-PowerShellDataFile -LiteralPath $psd1Path
+    # 解析 psd1 内容：ModuleVersion 由 Loader 按 [version] 校验，这里补一层可读的失败信息
+    $manifest = $null
+    try
+    {
+        $manifest = Import-PowerShellDataFile -LiteralPath $psd1Path
+    }
+    catch
+    {
+        Write-Error "无法解析模块清单 $psd1Path：$($PSItem.Exception.Message)（ModuleVersion 需为 x.y.z，且不能有前导零）"
+        exit 1
+    }
+
     [string]$version = $manifest.ModuleVersion
     if ([string]::IsNullOrEmpty($version))
     {
@@ -638,7 +803,92 @@ function Get-ModuleVersion
         exit 1
     }
 
+    [string]$prerelease = $manifest.PrivateData?.PSData?.Prerelease
+    if (-not [string]::IsNullOrWhiteSpace($prerelease))
+    {
+        return "$version-$prerelease"
+    }
+
     return $version
+}
+
+<#
+.SYNOPSIS
+    校验当前版本号可以用于打包/发布
+.DESCRIPTION
+    依次检查：符合 SemVer 2.0.0、对应 tag 尚未占用、高于最后一个版本 tag。
+    在入口处执行，避免版本号有问题时还要先跑完 Build/Analyze/Test 才报错。
+    远端 tag 由 Assert-RemoteTagFree 在发布前单独检查（Pack 不联网）。
+.OUTPUTS
+    [void]
+.NOTES
+    Author:  lucas_gold
+    Website: https://github.com/1274248407
+#>
+function Assert-VersionReady
+{
+    [CmdletBinding()]
+    [OutputType([void])]
+    param ()
+
+    [string]$version = Get-ModuleVersion
+    if (-not (Test-SemVerString -Version $version))
+    {
+        Write-Error "版本号 '$version' 不符合 SemVer 2.0.0（示例：1.2.3、1.2.3-beta.1）"
+        exit 1
+    }
+
+    [string]$tag = "v$version"
+    $localTags = @(& git tag --list $tag)
+    if ($localTags.Count -gt 0)
+    {
+        Write-Error "本地已存在 tag '$tag'（请用 -Bump 推进版本，或手工修改 ModuleVersion）"
+        exit 1
+    }
+
+    [string]$latestTag = Get-LatestVersionTag
+    if ($latestTag)
+    {
+        $latestVersion = [System.Management.Automation.SemanticVersion]::Parse($latestTag.Substring(1))
+        $currentVersion = [System.Management.Automation.SemanticVersion]::Parse($version)
+        if ($currentVersion -le $latestVersion)
+        {
+            Write-Error "版本 $version 必须大于最后一个 tag $latestTag（请用 -Bump 推进版本）"
+            exit 1
+        }
+    }
+
+    $latestText = $latestTag ? $latestTag : '无'
+    Write-Output "版本校验通过：$version（最新 tag：$latestText）"
+}
+
+<#
+.SYNOPSIS
+    校验当前版本的 tag 在远端尚未存在
+.DESCRIPTION
+    发布前调用，避免重复发布同一版本。需要网络访问 origin。
+.OUTPUTS
+    [void]
+.NOTES
+    Author:  lucas_gold
+    Website: https://github.com/1274248407
+#>
+function Assert-RemoteTagFree
+{
+    [CmdletBinding()]
+    [OutputType([void])]
+    param ()
+
+    [string]$version = Get-ModuleVersion
+    [string]$tag = "v$version"
+    $remoteTags = @(& git ls-remote --tags origin "refs/tags/$tag" 2>$null)
+    if ($remoteTags.Count -gt 0)
+    {
+        Write-Error "远端已存在 tag '$tag'（该版本已发布过）"
+        exit 1
+    }
+
+    Write-Output "远端 tag 校验通过：$tag 尚未发布"
 }
 
 <#
@@ -807,6 +1057,9 @@ function Invoke-ReleaseTask
     # 步骤 1：读取版本号
     [string]$version = Get-ModuleVersion
 
+    # 步骤 1.1：发布前检查远端 tag，避免重复发布同一版本
+    Assert-RemoteTagFree
+
     # 步骤 2：校验 zip 存在
     $zipPath = Join-Path -Path $script:OutputPath -ChildPath "$($script:ModuleName)-v$version.zip"
     if (-not (Test-Path -LiteralPath $zipPath))
@@ -970,6 +1223,33 @@ function Invoke-TaskWithDependency
 }
 
 # 入口：解析依赖 + 按 -Task 顺序执行
+if ($Bump)
+{
+    if (-not ($Task -contains 'Pack' -or $Task -contains 'Release'))
+    {
+        Write-Error '-Bump 只能与 Pack 或 Release 一起使用（它会把新版本写回清单）'
+        exit 1
+    }
+
+    [string]$latestTag = Get-LatestVersionTag
+    if (-not $latestTag)
+    {
+        Write-Error '没有可用的版本 tag 作为基准，无法自动推进版本号'
+        exit 1
+    }
+
+    [string]$baseVersion = $latestTag.Substring(1)
+    [string]$newVersion = Get-BumpedVersion -BaseVersion $baseVersion -Bump $Bump
+    Set-ModuleVersion -Version $newVersion
+    Write-Output "版本号：$baseVersion -> $newVersion（-Bump $Bump）"
+}
+
+# 打包/发布前先校验版本号：格式、tag 未占用、高于最后一个版本 tag
+if ($Task -contains 'Pack' -or $Task -contains 'Release')
+{
+    Assert-VersionReady
+}
+
 if ($ResolveDependency)
 {
     Invoke-ResolveDependency
