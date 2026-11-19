@@ -571,6 +571,46 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
         }
     }
 
+    Context 'L4 续跑（-Resume）' {
+        It 'Resume 为真时应只处理缺失页，校验仍按全量' {
+            Mock -ModuleName IPAP Get-PendingImage { return @() }
+            Mock -ModuleName IPAP Get-PendingImage {
+                return @([PSCustomObject]@{ Name = '2.jpg'; FullName = 'C:\src\2.jpg' })
+            } -ParameterFilter { $OutputDir -like '*02_Preprocessing' }
+            $Script:LevelByImage = @{ '1.jpg' = 1; '2.jpg' = 1 }
+
+            Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images' -Resume
+
+            Should -Invoke -ModuleName IPAP Invoke-ParallelUpscale -Times 1 -Exactly `
+                -ParameterFilter { @($Images).Count -eq 1 -and @($Images)[0].Name -eq '2.jpg' }
+            Should -Invoke -ModuleName IPAP Test-UpscaleResult -Times 1 -Exactly `
+                -ParameterFilter { $ExpectedCount -eq 2 }
+            Should -Invoke -ModuleName IPAP Write-LogEntry `
+                -ParameterFilter { $Message -like '续跑：有文字图已完成 1 张 / 待处理 1 张*' } -Times 1 -Exactly
+        }
+
+        It 'Resume 为真且全部已完成时不应调用并行处理，但仍做校验' {
+            Mock -ModuleName IPAP Get-PendingImage { return @() }
+            $Script:LevelByImage = @{ '1.jpg' = 1; '2.jpg' = 1 }
+
+            Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images' -Resume
+
+            Should -Invoke -ModuleName IPAP Invoke-ParallelUpscale -Times 0 -Exactly
+            Should -Invoke -ModuleName IPAP Test-UpscaleResult -Times 1 -Exactly `
+                -ParameterFilter { $ExpectedCount -eq 2 }
+        }
+
+        It 'Resume 为假时应处理全部页面' {
+            Mock -ModuleName IPAP Get-PendingImage { throw '未指定 -Resume 时不应调用' }
+            $Script:LevelByImage = @{ '1.jpg' = 1; '2.jpg' = 1 }
+
+            Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
+
+            Should -Invoke -ModuleName IPAP Invoke-ParallelUpscale -Times 1 -Exactly `
+                -ParameterFilter { @($Images).Count -eq 2 }
+        }
+    }
+
     Context 'L5 调用契约验证' {
         It 'New-ProjectStructure 应收到 Trim 后的 BaseDir 与项目简报中的项目名' {
             Start-IPAPWorkflow -BaseDir 'C:\Projects  ' -SourceDir 'C:\Images'

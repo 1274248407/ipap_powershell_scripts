@@ -17,6 +17,10 @@
 .PARAMETER SourceDir
     (string) 源图片目录（可选），若未指定则从配置读取或交互式输入。
     规则与 BaseDir 相同。
+.PARAMETER Resume
+    (switch) 续跑：跳过已经存在有效产物（同名 webp 且大小大于 0）的页面，只处理缺失或失败的页面。
+    用于上次跑完后个别页面失败、需要补跑的场景；校验仍按该类别全部图片数计算。
+    不指定时按全量处理，可预测性更强。
 .EXAMPLE
     Start-IPAPWorkflow
     执行完整的工作流，使用配置文件或交互式输入参数。
@@ -38,7 +42,9 @@ function Start-IPAPWorkflow {
     param (
         [IPAPConfiguration]$Config = $null,
         [string]$BaseDir = $null,
-        [string]$SourceDir = $null
+        [string]$SourceDir = $null,
+        # 续跑：跳过已存在有效产物的页面，只处理缺失/失败页（上次失败后重跑用）
+        [switch]$Resume
     )
 
     # 只有完整跑完处理与校验才置为 $true；无图片、用户取消或异常路径保持 $false
@@ -165,52 +171,61 @@ function Start-IPAPWorkflow {
                     # Real-CUGAN 的实际倍率来自配置，必须显式传给引擎，否则永远吃默认 2
                     [int]$realCuganScale = $Config.App.UpscaleRatio
 
+                    # 续跑：只处理还没有有效产物的页面；校验仍按全量计算（见下方 ExpectedCount）
+                    [array]$textPending = @($textImages)
+                    [array]$nonTextPending = @($nonTextImages)
+                    if ($Resume) {
+                        $textPending = @(Get-PendingImage -Images $textImages -OutputDir $preprocessingDir -OutputFormat 'webp')
+                        $nonTextPending = @(Get-PendingImage -Images $nonTextImages -OutputDir $nonTextRawDir -OutputFormat 'webp')
+                        Write-LogEntry -Level Info -Message "续跑：有文字图已完成 $($textImages.Count - $textPending.Count) 张 / 待处理 $($textPending.Count) 张；无文字图已完成 $($nonTextImages.Count - $nonTextPending.Count) 张 / 待处理 $($nonTextPending.Count) 张"
+                    }
+
                     # 按项目统一等级整批路由：同项目不允许一部分页面放大、另一部分不放大
                     if ($ProjectLevel -eq 1) {
-                        if ($textImages.Count -gt 0) {
-                            Write-LogEntry -Level Info -Message "有文字图: 处理 $($textImages.Count) 张轻度模糊图片 (FFmpeg 锐化)"
-                            $textResult = Invoke-ParallelUpscale -Images $textImages -OutputDir $preprocessingDir -Engine 'FFmpeg' -MaxWorkers $maxWorkers
+                        if ($textPending.Count -gt 0) {
+                            Write-LogEntry -Level Info -Message "有文字图: 处理 $($textPending.Count) 张轻度模糊图片 (FFmpeg 锐化)"
+                            $textResult = Invoke-ParallelUpscale -Images $textPending -OutputDir $preprocessingDir -Engine 'FFmpeg' -MaxWorkers $maxWorkers
                             Write-LogEntry -Level Info -Message "有文字图 Level 1 完成: 成功=$($textResult.SuccessCount), 失败=$($textResult.FailedCount)"
                         }
 
-                        if ($nonTextImages.Count -gt 0) {
-                            Write-LogEntry -Level Info -Message "无文字图: 处理 $($nonTextImages.Count) 张轻度模糊图片 (FFmpeg 锐化)"
-                            $nonTextResult = Invoke-ParallelUpscale -Images $nonTextImages -OutputDir $nonTextRawDir -Engine 'FFmpeg' -MaxWorkers $maxWorkers
+                        if ($nonTextPending.Count -gt 0) {
+                            Write-LogEntry -Level Info -Message "无文字图: 处理 $($nonTextPending.Count) 张轻度模糊图片 (FFmpeg 锐化)"
+                            $nonTextResult = Invoke-ParallelUpscale -Images $nonTextPending -OutputDir $nonTextRawDir -Engine 'FFmpeg' -MaxWorkers $maxWorkers
                             Write-LogEntry -Level Info -Message "无文字图 Level 1 完成: 成功=$($nonTextResult.SuccessCount), 失败=$($nonTextResult.FailedCount)"
                         }
                     }
                     elseif ($ProjectLevel -eq 2) {
                         if (-not $Config.Tools.RealCuganExePath) {
-                            $level2Count = $textImages.Count + $nonTextImages.Count
+                            $level2Count = $textPending.Count + $nonTextPending.Count
                             Write-LogEntry -Level Warning -Message "项目等级为 Level 2: $level2Count 张图片需要 Real-CUGAN 处理，但未找到可执行文件"
                         }
                         else {
                             $modelPath = $Config.App.ModelSelect
 
-                            if ($textImages.Count -gt 0) {
-                                Write-LogEntry -Level Info -Message "有文字图: 处理 $($textImages.Count) 张重度模糊图片 (Real-CUGAN)"
-                                $textResult = Invoke-ParallelUpscale -Images $textImages -OutputDir $preprocessingDir -Engine 'RealCugan' -MaxWorkers $maxWorkers -Scale $realCuganScale -ModelPath $modelPath
+                            if ($textPending.Count -gt 0) {
+                                Write-LogEntry -Level Info -Message "有文字图: 处理 $($textPending.Count) 张重度模糊图片 (Real-CUGAN)"
+                                $textResult = Invoke-ParallelUpscale -Images $textPending -OutputDir $preprocessingDir -Engine 'RealCugan' -MaxWorkers $maxWorkers -Scale $realCuganScale -ModelPath $modelPath
                                 Write-LogEntry -Level Info -Message "有文字图 Level 2 完成: 成功=$($textResult.SuccessCount), 失败=$($textResult.FailedCount)"
                             }
 
-                            if ($nonTextImages.Count -gt 0) {
-                                Write-LogEntry -Level Info -Message "无文字图: 处理 $($nonTextImages.Count) 张重度模糊图片 (Real-CUGAN)"
-                                $nonTextResult = Invoke-ParallelUpscale -Images $nonTextImages -OutputDir $nonTextRawDir -Engine 'RealCugan' -MaxWorkers $maxWorkers -Scale $realCuganScale -ModelPath $modelPath
+                            if ($nonTextPending.Count -gt 0) {
+                                Write-LogEntry -Level Info -Message "无文字图: 处理 $($nonTextPending.Count) 张重度模糊图片 (Real-CUGAN)"
+                                $nonTextResult = Invoke-ParallelUpscale -Images $nonTextPending -OutputDir $nonTextRawDir -Engine 'RealCugan' -MaxWorkers $maxWorkers -Scale $realCuganScale -ModelPath $modelPath
                                 Write-LogEntry -Level Info -Message "无文字图 Level 2 完成: 成功=$($nonTextResult.SuccessCount), 失败=$($nonTextResult.FailedCount)"
                             }
                         }
                     }
                     else {
                         # Level 0：不放大，但统一转码为 webp，保证 02_Preprocessing 全目录格式一致
-                        if ($textImages.Count -gt 0) {
-                            Write-LogEntry -Level Info -Message "有文字图: 转码 $($textImages.Count) 张为 webp（不放大）"
-                            $textResult = Invoke-ParallelUpscale -Images $textImages -OutputDir $preprocessingDir -Engine 'Webp' -MaxWorkers $maxWorkers
+                        if ($textPending.Count -gt 0) {
+                            Write-LogEntry -Level Info -Message "有文字图: 转码 $($textPending.Count) 张为 webp（不放大）"
+                            $textResult = Invoke-ParallelUpscale -Images $textPending -OutputDir $preprocessingDir -Engine 'Webp' -MaxWorkers $maxWorkers
                             Write-LogEntry -Level Info -Message "有文字图 Level 0 完成: 成功=$($textResult.SuccessCount), 失败=$($textResult.FailedCount)"
                         }
 
-                        if ($nonTextImages.Count -gt 0) {
-                            Write-LogEntry -Level Info -Message "无文字图: 转码 $($nonTextImages.Count) 张为 webp（不放大）"
-                            $nonTextResult = Invoke-ParallelUpscale -Images $nonTextImages -OutputDir $nonTextRawDir -Engine 'Webp' -MaxWorkers $maxWorkers
+                        if ($nonTextPending.Count -gt 0) {
+                            Write-LogEntry -Level Info -Message "无文字图: 转码 $($nonTextPending.Count) 张为 webp（不放大）"
+                            $nonTextResult = Invoke-ParallelUpscale -Images $nonTextPending -OutputDir $nonTextRawDir -Engine 'Webp' -MaxWorkers $maxWorkers
                             Write-LogEntry -Level Info -Message "无文字图 Level 0 完成: 成功=$($nonTextResult.SuccessCount), 失败=$($nonTextResult.FailedCount)"
                         }
                     }

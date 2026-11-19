@@ -140,7 +140,8 @@ param (
     [string]$BaseDir,
     [string]$SourceDir,
     [string]$ImagePath,
-    [string]$OutputDir
+    [string]$OutputDir,
+    [switch]$Resume
 )
 
 $ErrorActionPreference = 'Stop'
@@ -153,7 +154,7 @@ Import-Module (Join-Path $Repo 'source\IPAP.psd1') -Force
 $Config = Get-Configuration -ProjectRoot $Repo
 
 if ($Mode -eq 'workflow') {
-    Start-IPAPWorkflow -Config $Config -BaseDir $BaseDir -SourceDir $SourceDir
+    Start-IPAPWorkflow -Config $Config -BaseDir $BaseDir -SourceDir $SourceDir -Resume:$Resume
 }
 else {
     $Image = [PSCustomObject]@{
@@ -384,6 +385,37 @@ else {
             $script:Project6.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
             Test-Path -LiteralPath (Join-Path $script:Project6[0].FullName '02_Preprocessing\page1.webp') | Should -BeTrue
             Test-Path -LiteralPath (Join-Path $script:Project6[0].FullName '02_Preprocessing\page2.webp') | Should -BeTrue
+        }
+    }
+
+    Context '场景 7：续跑（-Resume）只补缺失页' {
+        BeforeAll {
+            # 复用场景 2 的项目目录：产物已全部存在，续跑应识别为「待处理 0 张」
+            # 输入依次为：覆盖确认 Y、无文字图跳过 3
+            $script:Run7 = Invoke-SmokeRunner -RunnerArguments @(
+                '-Mode', 'workflow', '-Repo', $script:Repo, '-BaseDir', $script:BaseL1, '-SourceDir', $script:SrcL1, '-Resume'
+            ) -InputText "Y`n3`n"
+            [IO.File]::WriteAllText((Join-Path $script:LogDir 'run7-resume.log'), $script:Run7.Output, [Text.UTF8Encoding]::new($false))
+
+            $script:Project7 = @(Get-ChildItem -LiteralPath $script:BaseL1 -Directory -ErrorAction SilentlyContinue)
+        }
+
+        It '续跑退出码为 0' {
+            $script:Run7.ExitCode | Should -Be 0
+        }
+
+        It '应识别全部页面已完成' {
+            $script:Run7.Output | Should -Match '续跑：有文字图已完成 3 张 / 待处理 0 张'
+        }
+
+        It '不应重新处理已完成的页面' {
+            $script:Run7.Output | Should -Not -Match '有文字图: 处理 3 张'
+        }
+
+        It '产物仍为 3 个 webp' {
+            $script:Project7.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
+            @(Get-ChildItem -LiteralPath (Join-Path $script:Project7[0].FullName '02_Preprocessing') -File -Filter '*.webp').Count |
+                Should -Be 3
         }
     }
 }
