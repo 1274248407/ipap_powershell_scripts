@@ -148,6 +148,28 @@ Describe 'New-ProjectStructure Unit Tests' -Tag 'New-ProjectStructure', 'IPAP' {
             Should -Invoke -ModuleName IPAP Write-LogEntry `
                 -ParameterFilter { $Level -eq 'Info' -and $Message -eq '用户取消覆盖操作' } -Times 1 -Exactly
         }
+
+        It 'Read-Host 无输出（EOF）应视为取消覆盖且不抛空引用异常' {
+            # 回归：EOF 时 Read-Host 返回 AutomationNull，旧实现 ([string]$Response).Trim() 会抛
+            # 「不能对值为 Null 的表达式调用方法」，把「取消覆盖」变成崩溃
+            Mock Test-Path -ModuleName IPAP { return $true }
+            Mock Read-Host -ModuleName IPAP { }
+
+            $Thrown = $null
+            $Result = $null
+            try {
+                $Result = New-ProjectStructure -BaseDir 'C:\Projects' -ProjectName 'ExistingProject'
+            }
+            catch {
+                $Thrown = $PSItem
+            }
+
+            $Thrown | Should -BeNullOrEmpty
+            $Result | Should -BeNullOrEmpty
+            Should -Invoke -ModuleName IPAP New-Item -Times 0 -Exactly
+            Should -Invoke -ModuleName IPAP Write-LogEntry `
+                -ParameterFilter { $Level -eq 'Info' -and $Message -eq '用户取消覆盖操作' } -Times 1 -Exactly
+        }
     }
 
     Context 'L3 参数契约与边界数据' {

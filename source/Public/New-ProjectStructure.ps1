@@ -104,10 +104,11 @@ function New-ProjectStructure {
         # ShouldContinue 是 PSCmdlet 的方法而非命令，而 Pester 只能 Mock 命令，无法拦截方法调用，
         # 会使本分支在单元测试中永远不可达；Read-Host 是系统命令，可被 Mock。
         if ((Test-Path -LiteralPath $projectDir) -and (-not $Force)) {
-            # 安全默认：仅显式 Y/y 视为覆盖；回车、EOF（Read-Host 返回 $null）与
-            # 其它任何输入一律视为取消，避免非交互环境下的死循环与误覆盖
-            $Response = Read-Host '项目目录已存在，是否覆盖现有目录？(Y/N)'
-            if (([string]$Response).Trim() -notin @('Y', 'y')) {
+            # 安全默认：仅显式 Y/y 视为覆盖，其它任何输入一律视为取消，避免非交互环境下误覆盖。
+            # 用 Read-TrimmedInput 而非裸 Read-Host：EOF 时 Read-Host 返回 AutomationNull，
+            # 对它调用 .Trim() 会抛「不能对值为 Null 的表达式调用方法」
+            $Response = Read-TrimmedInput -Prompt '项目目录已存在，是否覆盖现有目录？(Y/N)'
+            if ($Response -notin @('Y', 'y')) {
                 Write-LogEntry -Level Info -Message '用户取消覆盖操作'
                 return $null
             }
