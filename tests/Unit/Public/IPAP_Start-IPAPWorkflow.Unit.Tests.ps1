@@ -95,6 +95,11 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
         Mock Test-UpscaleResult -ModuleName IPAP { return $true }
         # 完成提示音是副作用，单测统一静默；只断言调用次数，不实际发声
         Mock Invoke-CompletionSound -ModuleName IPAP { }
+        # 运行状态标记：写/删都静默；读取与续跑筛选默认返回空，具体行为由各用例覆盖
+        Mock Save-WorkflowRunState -ModuleName IPAP { }
+        Mock Clear-WorkflowRunState -ModuleName IPAP { }
+        Mock Get-WorkflowRunState -ModuleName IPAP { return $null }
+        Mock Get-PendingImage -ModuleName IPAP { return @() }
 
         Mock Get-ImageInfo -ModuleName IPAP {
             return [PSCustomObject]@{ Images = $Script:Images; Count = $Script:Images.Count }
@@ -608,6 +613,82 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
 
             Should -Invoke -ModuleName IPAP Invoke-ParallelUpscale -Times 1 -Exactly `
                 -ParameterFilter { @($Images).Count -eq 2 }
+        }
+    }
+
+    Context 'L4 自动续跑（运行状态标记）' {
+        It '上次未完成且参数一致时应自动续跑，只处理缺失页' {
+            Mock -ModuleName IPAP Get-WorkflowRunState {
+                return [PSCustomObject]@{
+                    projectLevel   = 1
+                    realCuganScale = 2
+                    modelSelect    = 'models-se'
+                    startedAt      = '2026-11-22T10:00:00'
+                }
+            }
+            Mock -ModuleName IPAP Get-PendingImage {
+                return @([PSCustomObject]@{ Name = '2.jpg'; FullName = 'C:\src\2.jpg' })
+            } -ParameterFilter { $OutputDir -like '*\02_Preprocessing' }
+            $Script:LevelByImage = @{ '1.jpg' = 1; '2.jpg' = 1 }
+
+            Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
+
+            Should -Invoke -ModuleName IPAP Write-LogEntry `
+                -ParameterFilter { $Message -like '*检测到上次运行未完成，自动续跑*' } -Times 1 -Exactly
+            Should -Invoke -ModuleName IPAP Invoke-ParallelUpscale -Times 1 -Exactly `
+                -ParameterFilter { @($Images).Count -eq 1 -and @($Images)[0].Name -eq '2.jpg' }
+        }
+
+        It '上次参数与当前不同时应全量重做并告警' {
+            Mock -ModuleName IPAP Get-WorkflowRunState {
+                return [PSCustomObject]@{ projectLevel = 2; realCuganScale = 4; modelSelect = 'models-pro' }
+            }
+            $Script:LevelByImage = @{ '1.jpg' = 1; '2.jpg' = 1 }
+
+            Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
+
+            Should -Invoke -ModuleName IPAP Write-LogEntry `
+                -ParameterFilter { $Level -eq 'Warning' -and $Message -like '*本次全量重做*' } -Times 1 -Exactly
+            Should -Invoke -ModuleName IPAP Get-PendingImage -Times 0 -Exactly
+            Should -Invoke -ModuleName IPAP Invoke-ParallelUpscale -Times 1 -Exactly `
+                -ParameterFilter { @($Images).Count -eq 2 }
+        }
+
+        It '没有状态标记时应全量处理' {
+            Mock -ModuleName IPAP Get-WorkflowRunState { return $null }
+            $Script:LevelByImage = @{ '1.jpg' = 1; '2.jpg' = 1 }
+
+            Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
+
+            Should -Invoke -ModuleName IPAP Get-PendingImage -Times 0 -Exactly
+            Should -Invoke -ModuleName IPAP Invoke-ParallelUpscale -Times 1 -Exactly `
+                -ParameterFilter { @($Images).Count -eq 2 }
+        }
+
+        It '开始处理前应写入状态标记并带上本次参数' {
+            $Script:LevelByImage = @{ '1.jpg' = 1; '2.jpg' = 1 }
+
+            Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
+
+            Should -Invoke -ModuleName IPAP Save-WorkflowRunState -Times 1 -Exactly `
+                -ParameterFilter { $ProjectLevel -eq 1 -and $TextCount -eq 2 -and $RealCuganScale -eq 2 }
+        }
+
+        It '校验通过后应清除状态标记' {
+            $Script:LevelByImage = @{ '1.jpg' = 1; '2.jpg' = 1 }
+
+            Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
+
+            Should -Invoke -ModuleName IPAP Clear-WorkflowRunState -Times 1 -Exactly
+        }
+
+        It '校验失败时不应清除状态标记' {
+            Mock -ModuleName IPAP Test-UpscaleResult { return $false }
+            $Script:LevelByImage = @{ '1.jpg' = 1; '2.jpg' = 1 }
+
+            { Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images' } | Should -Throw
+
+            Should -Invoke -ModuleName IPAP Clear-WorkflowRunState -Times 0 -Exactly
         }
     }
 

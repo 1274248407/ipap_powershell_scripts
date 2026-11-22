@@ -18,9 +18,10 @@
     (string) 源图片目录（可选），若未指定则从配置读取或交互式输入。
     规则与 BaseDir 相同。
 .PARAMETER Resume
-    (switch) 续跑：跳过已经存在有效产物（同名 webp 且大小大于 0）的页面，只处理缺失或失败的页面。
-    用于上次跑完后个别页面失败、需要补跑的场景；校验仍按该类别全部图片数计算。
-    不指定时按全量处理，可预测性更强。
+    (switch) 强制续跑：跳过已经存在有效产物（同名 webp 且大小大于 0）的页面，只处理缺失或失败的页面。
+    一般不需要手动指定——上次运行未完成时会在项目根目录留下 `.ipap-run.json`，
+    下次启动会自动识别并续跑；只有参数（等级 / 倍数 / 模型）变化时才会改为全量重做。
+    指定本开关可跳过自动判断，直接按当前产物做增量。
 .EXAMPLE
     Start-IPAPWorkflow
     执行完整的工作流，使用配置文件或交互式输入参数。
@@ -171,14 +172,38 @@ function Start-IPAPWorkflow {
                     # Real-CUGAN 的实际倍率来自配置，必须显式传给引擎，否则永远吃默认 2
                     [int]$realCuganScale = $Config.App.UpscaleRatio
 
+                    # 自动续跑：上次没跑完会在项目根目录留下状态文件；
+                    # 参数一致就只补缺失页，参数变了才全量重做
+                    [object]$RunState = Get-WorkflowRunState -ProjectDir $projectDir
+                    [bool]$AutoResume = $false
+                    if ($null -ne $RunState) {
+                        [bool]$StateMatches = ($null -ne $RunState.projectLevel) -and
+                        ([int]$RunState.projectLevel -eq $ProjectLevel) -and
+                        ([int]$RunState.realCuganScale -eq $realCuganScale) -and
+                        ([string]$RunState.modelSelect -eq $Config.App.ModelSelect)
+
+                        if ($StateMatches) {
+                            $AutoResume = $true
+                            Write-LogEntry -Level Info -Message '检测到上次运行未完成，自动续跑：只处理缺失或失败的页面'
+                        }
+                        else {
+                            Write-LogEntry -Level Warning -Message '上次运行的参数与当前配置不同（等级 / 倍数 / 模型），本次全量重做'
+                        }
+                    }
+
                     # 续跑：只处理还没有有效产物的页面；校验仍按全量计算（见下方 ExpectedCount）
                     [array]$textPending = @($textImages)
                     [array]$nonTextPending = @($nonTextImages)
-                    if ($Resume) {
+                    if ($Resume -or $AutoResume) {
                         $textPending = @(Get-PendingImage -Images $textImages -OutputDir $preprocessingDir -OutputFormat 'webp')
                         $nonTextPending = @(Get-PendingImage -Images $nonTextImages -OutputDir $nonTextRawDir -OutputFormat 'webp')
                         Write-LogEntry -Level Info -Message "续跑：有文字图已完成 $($textImages.Count - $textPending.Count) 张 / 待处理 $($textPending.Count) 张；无文字图已完成 $($nonTextImages.Count - $nonTextPending.Count) 张 / 待处理 $($nonTextPending.Count) 张"
                     }
+
+                    # 标记本次运行「进行中」：正常收尾时删除，中途失败则留给下次自动续跑
+                    Save-WorkflowRunState -ProjectDir $projectDir -ProjectLevel $ProjectLevel `
+                        -RealCuganScale $realCuganScale -ModelSelect $Config.App.ModelSelect `
+                        -TextCount $textImages.Count -NonTextCount $nonTextImages.Count
 
                     # 按项目统一等级整批路由：同项目不允许一部分页面放大、另一部分不放大
                     if ($ProjectLevel -eq 1) {
@@ -246,6 +271,9 @@ function Start-IPAPWorkflow {
                         Write-LogEntry -Level Error -Message $ErrorMessage
                         throw [System.InvalidOperationException]::new($ErrorMessage)
                     }
+
+                    # 校验通过：清掉运行状态标记，下次运行按全新流程处理
+                    Clear-WorkflowRunState -ProjectDir $projectDir
 
                     # 处理与校验全部通过后才标记完成，提示音只在真正跑完时播放
                     $WorkflowCompleted = $true

@@ -386,6 +386,11 @@ else {
             Test-Path -LiteralPath (Join-Path $script:Project6[0].FullName '02_Preprocessing\page1.webp') | Should -BeTrue
             Test-Path -LiteralPath (Join-Path $script:Project6[0].FullName '02_Preprocessing\page2.webp') | Should -BeTrue
         }
+
+        It '失败后应留下运行状态标记，供下次自动续跑' {
+            $script:Project6.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
+            Test-Path -LiteralPath (Join-Path $script:Project6[0].FullName '.ipap-run.json') | Should -BeTrue
+        }
     }
 
     Context '场景 7：续跑（-Resume）只补缺失页' {
@@ -416,6 +421,31 @@ else {
             $script:Project7.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
             @(Get-ChildItem -LiteralPath (Join-Path $script:Project7[0].FullName '02_Preprocessing') -File -Filter '*.webp').Count |
                 Should -Be 3
+        }
+    }
+
+    Context '场景 8：上次失败后重跑自动续跑（不传 -Resume）' {
+        BeforeAll {
+            # 复用场景 6 的项目目录：上次失败留下了状态标记，本次不传 -Resume 也应自动续跑
+            # 输入依次为：覆盖确认 Y、无文字图跳过 3
+            $script:Run8 = Invoke-SmokeRunner -RunnerArguments @(
+                '-Mode', 'workflow', '-Repo', $script:Repo, '-BaseDir', $script:BaseBroken, '-SourceDir', $script:SrcBroken
+            ) -InputText "Y`n3`n"
+            [IO.File]::WriteAllText((Join-Path $script:LogDir 'run8-autoresume.log'), $script:Run8.Output, [Text.UTF8Encoding]::new($false))
+        }
+
+        It '应识别上次未完成并自动续跑' {
+            $script:Run8.Output | Should -Match '检测到上次运行未完成，自动续跑'
+        }
+
+        It '应只重试失败的那一页' {
+            $script:Run8.Output | Should -Match '续跑：有文字图已完成 2 张 / 待处理 1 张'
+        }
+
+        It '坏图仍失败时退出码非零且状态标记保留' {
+            $script:Run8.ExitCode | Should -Not -Be 0
+            Test-Path -LiteralPath (Join-Path (Join-Path $script:BaseBroken (Get-ChildItem -LiteralPath $script:BaseBroken -Directory | Select-Object -First 1).Name) '.ipap-run.json') |
+                Should -BeTrue
         }
     }
 }
