@@ -19,7 +19,7 @@
     规则与 BaseDir 相同。
 .PARAMETER Resume
     (switch) 强制续跑：跳过已经存在有效产物（同名 webp 且大小大于 0）的页面，只处理缺失或失败的页面。
-    一般不需要手动指定——上次运行未完成时会在项目根目录留下 `.ipap-run.json`，
+    一般不需要手动指定——上次运行未完成时 README.toml 的 [run].status 会停留在 "running"，
     下次启动会自动识别并续跑；只有参数（等级 / 倍数 / 模型）变化时才会改为全量重做。
     指定本开关可跳过自动判断，直接按当前产物做增量。
 .EXAMPLE
@@ -100,13 +100,15 @@ function Start-IPAPWorkflow {
         $imageInfo = Get-ImageInfo -SourceDir $SourceDir
 
         if ($imageInfo.Count -gt 0) {
-            # 使用配置中的项目信息调用 Get-ProjectBriefInfo
-            $briefText, $ProjectName = Get-ProjectBriefInfo `
-                -Author $Config.Project.Author `
-                -OriginalTitle $Config.Project.OriginalTitle `
-                -ChineseTitle $Config.Project.ChineseTitle `
-                -OriginalOverview $Config.Project.OriginalOverview `
-                -ChineseOverview $Config.Project.ChineseOverview
+            # Get-ProjectBriefInfo 仍在配置缺项时交互补齐，并统一「[作者] 原作品名」的拼接——
+            # 目录名只能由它一处生成；README.toml 的 [project] 段则直接取配置原始字段
+            [array]$BriefInfo = @(Get-ProjectBriefInfo `
+                    -Author $Config.Project.Author `
+                    -OriginalTitle $Config.Project.OriginalTitle `
+                    -ChineseTitle $Config.Project.ChineseTitle `
+                    -OriginalOverview $Config.Project.OriginalOverview `
+                    -ChineseOverview $Config.Project.ChineseOverview)
+            [string]$ProjectName = [string]$BriefInfo[1]
 
             if ($PSCmdlet.ShouldProcess($ProjectName, '创建项目结构')) {
                 $projectDir = New-ProjectStructure -BaseDir $BaseDir -ProjectName $ProjectName
@@ -162,25 +164,21 @@ function Start-IPAPWorkflow {
                     [string]$ProjectLevelText = Format-ProjectLevelText -Level $ProjectLevel -RealCuganScale $Config.App.UpscaleRatio
                     Write-LogEntry -Level Info -Message "项目统一等级: $ProjectLevelText；有文字图 $($textImages.Count) 张，无文字图 $($nonTextImages.Count) 张"
 
-                    # 一次性生成 README：张数、统一等级与倍数全部由分级结果派生
-                    New-ReadmeFile -ProjectDir $projectDir -ProjectName $ProjectName -ProjectLevel $ProjectLevel `
-                        -TextImageLevels $textImageLevels -NonTextImageLevels $nonTextImageLevels `
-                        -RealCuganScale $Config.App.UpscaleRatio -BriefText $briefText
-
                     $preprocessingDir = Join-Path -Path $projectDir -ChildPath '02_Preprocessing'
                     $maxWorkers = $Config.App.MaxWorkers
                     # Real-CUGAN 的实际倍率来自配置，必须显式传给引擎，否则永远吃默认 2
                     [int]$realCuganScale = $Config.App.UpscaleRatio
 
-                    # 自动续跑：上次没跑完会在项目根目录留下状态文件；
+                    # 自动续跑：上一次没跑完会把 status 留在 README.toml 的 [run] 段；
                     # 参数一致就只补缺失页，参数变了才全量重做
-                    [object]$RunState = Get-WorkflowRunState -ProjectDir $projectDir
+                    [object]$PreviousReadme = Get-ReadmeToml -ProjectDir $projectDir
+                    [object]$PreviousRun = $PreviousReadme.run
                     [bool]$AutoResume = $false
-                    if ($null -ne $RunState) {
-                        [bool]$StateMatches = ($null -ne $RunState.projectLevel) -and
-                        ([int]$RunState.projectLevel -eq $ProjectLevel) -and
-                        ([int]$RunState.realCuganScale -eq $realCuganScale) -and
-                        ([string]$RunState.modelSelect -eq $Config.App.ModelSelect)
+                    if ([string]$PreviousRun.status -eq 'running') {
+                        [bool]$StateMatches = ($null -ne $PreviousRun.project_level) -and
+                        ([int]$PreviousRun.project_level -eq $ProjectLevel) -and
+                        ([int]$PreviousRun.realcugan_scale -eq $realCuganScale) -and
+                        ([string]$PreviousRun.model -eq $Config.App.ModelSelect)
 
                         if ($StateMatches) {
                             $AutoResume = $true
@@ -191,6 +189,30 @@ function Start-IPAPWorkflow {
                         }
                     }
 
+                    # README.toml 的写入参数：开始时写 running，校验通过后同参数重写为 done
+                    [hashtable]$ReadmeParams = @{
+                        ProjectDir         = $projectDir
+                        ProjectLevel       = $ProjectLevel
+                        TextImageLevels    = $textImageLevels
+                        NonTextImageLevels = $nonTextImageLevels
+                        RealCuganScale     = $realCuganScale
+                        Author             = $Config.Project.Author
+                        OriginalTitle      = $Config.Project.OriginalTitle
+                        ChineseTitle       = $Config.Project.ChineseTitle
+                        OriginalOverview   = $Config.Project.OriginalOverview
+                        ChineseOverview    = $Config.Project.ChineseOverview
+                        ModelSelect        = $Config.App.ModelSelect
+                    }
+
+                    # 项目信息有空项时 README.toml 的 [project] 也会是空值：提示一次，避免误以为写入失败
+                    if (@($ReadmeParams.Author, $ReadmeParams.OriginalTitle, $ReadmeParams.ChineseTitle) |
+                            Where-Object { [string]::IsNullOrWhiteSpace([string]$PSItem) }) {
+                        Write-LogEntry -Level Warning -Message 'config.toml 的 [project] 存在空项，README.toml 对应字段将为空'
+                    }
+
+                    # 必须在续跑判定之后写：它会把 status 覆盖成 running，先写就丢掉上次的状态
+                    New-ReadmeFile @ReadmeParams -Status 'running'
+
                     # 续跑：只处理还没有有效产物的页面；校验仍按全量计算（见下方 ExpectedCount）
                     [array]$textPending = @($textImages)
                     [array]$nonTextPending = @($nonTextImages)
@@ -199,11 +221,6 @@ function Start-IPAPWorkflow {
                         $nonTextPending = @(Get-PendingImage -Images $nonTextImages -OutputDir $nonTextRawDir -OutputFormat 'webp')
                         Write-LogEntry -Level Info -Message "续跑：有文字图已完成 $($textImages.Count - $textPending.Count) 张 / 待处理 $($textPending.Count) 张；无文字图已完成 $($nonTextImages.Count - $nonTextPending.Count) 张 / 待处理 $($nonTextPending.Count) 张"
                     }
-
-                    # 标记本次运行「进行中」：正常收尾时删除，中途失败则留给下次自动续跑
-                    Save-WorkflowRunState -ProjectDir $projectDir -ProjectLevel $ProjectLevel `
-                        -RealCuganScale $realCuganScale -ModelSelect $Config.App.ModelSelect `
-                        -TextCount $textImages.Count -NonTextCount $nonTextImages.Count
 
                     # 按项目统一等级整批路由：同项目不允许一部分页面放大、另一部分不放大
                     if ($ProjectLevel -eq 1) {
@@ -272,8 +289,8 @@ function Start-IPAPWorkflow {
                         throw [System.InvalidOperationException]::new($ErrorMessage)
                     }
 
-                    # 校验通过：清掉运行状态标记，下次运行按全新流程处理
-                    Clear-WorkflowRunState -ProjectDir $projectDir
+                    # 校验通过：把 [run].status 改为 done，下次运行按全新流程处理
+                    New-ReadmeFile @ReadmeParams -Status 'done'
 
                     # 处理与校验全部通过后才标记完成，提示音只在真正跑完时播放
                     $WorkflowCompleted = $true

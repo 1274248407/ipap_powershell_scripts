@@ -95,10 +95,8 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
         Mock Test-UpscaleResult -ModuleName IPAP { return $true }
         # 完成提示音是副作用，单测统一静默；只断言调用次数，不实际发声
         Mock Invoke-CompletionSound -ModuleName IPAP { }
-        # 运行状态标记：写/删都静默；读取与续跑筛选默认返回空，具体行为由各用例覆盖
-        Mock Save-WorkflowRunState -ModuleName IPAP { }
-        Mock Clear-WorkflowRunState -ModuleName IPAP { }
-        Mock Get-WorkflowRunState -ModuleName IPAP { return $null }
+        # 运行状态存在 README.toml 的 [run] 段；读取与续跑筛选默认返回空，具体行为由各用例覆盖
+        Mock Get-ReadmeToml -ModuleName IPAP { return $null }
         Mock Get-PendingImage -ModuleName IPAP { return @() }
 
         Mock Get-ImageInfo -ModuleName IPAP {
@@ -125,7 +123,8 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
             Should -Invoke -ModuleName IPAP Get-ProjectBriefInfo -Times 1 -Exactly
             Should -Invoke -ModuleName IPAP New-ProjectStructure -Times 1 -Exactly
             Should -Invoke -ModuleName IPAP Select-NonTextImage -Times 1 -Exactly
-            Should -Invoke -ModuleName IPAP New-ReadmeFile -Times 1 -Exactly
+            # README 在开始时写 running、校验通过后写 done，共两次
+            Should -Invoke -ModuleName IPAP New-ReadmeFile -Times 2 -Exactly
             # L4 分支：完整跑完后才播放一次提示音
             Should -Invoke -ModuleName IPAP Invoke-CompletionSound -Times 1 -Exactly
         }
@@ -616,14 +615,17 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
         }
     }
 
-    Context 'L4 自动续跑（运行状态标记）' {
+    Context 'L4 自动续跑（README.toml 的 [run].status）' {
         It '上次未完成且参数一致时应自动续跑，只处理缺失页' {
-            Mock -ModuleName IPAP Get-WorkflowRunState {
+            Mock -ModuleName IPAP Get-ReadmeToml {
                 return [PSCustomObject]@{
-                    projectLevel   = 1
-                    realCuganScale = 2
-                    modelSelect    = 'models-se'
-                    startedAt      = '2026-11-22T10:00:00'
+                    run = [PSCustomObject]@{
+                        status          = 'running'
+                        started_at      = '2026-11-22T10:00:00+08:00'
+                        project_level   = 1
+                        realcugan_scale = 2
+                        model           = 'models-se'
+                    }
                 }
             }
             Mock -ModuleName IPAP Get-PendingImage {
@@ -640,8 +642,10 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
         }
 
         It '上次参数与当前不同时应全量重做并告警' {
-            Mock -ModuleName IPAP Get-WorkflowRunState {
-                return [PSCustomObject]@{ projectLevel = 2; realCuganScale = 4; modelSelect = 'models-pro' }
+            Mock -ModuleName IPAP Get-ReadmeToml {
+                return [PSCustomObject]@{
+                    run = [PSCustomObject]@{ status = 'running'; project_level = 2; realcugan_scale = 4; model = 'models-pro' }
+                }
             }
             $Script:LevelByImage = @{ '1.jpg' = 1; '2.jpg' = 1 }
 
@@ -654,8 +658,8 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
                 -ParameterFilter { @($Images).Count -eq 2 }
         }
 
-        It '没有状态标记时应全量处理' {
-            Mock -ModuleName IPAP Get-WorkflowRunState { return $null }
+        It '没有 README.toml 时应全量处理' {
+            Mock -ModuleName IPAP Get-ReadmeToml { return $null }
             $Script:LevelByImage = @{ '1.jpg' = 1; '2.jpg' = 1 }
 
             Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
@@ -665,30 +669,47 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
                 -ParameterFilter { @($Images).Count -eq 2 }
         }
 
-        It '开始处理前应写入状态标记并带上本次参数' {
+        It '上次已收尾（status = done）时应全量重新处理' {
+            Mock -ModuleName IPAP Get-ReadmeToml {
+                return [PSCustomObject]@{
+                    run = [PSCustomObject]@{ status = 'done'; project_level = 1; realcugan_scale = 2; model = 'models-se' }
+                }
+            }
             $Script:LevelByImage = @{ '1.jpg' = 1; '2.jpg' = 1 }
 
             Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
 
-            Should -Invoke -ModuleName IPAP Save-WorkflowRunState -Times 1 -Exactly `
-                -ParameterFilter { $ProjectLevel -eq 1 -and $TextCount -eq 2 -and $RealCuganScale -eq 2 }
+            Should -Invoke -ModuleName IPAP Get-PendingImage -Times 0 -Exactly
+            Should -Invoke -ModuleName IPAP Invoke-ParallelUpscale -Times 1 -Exactly `
+                -ParameterFilter { @($Images).Count -eq 2 }
         }
 
-        It '校验通过后应清除状态标记' {
+        It '开始处理前应以 running 写 README.toml 并带上本次参数' {
             $Script:LevelByImage = @{ '1.jpg' = 1; '2.jpg' = 1 }
 
             Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
 
-            Should -Invoke -ModuleName IPAP Clear-WorkflowRunState -Times 1 -Exactly
+            Should -Invoke -ModuleName IPAP New-ReadmeFile -Times 1 -Exactly `
+                -ParameterFilter { $Status -eq 'running' -and $ProjectLevel -eq 1 -and @($TextImageLevels).Count -eq 2 -and $RealCuganScale -eq 2 }
         }
 
-        It '校验失败时不应清除状态标记' {
+        It '校验通过后应以 done 重写 README.toml' {
+            $Script:LevelByImage = @{ '1.jpg' = 1; '2.jpg' = 1 }
+
+            Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
+
+            Should -Invoke -ModuleName IPAP New-ReadmeFile -Times 1 -Exactly `
+                -ParameterFilter { $Status -eq 'done' }
+        }
+
+        It '校验失败时不应写入 done' {
             Mock -ModuleName IPAP Test-UpscaleResult { return $false }
             $Script:LevelByImage = @{ '1.jpg' = 1; '2.jpg' = 1 }
 
             { Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images' } | Should -Throw
 
-            Should -Invoke -ModuleName IPAP Clear-WorkflowRunState -Times 0 -Exactly
+            Should -Invoke -ModuleName IPAP New-ReadmeFile -Times 0 -Exactly `
+                -ParameterFilter { $Status -eq 'done' }
         }
     }
 
@@ -708,17 +729,19 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
                 -Times 1 -Exactly
         }
 
-        It 'New-ReadmeFile 应收到项目目录、统一等级、分级数组与简报文本' {
+        It 'New-ReadmeFile 应收到项目目录、统一等级、分级数组与项目信息' {
             Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
 
             Should -Invoke -ModuleName IPAP New-ReadmeFile -ParameterFilter {
                 $ProjectDir -eq 'C:\Projects\2026-01-01_TestProject' -and
-                $ProjectName -eq 'TestProject' -and
                 $ProjectLevel -eq 0 -and
                 @($TextImageLevels).Count -eq 2 -and
                 @($NonTextImageLevels).Count -eq 0 -and
                 $RealCuganScale -eq 2 -and
-                $BriefText -eq 'Brief text'
+                $Author -eq 'TestAuthor' -and
+                $OriginalTitle -eq 'TestTitle' -and
+                $ChineseTitle -eq '测试标题' -and
+                $Status -eq 'done'
             } -Times 1 -Exactly
         }
 
@@ -729,7 +752,7 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
 
             # 平票取高 → Level 2；两个页面都进 TextImageLevels
             Should -Invoke -ModuleName IPAP New-ReadmeFile -ParameterFilter {
-                $ProjectLevel -eq 2 -and @($TextImageLevels).Count -eq 2
+                $ProjectLevel -eq 2 -and @($TextImageLevels).Count -eq 2 -and $Status -eq 'done'
             } -Times 1 -Exactly
         }
 
@@ -737,7 +760,7 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
             Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
 
             Should -Invoke -ModuleName IPAP New-ReadmeFile -ParameterFilter {
-                $ProjectLevel -eq 0
+                $ProjectLevel -eq 0 -and $Status -eq 'done'
             } -Times 1 -Exactly
         }
 
@@ -759,7 +782,7 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
             Should -Invoke -ModuleName IPAP Invoke-ParallelUpscale `
                 -ParameterFilter { $Engine -eq 'RealCugan' -and $Scale -eq 3 } -Times 1 -Exactly
             Should -Invoke -ModuleName IPAP New-ReadmeFile `
-                -ParameterFilter { $RealCuganScale -eq 3 } -Times 1 -Exactly
+                -ParameterFilter { $RealCuganScale -eq 3 -and $Status -eq 'done' } -Times 1 -Exactly
         }
 
         It 'Invoke-ParallelUpscale 的 -MaxWorkers 应来自配置' {

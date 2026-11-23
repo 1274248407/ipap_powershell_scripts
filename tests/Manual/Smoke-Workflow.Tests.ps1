@@ -220,17 +220,18 @@ else {
                 Should -Be 3
         }
 
-        It 'README.md 存在并记录项目等级与张数' {
+        It 'README.toml 存在并记录项目等级与张数，且收尾后 status 为 done' {
             $script:Project1.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
-            $readme = Join-Path $script:Project1[0].FullName 'README.md'
+            $readme = Join-Path $script:Project1[0].FullName 'README.toml'
             Test-Path -LiteralPath $readme | Should -BeTrue
 
-            $lines = Get-Content -LiteralPath $readme -Encoding UTF8
-            $lines | Should -Contain '- 有文字图: 3 张'
-            $lines | Should -Contain '- 无文字图: 0 张'
-            $lines | Should -Contain '- 合计: 3 张'
-            $lines | Should -Contain '- 项目统一等级: Level 0（已高清，不放大）'
-            $lines | Should -Contain '- 原始文件是否需要高清化: [ ]'
+            $content = Get-Content -LiteralPath $readme -Raw -Encoding UTF8
+            $content | Should -Match '(?m)^text_count\s*=\s*3\s*$'
+            $content | Should -Match '(?m)^non_text_count\s*=\s*0\s*$'
+            $content | Should -Match '(?m)^total_count\s*=\s*3\s*$'
+            $content | Should -Match '(?m)^project_level\s*=\s*0\s*$'
+            $content | Should -Match '(?m)^upscale_ratio\s*=\s*1\.0\s*$'
+            $content | Should -Match '(?m)^status\s*=\s*"done"\s*$'
         }
     }
 
@@ -318,13 +319,13 @@ else {
                 Should -BeTrue
         }
 
-        It 'README 应记录两类张数合计' {
+        It 'README.toml 应记录两类张数合计' {
             $script:Project4.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
-            $lines = Get-Content -LiteralPath (Join-Path $script:Project4[0].FullName 'README.md') -Encoding UTF8
-            $lines | Should -Contain '- 有文字图: 1 张'
-            $lines | Should -Contain '- 无文字图: 1 张'
-            $lines | Should -Contain '- 合计: 2 张'
-            $lines | Should -Contain '- 项目统一等级: Level 1（FFmpeg 1.2 倍放大 + 锐化）'
+            $content = Get-Content -LiteralPath (Join-Path $script:Project4[0].FullName 'README.toml') -Raw -Encoding UTF8
+            $content | Should -Match '(?m)^text_count\s*=\s*1\s*$'
+            $content | Should -Match '(?m)^non_text_count\s*=\s*1\s*$'
+            $content | Should -Match '(?m)^total_count\s*=\s*2\s*$'
+            $content | Should -Match '(?m)^upscale_ratio\s*=\s*1\.2\s*$'
         }
     }
 
@@ -387,9 +388,10 @@ else {
             Test-Path -LiteralPath (Join-Path $script:Project6[0].FullName '02_Preprocessing\page2.webp') | Should -BeTrue
         }
 
-        It '失败后应留下运行状态标记，供下次自动续跑' {
+        It '失败后 README.toml 应停留在 status = running，供下次自动续跑' {
             $script:Project6.Count | Should -Be 1 -Because '前置断言：项目目录应存在'
-            Test-Path -LiteralPath (Join-Path $script:Project6[0].FullName '.ipap-run.json') | Should -BeTrue
+            $content = Get-Content -LiteralPath (Join-Path $script:Project6[0].FullName 'README.toml') -Raw -Encoding UTF8
+            $content | Should -Match '(?m)^status\s*=\s*"running"\s*$'
         }
     }
 
@@ -442,10 +444,11 @@ else {
             $script:Run8.Output | Should -Match '续跑：有文字图已完成 2 张 / 待处理 1 张'
         }
 
-        It '坏图仍失败时退出码非零且状态标记保留' {
+        It '坏图仍失败时退出码非零且 README.toml 仍为 running' {
             $script:Run8.ExitCode | Should -Not -Be 0
-            Test-Path -LiteralPath (Join-Path (Join-Path $script:BaseBroken (Get-ChildItem -LiteralPath $script:BaseBroken -Directory | Select-Object -First 1).Name) '.ipap-run.json') |
-                Should -BeTrue
+            $projectDir = Join-Path $script:BaseBroken (Get-ChildItem -LiteralPath $script:BaseBroken -Directory | Select-Object -First 1).Name
+            $content = Get-Content -LiteralPath (Join-Path $projectDir 'README.toml') -Raw -Encoding UTF8
+            $content | Should -Match '(?m)^status\s*=\s*"running"\s*$'
         }
     }
 }

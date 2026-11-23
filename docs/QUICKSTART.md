@@ -54,13 +54,23 @@ chinese_overview = """中文简介"""
 
 ```
 <base_project_dir>/<日期>_[作者] 作品名/
-├── README.md                      项目记录（等级、张数、进度）
+├── README.toml                    项目记录（等级、张数、进度、笔记）+ 运行状态
 ├── 02_Preprocessing/
 │   ├── 有文字图转码/放大后的 webp（下游从这里读）
 │   ├── original_non_text_raw/     无文字图的处理产物
 │   └── raw_source/                有文字图原图备份
 └── 03_Typesetting/                后续嵌字用
 ```
+
+`README.toml` 是 TOML 格式（编辑器会语法高亮）。里面分两类内容：
+
+- **自动段**（`[meta]` `[run]` `[summary]` `[level]` `[outliers]`）：每次运行按最新结果重写，不用手改
+- **手工段**（`[progress]` `[notes]` `[todo]` `[misc]`）：进度勾选、处理笔记、待办，**重新运行会原样保留**
+
+`[run].status` 是 `"running"` 说明上次没跑完，下次启动会自动续跑；正常收尾后会变成 `"done"`。
+
+> 从 v2.3.0 起项目记录改为 `README.toml`。老项目里的 `README.md` 不会被删除，但也**不会再更新**——
+> 想把之前写在里面的笔记留下来，手动搬到 `README.toml` 的 `[notes]` / `[todo]` 段即可。
 
 同一项目内所有页面使用同一个处理等级（Level 0 只转码、Level 1 用 FFmpeg 1.2 倍锐化、
 Level 2 用 Real-CUGAN 超分），保证输出宽高一致。

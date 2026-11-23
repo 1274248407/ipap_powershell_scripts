@@ -4,9 +4,9 @@
 .SYNOPSIS
     IPAP 模块 - New-ReadmeFile 集成测试
 .DESCRIPTION
-    使用 Pester TestDrive 提供的真实文件系统，验证 New-ReadmeFile 与
-    文件系统的协作行为：README.md 真实生成、模板关键行内容精确匹配、
-    重复调用覆盖旧文件、失败守卫路径。
+    使用 Pester TestDrive 提供的真实文件系统，验证 New-ReadmeFile 与文件系统的协作行为：
+    README.toml 真实生成、可被 TOML 解析器读回、重复调用覆盖自动段但保留手工段、
+    旧文件损坏时先备份再重建、失败守卫路径。
     统一使用 TestDrive 的物理根路径（Pester 管理的隔离临时目录）进行文件操作，
     规避内容写入 cmdlet 对 PSDrive 前缀路径的解析兼容性问题。
     不涉及任何外部工具（FFmpeg/FFprobe/Real-CUGAN）的真实执行。
@@ -20,12 +20,10 @@ Describe 'New-ReadmeFile 集成测试（真实文件系统协作）' -Tag 'Integ
         # tests\Integration → 项目根（向上两级）
         $ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
         Import-Module (Join-Path $ProjectRoot 'source\IPAP.psd1') -Force -Global
+        Import-Module (Join-Path $ProjectRoot 'output\RequiredModules\PSToml') -Force -Global
 
         # TestDrive 的物理根路径（Pester 管理的隔离临时目录，测试结束自动清理）
         [string]$Script:TestDriveRoot = (Get-PSDrive -Name TestDrive).Root
-
-        # 日志函数 Mock：Write-LogEntry 为纯日志函数，全级别静默记录
-        Mock Write-LogEntry -ModuleName IPAP { }
 
         # 分级夹具：只需 Image.FullName / Level / LongEdge / YDIF 四个字段
         $Script:TextLevels = @(
@@ -43,75 +41,99 @@ Describe 'New-ReadmeFile 集成测试（真实文件系统协作）' -Tag 'Integ
         Remove-Module 'IPAP' -ErrorAction SilentlyContinue
     }
 
-    Context '正常路径 - README.md 生成' {
-        It '应在项目目录真实生成 README.md 且派生张数、等级与倍数' {
+    BeforeEach {
+        # 日志函数 Mock：Write-LogEntry 为纯日志函数，全级别静默记录
+        Mock Write-LogEntry -ModuleName IPAP { }
+    }
+
+    Context '正常路径 - README.toml 生成' {
+        It '应真实生成 README.toml 且张数、等级、倍数可由 TOML 读回' {
             [string]$ProjectDir = Join-Path $Script:TestDriveRoot 'readme_upscale'
             New-Item -ItemType Directory -Path $ProjectDir | Out-Null
 
-            New-ReadmeFile -ProjectDir $ProjectDir -ProjectName 'TestProject' -ProjectLevel 1 `
+            New-ReadmeFile -ProjectDir $ProjectDir -ProjectLevel 1 -Status 'running' `
                 -TextImageLevels $Script:TextLevels -NonTextImageLevels $Script:NonTextLevels -RealCuganScale 2
 
-            # 验证文件真实生成
-            [string]$ReadmePath = Join-Path $ProjectDir 'README.md'
+            [string]$ReadmePath = Join-Path $ProjectDir 'README.toml'
             Test-Path -LiteralPath $ReadmePath -PathType Leaf | Should -BeTrue
 
-            # 逐行验证模板关键行（完整行精确匹配，以源码模板为准）
-            [string[]]$Lines = Get-Content -LiteralPath $ReadmePath
-            ($Lines | Where-Object { $PSItem -match '^# 项目记录: TestProject \(\d{4}-\d{2}-\d{2}\)$' }) | Should -Not -BeNullOrEmpty
-            $Lines | Should -Contain '- 有文字图: 2 张'
-            $Lines | Should -Contain '- 无文字图: 1 张'
-            $Lines | Should -Contain '- 合计: 3 张'
-            $Lines | Should -Contain '- 项目统一等级: Level 1（FFmpeg 1.2 倍放大 + 锐化）'
-            $Lines | Should -Contain '- 原始文件是否需要高清化: [X]'
-            $Lines | Should -Contain '- 使用高清化倍数: 1.2'
-            $Lines | Should -Contain '- [ ] 文件整理与分离'
-            $Lines | Should -Contain '- [ ] 最终质量检查'
+            $Readme = ConvertFrom-Toml -InputObject ([System.IO.File]::ReadAllText($ReadmePath))
+            $Readme.summary.text_count | Should -Be 2
+            $Readme.summary.non_text_count | Should -Be 1
+            $Readme.summary.total_count | Should -Be 3
+            $Readme.summary.upscale_ratio | Should -Be 1.2
+            $Readme.run.status | Should -BeExactly 'running'
         }
 
-        It 'Level 0 项目应写入空白状态占位、N/A 倍数并列出异类页' {
+        It 'Level 0 项目应写入 1.0 倍数并列出异类页' {
             [string]$ProjectDir = Join-Path $Script:TestDriveRoot 'readme_no_upscale'
             New-Item -ItemType Directory -Path $ProjectDir | Out-Null
 
-            New-ReadmeFile -ProjectDir $ProjectDir -ProjectName 'PlainProject' -ProjectLevel 0 `
-                -TextImageLevels $Script:TextLevels
+            New-ReadmeFile -ProjectDir $ProjectDir -ProjectLevel 0 -Status 'running' -TextImageLevels $Script:TextLevels
 
-            [string[]]$Lines = Get-Content -LiteralPath (Join-Path $ProjectDir 'README.md')
-            $Lines | Should -Contain '- 有文字图: 2 张'
-            $Lines | Should -Contain '- 无文字图: 0 张'
-            $Lines | Should -Contain '- 原始文件是否需要高清化: [ ]'
-            $Lines | Should -Contain '- 使用高清化倍数: N/A'
-            # page_001 单图判 Level 1，与项目 Level 0 不一致，应出现在异类页表
-            $Lines | Should -Contain '### 与项目等级不一致的页面（1 张）'
-            $Lines | Should -Contain '| page_001.jpg | 有文字图 | Level 1 | 2400px | 4.2 |'
+            $Readme = ConvertFrom-Toml -InputObject ([System.IO.File]::ReadAllText((Join-Path $ProjectDir 'README.toml')))
+            $Readme.summary.upscale_ratio | Should -Be 1.0
+            # page_001 单图判 Level 1，与项目 Level 0 不一致，应出现在异类页
+            $Outliers = @($Readme.outliers)
+            $Outliers.Count | Should -Be 1
+            $Outliers[0].file | Should -BeExactly 'page_001.jpg'
         }
 
-        It '提供 BriefText 时应真实写入项目信息段落' {
-            [string]$ProjectDir = Join-Path $Script:TestDriveRoot 'readme_brief'
+        It '项目信息字段应真实写入并可读回' {
+            [string]$ProjectDir = Join-Path $Script:TestDriveRoot 'readme_project'
             New-Item -ItemType Directory -Path $ProjectDir | Out-Null
 
-            New-ReadmeFile -ProjectDir $ProjectDir -ProjectName 'BriefProject' -ProjectLevel 0 -BriefText '这是测试项目简介'
+            New-ReadmeFile -ProjectDir $ProjectDir -ProjectLevel 0 -Status 'running' `
+                -Author '某作者' -OriginalTitle '原作品名' -ChineseTitle '中文译名' `
+                -OriginalOverview "原文第一行`n原文第二行" -ChineseOverview '中文简介'
 
-            [string[]]$Lines = Get-Content -LiteralPath (Join-Path $ProjectDir 'README.md')
-            $Lines | Should -Contain '## 项目信息'
-            $Lines | Should -Contain '这是测试项目简介'
+            $Readme = ConvertFrom-Toml -InputObject ([System.IO.File]::ReadAllText((Join-Path $ProjectDir 'README.toml')))
+            $Readme.project.author | Should -BeExactly '某作者'
+            $Readme.project.original_title | Should -BeExactly '原作品名'
+            $Readme.project.chinese_title | Should -BeExactly '中文译名'
+            $Readme.project.original_overview | Should -BeExactly "原文第一行`n原文第二行"
+            $Readme.project.chinese_overview | Should -BeExactly '中文简介'
         }
     }
 
     Context '覆盖写入' {
-        It '再次调用应覆盖旧 README.md 的全部内容' {
+        It '再次调用应覆盖自动段但保留手工维护的进度与笔记' {
             [string]$ProjectDir = Join-Path $Script:TestDriveRoot 'readme_overwrite'
             New-Item -ItemType Directory -Path $ProjectDir | Out-Null
+            [string]$ReadmePath = Join-Path $ProjectDir 'README.toml'
 
-            # 预先放置旧内容，验证覆盖行为
-            Set-Content -LiteralPath (Join-Path $ProjectDir 'README.md') -Value 'OLD-STALE-CONTENT-MARKER'
+            New-ReadmeFile -ProjectDir $ProjectDir -ProjectLevel 0 -Status 'running'
+            # 模拟用户手工勾选进度、写笔记、加待办
+            [string]$Edited = [System.IO.File]::ReadAllText($ReadmePath)
+            $Edited = $Edited.Replace('organize     = false', 'organize     = true')
+            $Edited = $Edited.Replace("preprocessing = '''`n'''", "preprocessing = '''`n人工笔记`n'''")
+            $Edited = $Edited.Replace('[todo]' + "`n" + '# 每条一个字符串，例如 items = ["补第 12 页拟声词"]' + "`n" + 'items = []',
+                '[todo]' + "`n" + 'items = ["补第 12 页拟声词"]')
+            [System.IO.File]::WriteAllText($ReadmePath, $Edited, [Text.UTF8Encoding]::new($false))
 
-            New-ReadmeFile -ProjectDir $ProjectDir -ProjectName 'OverwriteProject' -ProjectLevel 0
+            New-ReadmeFile -ProjectDir $ProjectDir -ProjectLevel 0 -Status 'done'
 
-            [string[]]$Lines = Get-Content -LiteralPath (Join-Path $ProjectDir 'README.md')
-            # 旧内容消失且新模板生效
-            ($Lines | Where-Object { $PSItem -match 'OLD-STALE-CONTENT-MARKER' }) | Should -BeNullOrEmpty
-            $Lines | Should -Contain '- 合计: 0 张'
-            ($Lines | Where-Object { $PSItem -match '^# 项目记录: OverwriteProject \(\d{4}-\d{2}-\d{2}\)$' }) | Should -Not -BeNullOrEmpty
+            $Readme = ConvertFrom-Toml -InputObject ([System.IO.File]::ReadAllText($ReadmePath))
+            $Readme.run.status | Should -BeExactly 'done'
+            $Readme.progress.organize | Should -BeTrue
+            $Readme.notes.preprocessing | Should -BeExactly "人工笔记`n"
+            @($Readme.todo.items) | Should -Be @('补第 12 页拟声词')
+            # 自动段按最新结果重写：本次没传分级数组，张数归零
+            $Readme.summary.total_count | Should -Be 0
+        }
+
+        It '旧文件损坏时应先备份为 .bad 再重建，且不抛异常' {
+            [string]$ProjectDir = Join-Path $Script:TestDriveRoot 'readme_broken'
+            New-Item -ItemType Directory -Path $ProjectDir | Out-Null
+            [string]$ReadmePath = Join-Path $ProjectDir 'README.toml'
+            Set-Content -LiteralPath $ReadmePath -Value '[run' -Encoding utf8
+
+            { New-ReadmeFile -ProjectDir $ProjectDir -ProjectLevel 0 -Status 'running' } | Should -Not -Throw
+
+            Test-Path -LiteralPath "$ReadmePath.bad" | Should -BeTrue
+            # 新文件可用
+            $Readme = ConvertFrom-Toml -InputObject ([System.IO.File]::ReadAllText($ReadmePath))
+            $Readme.run.status | Should -BeExactly 'running'
         }
     }
 
@@ -119,7 +141,8 @@ Describe 'New-ReadmeFile 集成测试（真实文件系统协作）' -Tag 'Integ
         It '项目目录不存在时应记录错误并抛出终止错误' {
             [string]$MissingDir = Join-Path $Script:TestDriveRoot 'no_such_project_dir'
 
-            { New-ReadmeFile -ProjectDir $MissingDir -ProjectName 'X' -ProjectLevel 1 } | Should -Throw '*项目目录不存在*'
+            { New-ReadmeFile -ProjectDir $MissingDir -ProjectLevel 1 -Status 'running' } |
+                Should -Throw '*项目目录不存在*'
         }
     }
 }
