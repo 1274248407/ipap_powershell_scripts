@@ -638,7 +638,9 @@ class IPAPConfiguration {
                     continue
                 }
                 try {
-                    Import-Module $PSTomlPath -Force -Scope Local -ErrorAction Stop
+                    # 不带 -Force：PSToml 已由 IPAP.psm1 在模块加载时导入到模块作用域，
+                    # -Force 会先移除再重新导入，把模块作用域那份一起拆掉（v3.0.0 就这么坏的）
+                    Import-Module $PSTomlPath -Scope Local -ErrorAction Stop
                     break
                 }
                 catch {

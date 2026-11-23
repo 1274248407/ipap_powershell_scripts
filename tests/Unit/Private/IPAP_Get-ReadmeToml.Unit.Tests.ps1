@@ -138,32 +138,33 @@ author = "某人"
         }
     }
 
-    Context 'L4 PSToml 延迟导入' {
-        BeforeEach {
-            Set-Content -LiteralPath $Script:ReadmePath -Encoding utf8 -Value "[run]`nstatus = `"running`""
-            # 本机已安装 PSToml 时 Get-Command 会自动加载，必须同时断开模块与 PSModulePath 才能构造「未加载」场景
-            Remove-Module PSToml -Force -ErrorAction SilentlyContinue
-            $Script:SavedModulePath = $env:PSModulePath
-            $env:PSModulePath = ''
-        }
+    Context 'L4 依赖在模块加载时装好' {
+        It 'PSModulePath 为空时模块内仍应能看见 ConvertFrom-Toml' {
+            # 本机已安装 PSToml 时 Get-Command 会自动加载，必须同时断开模块与 PSModulePath 才算「干净机器」；
+            # 这正是 v3.0.0 漏掉的那条路径：配置加载时 -Scope Local 的导入出了类方法就失效
+            [string]$Script:SavedModulePath = $env:PSModulePath
+            try {
+                $env:PSModulePath = ''
+                Remove-Module PSToml -Force -ErrorAction SilentlyContinue
+                Remove-Module IPAP -Force -ErrorAction SilentlyContinue
+                Import-Module (Join-Path $Script:ProjectRoot 'source\IPAP.psd1') -Force -Global
 
-        AfterEach {
-            $env:PSModulePath = $Script:SavedModulePath
-            Import-Module (Join-Path $Script:ProjectRoot 'output\RequiredModules\PSToml') -Force -Global
-        }
-
-        It 'PSToml 未加载时应按候选路径自动导入并正常解析' {
-            $Result = InModuleScope IPAP -Parameters @{ Dir = $Script:ProjectDir } -ScriptBlock {
-                param($Dir)
-                Get-ReadmeToml -ProjectDir $Dir
+                $Visible = & (Get-Module IPAP) { [bool](Get-Command 'ConvertFrom-Toml' -ErrorAction SilentlyContinue) }
+                $Visible | Should -BeTrue
             }
-
-            $Result.run.status | Should -BeExactly 'running'
-            Should -Invoke -ModuleName IPAP Write-LogEntry -Times 0 -Exactly
+            finally {
+                $env:PSModulePath = $Script:SavedModulePath
+                # 后续用例依赖真实解析与模块内 Mock，把模块与 PSToml 恢复到常规状态
+                Remove-Module IPAP -Force -ErrorAction SilentlyContinue
+                Import-Module (Join-Path $Script:ProjectRoot 'source\IPAP.psd1') -Force -Global
+                Import-Module (Join-Path $Script:ProjectRoot 'output\RequiredModules\PSToml') -Force -Global
+            }
         }
 
-        It '所有候选路径导入失败时应记 Warning 并按无记录处理' {
-            Mock -ModuleName IPAP Import-Module { throw 'boom' }
+        It 'PSToml 不可用时应记 Warning 并按无记录处理' {
+            Set-Content -LiteralPath $Script:ReadmePath -Encoding utf8 -Value "[run]`nstatus = `"running`""
+            # 模拟安装不完整：模块内看不到 ConvertFrom-Toml
+            Mock -ModuleName IPAP Get-Command { return $null }
 
             $Result = InModuleScope IPAP -Parameters @{ Dir = $Script:ProjectDir } -ScriptBlock {
                 param($Dir)
@@ -171,11 +172,10 @@ author = "某人"
             }
 
             $Result | Should -BeNullOrEmpty
-            # 候选 1（source\RequiredModules）不存在直接跳过；候选 2（output\RequiredModules）导入抛错
             Should -Invoke -ModuleName IPAP Write-LogEntry -Times 1 -Exactly `
-                -ParameterFilter { $Message -like '*PSToml 模块导入失败*' }
-            Should -Invoke -ModuleName IPAP Write-LogEntry -Times 1 -Exactly `
-                -ParameterFilter { $Message -like '*PSToml 模块不可用*' }
+                -ParameterFilter { $Level -eq 'Warning' -and $Message -like '*PSToml 模块不可用*' }
+            # 不能把一份读不出来的好文件改名成 .bad
+            Test-Path -LiteralPath $Script:ReadmePath | Should -BeTrue
         }
     }
 
