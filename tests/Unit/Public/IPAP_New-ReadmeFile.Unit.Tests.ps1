@@ -181,6 +181,24 @@ Describe 'New-ReadmeFile Unit Tests' -Tag 'New-ReadmeFile', 'IPAP' {
             $Thrown.Exception.Message | Should -BeExactly '创建/覆盖 README.toml 文件失败: 无法验证 README.toml 文件创建'
         }
 
+        It '生成的 TOML 非法时应中止写入且不落盘' {
+            Mock -ModuleName IPAP ConvertFrom-Toml { throw 'parse failed' }
+            $Thrown = $null
+
+            try {
+                New-ReadmeFile @Script:BaseParams
+            }
+            catch {
+                $Thrown = $PSItem
+            }
+
+            $Thrown.Exception | Should -BeOfType ([System.InvalidOperationException])
+            $Thrown.Exception.Message | Should -BeLike '生成的 README.toml 无法被解析，已中止写入: *'
+            Test-Path -LiteralPath $Script:ReadmePath | Should -BeFalse
+            Should -Invoke -ModuleName IPAP Write-LogEntry -Times 1 -Exactly `
+                -ParameterFilter { $Level -eq 'Error' }
+        }
+
         It 'ProjectLevel 超出 0-2 时应被 ValidateRange 拒绝' {
             { New-ReadmeFile -ProjectDir $Script:TestProjectDir -ProjectLevel 3 -Status 'running' } |
                 Should -Throw -ExceptionType ([System.Management.Automation.ParameterBindingException])

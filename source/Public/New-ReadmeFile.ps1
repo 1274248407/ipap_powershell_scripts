@@ -15,6 +15,8 @@
 
     写出用模板拼装而不是 ConvertTo-Toml：后者会把嵌套表里的整数写成字符串、注释全部丢失。
     读取用 PSToml 的 ConvertFrom-Toml，见 Get-ReadmeToml。
+    落盘前会用 ConvertFrom-Toml 再解析一遍自证——解析器与写入器是两套实现，
+    模板拼装写错时当场失败，而不是留下一个读不回来的项目记录。
 
     创建失败时记录错误日志并抛出强类型异常。
 .PARAMETER ProjectDir
@@ -271,6 +273,20 @@ function New-ReadmeFile {
 
         # 统一成 LF 行尾：构建过程混用了 AppendLine（CRLF），输出成一致的行尾便于 diff
         [string]$Content = $Builder.ToString() -replace "`r`n", "`n"
+
+        # 落盘前用独立解析器自证：写入器是手写模板、解析器是 PSToml，两套实现互证。
+        # 写错了就在这里失败，不给用户留下一个「能看不能读」的项目记录。
+        if (Get-Command 'ConvertFrom-Toml' -ErrorAction SilentlyContinue) {
+            try {
+                $null = ConvertFrom-Toml -InputObject $Content -ErrorAction Stop
+            }
+            catch {
+                # 记录错误现场后显式抛出强类型异常（Write-LogEntry 为纯日志函数）
+                $ErrorMessage = "生成的 README.toml 无法被解析，已中止写入: $($PSItem.Exception.Message)"
+                Write-LogEntry -Level Error -Message $ErrorMessage
+                throw [System.InvalidOperationException]::new($ErrorMessage, $PSItem.Exception)
+            }
+        }
 
         try {
             Write-LogEntry -Level Info -Message "正在写入 README.toml 文件到 $ReadmePath"
