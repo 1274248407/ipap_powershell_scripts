@@ -3,6 +3,7 @@
     确认项目配置
 .DESCRIPTION
     显示当前配置信息，询问用户是否应用配置。如果用户选择不应用，提供两种方式修改配置：使用文本编辑器或控制台直接输入。
+    显示预览前会先尝试用 AI 补全缺失的中文译名/简介（未配置 [ai] 或调用失败时只记日志，不中断）。
     交互输入采用安全默认：仅显式 Y/y 视为应用；EOF/非交互环境保持当前配置不变。
     简介输入使用 Read-MultiLineInput，按 Ctrl+D 结束。
 .PARAMETER Config
@@ -29,6 +30,9 @@ function Confirm-ProjectConfiguration {
     if (-not $Config) {
         $Config = Get-Configuration
     }
+
+    # 中文译名/简介缺失时用 AI 补全（仅本次运行生效）；未配置或失败都只记日志，不中断
+    Complete-ProjectTranslation -Config $Config
 
     Write-LogEntry -Level Info -Message '--- 当前配置信息预览 ---'
 

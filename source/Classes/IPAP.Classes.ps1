@@ -332,6 +332,18 @@ class ApplicationConfiguration {
     # 中细节判定阈值（边缘图 PNG 大小，KB）
     [double]$MediumDetailThreshold
 
+    # AI 补全用的 chat completions 地址；留空表示不启用
+    [string]$AiEndpoint
+
+    # AI 模型名
+    [string]$AiModel
+
+    # 存放 API Key 的环境变量名（密钥不写入配置文件）
+    [string]$AiApiKeyEnv
+
+    # AI 请求超时（秒）
+    [int]$AiTimeoutSec
+
     <#
     .SYNOPSIS
         创建应用配置实例
@@ -377,6 +389,13 @@ class ApplicationConfiguration {
         if ($this.MediumDetailThreshold -gt $this.HighDetailThreshold) {
             $this.MediumDetailThreshold = $this.HighDetailThreshold
         }
+
+        # AI 补全：默认关闭（endpoint 为空即跳过）；密钥只从环境变量读，不落盘
+        $aiSettings = [ApplicationConfiguration]::GetSettingsBlock($Settings.ai, 'ai')
+        $this.AiEndpoint = [string]($aiSettings.endpoint ?? '')
+        $this.AiModel = [string]($aiSettings.model ?? '')
+        $this.AiApiKeyEnv = [string]($aiSettings.api_key_env ?? 'IPAP_AI_API_KEY')
+        $this.AiTimeoutSec = [int][math]::Clamp([ApplicationConfiguration]::TryIntConvert($aiSettings.timeout_sec, 'timeout_sec') ?? 30, 1, 600)
 
         # MaxWorkers 不大于 0 时（0 = 自动检测，负数 = 无效值），按 CPU 核心数动态计算
         $this.MaxWorkers = $this.MaxWorkers -le 0 ? [math]::Max(1, [System.Environment]::ProcessorCount / 2) : $this.MaxWorkers

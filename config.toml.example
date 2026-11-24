@@ -68,6 +68,18 @@ lossless = true
 # 压缩质量 (0-100)，仅在非无损模式下有效
 quality = 100
 
+# --- [ai] - 中文译名/简介自动补全（可选，默认关闭）---
+[ai]
+# OpenAI 兼容的 chat completions 地址；留空即不启用，不影响其他功能
+# 例：https://api.deepseek.com/v1/chat/completions
+endpoint = ""
+# 模型名，例：deepseek-chat
+model = ""
+# API Key 从这个环境变量读取（不要把密钥写进本文件）
+api_key_env = "IPAP_AI_API_KEY"
+# 单次请求超时（秒）
+timeout_sec = 30
+
 # --- [classifier] - 图片分级阈值 ---
 [classifier]
 # 高细节阈值（边缘图 PNG 大小，KB）：长边 >= 1920 且 YDIF >= 该值判为 Level 0（跳过）
