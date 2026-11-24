@@ -6,7 +6,10 @@
     1. 空或纯空白
     2. 与 config.toml.example 里的占位文本相同（例如 `中文译名`）
     3. 与原文完全相同（把日文书名直接贴进了中文字段）
-    4. 不是中文（见 Test-ChineseText：纯英文、或假名多于汉字的整句日文）
+    4. 不是中文（见 Test-ChineseText：没有汉字，或含任何假名）
+
+    判定语种前会先剥掉 `[作者]` 前缀：作者名是日文专有名词，含大量假名，
+    不剥掉会让每一本正常的中文书名都被判成「不是中文」而反复重译。
 
     条件 2 的占位文本由调用方从示例文件实时读取，不在代码里硬编码文案。
 .PARAMETER Value
@@ -58,7 +61,7 @@ function Test-NeedsTranslation {
         return $true
     }
 
-    # 方括号里是作者名（专有名词），判定语种时只看正文，避免作者前缀把中文书名压成「日文」
+    # 方括号里是作者名（专有名词），判定语种时只看正文，避免作者前缀的假名把中文书名压成「日文」
     [string]$BodyForLanguage = (Split-AuthorPrefix -Title $Trimmed).Body
     return -not (Test-ChineseText -Text $BodyForLanguage)
 }

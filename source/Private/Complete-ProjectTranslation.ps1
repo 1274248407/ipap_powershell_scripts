@@ -95,7 +95,7 @@ function Complete-ProjectTranslation {
     Write-LogEntry -Level Info -Message "AI 补全待处理字段: $($MissingFields -join '、')"
 
     [object]$Result = Invoke-AiTranslation -Endpoint $Config.App.AiEndpoint -Model $Config.App.AiModel `
-        -ApiKey $ApiKey -TimeoutSec $Config.App.AiTimeoutSec `
+        -ApiKey $ApiKey -TimeoutSec $Config.App.AiTimeoutSec -Temperature $Config.App.AiTemperature `
         -OriginalTitle $Config.Project.OriginalTitle `
         -OriginalOverview $Config.Project.OriginalOverview `
         -NeedTitle $NeedTitle -NeedOverview $NeedOverview

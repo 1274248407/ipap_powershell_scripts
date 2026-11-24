@@ -81,6 +81,8 @@ api_key_env = "IPAP_AI_API_KEY"
 # ⚠ 只能写在 config.toml（已被 .gitignore 忽略），绝不能写进本模板文件——
 #   本文件会随仓库和发布包公开，填进来的密钥等于公开发布。
 api_key = ""
+# 采样温度：0 = 每次结果稳定（推荐）；越大越发散，范围 0-2
+temperature = 0
 # 单次请求超时（秒）
 timeout_sec = 30
 

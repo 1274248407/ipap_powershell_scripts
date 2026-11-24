@@ -201,6 +201,21 @@ Describe 'Invoke-AiTranslation Unit Tests' -Tag 'Invoke-AiTranslation', 'IPAP' {
             }
         }
 
+        It '请求体应带上传入的 temperature' {
+            Mock -ModuleName IPAP Invoke-RestMethod {
+                [PSCustomObject]@{ choices = @([PSCustomObject]@{ message = [PSCustomObject]@{ content = '{"chinese_title":"标题"}' } }) }
+            }
+            $Params = $Script:BaseParams.Clone()
+            $Params['Temperature'] = 0.7
+
+            $null = Invoke-Translation -Params $Params
+
+            Should -Invoke -ModuleName IPAP Invoke-RestMethod -Times 1 -Exactly -ParameterFilter {
+                [string]$BodyText = [System.Text.Encoding]::UTF8.GetString($Body)
+                $BodyText -match '"temperature"\s*:\s*0\.7'
+            }
+        }
+
         It '请求头应带 Bearer 密钥且地址为配置的 endpoint' {
             Mock -ModuleName IPAP Invoke-RestMethod {
                 [PSCustomObject]@{ choices = @([PSCustomObject]@{ message = [PSCustomObject]@{ content = '{"chinese_title":"标题"}' } }) }

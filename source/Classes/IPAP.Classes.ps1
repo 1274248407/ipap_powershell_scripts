@@ -344,6 +344,9 @@ class ApplicationConfiguration {
     # 直接写在 config.toml 里的 API Key；环境变量优先，这里只是备用
     [string]$AiApiKey
 
+    # 采样温度（0 = 每次结果一致，越大越发散）
+    [double]$AiTemperature
+
     # AI 请求超时（秒）
     [int]$AiTimeoutSec
 
@@ -399,6 +402,7 @@ class ApplicationConfiguration {
         $this.AiModel = [string]($aiSettings.model ?? '')
         $this.AiApiKeyEnv = [string]($aiSettings.api_key_env ?? 'IPAP_AI_API_KEY')
         $this.AiApiKey = [string]($aiSettings.api_key ?? '')
+        $this.AiTemperature = [double][math]::Clamp([ApplicationConfiguration]::TryDoubleConvert($aiSettings.temperature, 'temperature') ?? 0.0, 0.0, 2.0)
         $this.AiTimeoutSec = [int][math]::Clamp([ApplicationConfiguration]::TryIntConvert($aiSettings.timeout_sec, 'timeout_sec') ?? 30, 1, 600)
 
         # MaxWorkers 不大于 0 时（0 = 自动检测，负数 = 无效值），按 CPU 核心数动态计算
