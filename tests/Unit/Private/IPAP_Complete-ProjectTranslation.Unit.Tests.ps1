@@ -19,6 +19,7 @@ Describe 'Complete-ProjectTranslation Unit Tests' -Tag 'Complete-ProjectTranslat
                 [Parameter(Mandatory = $true)][string]$Root,
                 [string]$Endpoint = 'https://api.example.com/v1/chat/completions',
                 [string]$Model = 'test-model',
+                [string]$ApiKey = '',
                 [string]$ChineseTitle = '',
                 [string]$ChineseOverview = '',
                 [string]$OriginalTitle = '僕の妻',
@@ -26,13 +27,15 @@ Describe 'Complete-ProjectTranslation Unit Tests' -Tag 'Complete-ProjectTranslat
             )
 
             return InModuleScope IPAP -Parameters @{
-                R = $Root; Ep = $Endpoint; Md = $Model
+                R = $Root; Ep = $Endpoint; Md = $Model; Ak = $ApiKey
                 Ct = $ChineseTitle; Co = $ChineseOverview; Ot = $OriginalTitle; Oo = $OriginalOverview
             } -ScriptBlock {
-                param($R, $Ep, $Md, $Ct, $Co, $Ot, $Oo)
+                param($R, $Ep, $Md, $Ak, $Ct, $Co, $Ot, $Oo)
                 $paths = [PathConfiguration]::new($R, 'C:\Projects', 'C:\Images')
                 $tools = [ToolConfiguration]::new($paths, @{})
-                $app = [ApplicationConfiguration]::new(@{ ai = @{ endpoint = $Ep; model = $Md; api_key_env = 'IPAP_AI_API_KEY'; timeout_sec = 15 } })
+                $app = [ApplicationConfiguration]::new(@{
+                        ai = @{ endpoint = $Ep; model = $Md; api_key_env = 'IPAP_AI_API_KEY'; api_key = $Ak; timeout_sec = 15 }
+                    })
                 $project = [ProjectConfiguration]::new(@{
                         project = @{
                             original_title    = $Ot
@@ -119,7 +122,7 @@ Describe 'Complete-ProjectTranslation Unit Tests' -Tag 'Complete-ProjectTranslat
                 -ParameterFilter { $Level -eq 'Warning' -and $Message -like '*model 为空*' }
         }
 
-        It '密钥环境变量缺失时应跳过且不调用 AI' {
+        It '密钥环境变量与配置文件都为空时应跳过且不调用 AI' {
             Remove-Item Env:\IPAP_AI_API_KEY -ErrorAction SilentlyContinue
             $Config = New-TestConfig -Root $Script:Root
 
@@ -127,7 +130,32 @@ Describe 'Complete-ProjectTranslation Unit Tests' -Tag 'Complete-ProjectTranslat
 
             Should -Invoke -ModuleName IPAP Invoke-AiTranslation -Times 0 -Exactly
             Should -Invoke -ModuleName IPAP Write-LogEntry -Times 1 -Exactly `
-                -ParameterFilter { $Message -like '*IPAP_AI_API_KEY 未设置*' }
+                -ParameterFilter { $Message -like '*未找到 AI 密钥*' }
+        }
+
+        It '只在 config.toml 里写了 api_key 时应使用它' {
+            Remove-Item Env:\IPAP_AI_API_KEY -ErrorAction SilentlyContinue
+            Mock -ModuleName IPAP Invoke-AiTranslation {
+                [PSCustomObject]@{ ChineseTitle = '标题'; ChineseOverview = '简介' }
+            }
+            $Config = New-TestConfig -Root $Script:Root -ApiKey 'sk-from-config'
+
+            Invoke-Complete -Config $Config
+
+            Should -Invoke -ModuleName IPAP Invoke-AiTranslation -Times 1 -Exactly `
+                -ParameterFilter { $ApiKey -eq 'sk-from-config' }
+        }
+
+        It '环境变量与配置文件都有密钥时以环境变量为准' {
+            Mock -ModuleName IPAP Invoke-AiTranslation {
+                [PSCustomObject]@{ ChineseTitle = '标题'; ChineseOverview = '简介' }
+            }
+            $Config = New-TestConfig -Root $Script:Root -ApiKey 'sk-from-config'
+
+            Invoke-Complete -Config $Config
+
+            Should -Invoke -ModuleName IPAP Invoke-AiTranslation -Times 1 -Exactly `
+                -ParameterFilter { $ApiKey -eq 'sk-test-key' }
         }
 
         It 'AI 返回空时应保持原值并记 Warning' {

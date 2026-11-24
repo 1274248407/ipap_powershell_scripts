@@ -75,8 +75,12 @@ quality = 100
 endpoint = ""
 # 模型名，例：deepseek-chat
 model = ""
-# API Key 从这个环境变量读取（不要把密钥写进本文件）
+# API Key 从这个环境变量读取（推荐；优先级高于下一行的 api_key）
 api_key_env = "IPAP_AI_API_KEY"
+# 备用：直接写在 config.toml 里的密钥。环境变量有值时以环境变量为准。
+# ⚠ 只能写在 config.toml（已被 .gitignore 忽略），绝不能写进本模板文件——
+#   本文件会随仓库和发布包公开，填进来的密钥等于公开发布。
+api_key = ""
 # 单次请求超时（秒）
 timeout_sec = 30
 

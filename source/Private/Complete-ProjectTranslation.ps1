@@ -44,9 +44,16 @@ function Complete-ProjectTranslation {
         return
     }
 
-    [string]$ApiKey = [Environment]::GetEnvironmentVariable($Config.App.AiApiKeyEnv)
+    # 密钥优先级：环境变量 > 配置文件 [ai].api_key；两者都不记进日志
+    [string]$ApiKey = ''
+    if (-not [string]::IsNullOrWhiteSpace($Config.App.AiApiKeyEnv)) {
+        $ApiKey = [string][Environment]::GetEnvironmentVariable($Config.App.AiApiKeyEnv)
+    }
     if ([string]::IsNullOrWhiteSpace($ApiKey)) {
-        Write-LogEntry -Level Info -Message "环境变量 $($Config.App.AiApiKeyEnv) 未设置，跳过 AI 补全"
+        $ApiKey = [string]$Config.App.AiApiKey
+    }
+    if ([string]::IsNullOrWhiteSpace($ApiKey)) {
+        Write-LogEntry -Level Info -Message "未找到 AI 密钥（环境变量 $($Config.App.AiApiKeyEnv) 与 [ai].api_key 均为空），跳过 AI 补全"
         return
     }
 

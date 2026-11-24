@@ -55,11 +55,16 @@ chinese_overview = """中文简介"""
 `config.toml` 的 `[ai]` 段默认留空，也就是**不启用**。想让工具在缺中文时自动翻译：
 
 1. 填 `endpoint`（OpenAI 兼容的 chat completions 地址，例如 `https://api.deepseek.com/v1/chat/completions`）和 `model`
-2. 设置密钥环境变量（变量名由 `api_key_env` 决定，默认 `IPAP_AI_API_KEY`）：
+2. 给密钥，两种方式任选，**环境变量优先**：
+   - 环境变量（推荐，项目目录里不留密钥）：
+     ```powershell
+     $env:IPAP_AI_API_KEY = '你的密钥'
+     ```
+     想长期生效（新终端也能读到）：`[Environment]::SetEnvironmentVariable('IPAP_AI_API_KEY', '你的密钥', 'User')`
+   - 写进 `config.toml` 的 `[ai].api_key`（配置自包含，搬到别的机器也能跑）
 
-```powershell
-$env:IPAP_AI_API_KEY = '你的密钥'
-```
+> ⚠ `api_key` **只能写在 `config.toml`**（已被 `.gitignore` 忽略）。
+> 绝不能写进 `config.toml.example`——那个文件会随仓库和发布包公开。
 
 补全发生在**配置预览之前**，所以预览里看到的就是补好的中文。
 
