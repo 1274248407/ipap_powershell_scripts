@@ -113,6 +113,44 @@ Describe 'Invoke-AiTranslation Unit Tests' -Tag 'Invoke-AiTranslation', 'IPAP' {
     }
 
     Context 'L3 只请求需要的字段' {
+        It '作者前缀不进入请求体，正文照常翻译' {
+            Mock -ModuleName IPAP Invoke-RestMethod {
+                [PSCustomObject]@{ choices = @([PSCustomObject]@{ message = [PSCustomObject]@{ content = '{"chinese_title":"我心爱的妻子"}' } }) }
+            }
+            $Params = $Script:BaseParams.Clone()
+            $Params['OriginalTitle'] = '[秘密作者] 僕の妻'
+
+            $null = Invoke-Translation -Params $Params
+
+            Should -Invoke -ModuleName IPAP Invoke-RestMethod -Times 1 -Exactly -ParameterFilter {
+                [string]$BodyText = [System.Text.Encoding]::UTF8.GetString($Body)
+                $BodyText -like '*僕の妻*' -and $BodyText -notlike '*秘密作者*'
+            }
+        }
+
+        It '返回后应把作者前缀原样拼回' {
+            Mock -ModuleName IPAP Invoke-RestMethod {
+                [PSCustomObject]@{ choices = @([PSCustomObject]@{ message = [PSCustomObject]@{ content = '{"chinese_title":"我心爱的妻子"}' } }) }
+            }
+            $Params = $Script:BaseParams.Clone()
+            $Params['OriginalTitle'] = '[秘密作者] 僕の妻'
+
+            (Invoke-Translation -Params $Params).ChineseTitle | Should -BeExactly '[秘密作者] 我心爱的妻子'
+        }
+
+        It '书名只有作者前缀时不请求译名' {
+            Mock -ModuleName IPAP Invoke-RestMethod {
+                [PSCustomObject]@{ choices = @([PSCustomObject]@{ message = [PSCustomObject]@{ content = '{"chinese_title":"不该用","chinese_overview":"简介"}' } }) }
+            }
+            $Params = $Script:BaseParams.Clone()
+            $Params['OriginalTitle'] = '[秘密作者]'
+
+            $Result = Invoke-Translation -Params $Params
+
+            $Result.ChineseTitle | Should -BeExactly ''
+            $Result.ChineseOverview | Should -BeExactly '简介'
+        }
+
         It 'NeedTitle 为 false 时译名字段固定为空' {
             Mock -ModuleName IPAP Invoke-RestMethod {
                 [PSCustomObject]@{

@@ -8,6 +8,9 @@
     请求特征：temperature = 0（同一输入稳定输出）、response_format = json_object（强制 JSON）、
     超时由调用方指定。任何失败（网络、超时、HTTP 错误、返回非 JSON、字段全空）
     都记 Warning 并返回 $null，由上层决定降级，绝不中断工作流。
+
+    **方括号里的作者名不送进模型**：`[作者] 正文` 先拆两段，只翻译正文，返回后原样拼回前缀。
+    作者名是专有名词，靠提示词要求「保留」并不可靠，直接不让它进入请求才是最硬的保证。
 .PARAMETER Endpoint
     chat completions 的完整地址，例如 https://api.deepseek.com/v1/chat/completions。
 .PARAMETER Model
@@ -64,10 +67,14 @@ function Invoke-AiTranslation {
         [bool]$NeedOverview = $true
     )
 
+    # 方括号里的作者名是专有名词，不送进模型：只翻译正文，返回后再原样拼回
+    [object]$TitleParts = Split-AuthorPrefix -Title $OriginalTitle
+    [bool]$TranslateTitle = $NeedTitle -and -not [string]::IsNullOrWhiteSpace($TitleParts.Body)
+
     # 只要真正缺的字段，少给模型一点自由发挥的空间
     [string[]]$WantedKeys = @()
-    if ($NeedTitle) {
-        $WantedKeys += 'chinese_title：中文书名，保留原文里的 [作者] 前缀结构'
+    if ($TranslateTitle) {
+        $WantedKeys += 'chinese_title：中文书名正文（不要包含作者名，也不要加方括号）'
     }
     if ($NeedOverview) {
         $WantedKeys += 'chinese_overview：中文简介，逐段翻译，用空行保留原分段'
@@ -79,7 +86,7 @@ function Invoke-AiTranslation {
 $($WantedKeys -join "`n")
 
 【原文书名】
-$OriginalTitle
+$($TitleParts.Body)
 
 【原文简介】
 $OriginalOverview
@@ -125,7 +132,12 @@ $OriginalOverview
         return $null
     }
 
-    [string]$ChineseTitle = $NeedTitle ? ([string]$Parsed.chinese_title).Trim() : ''
+    [string]$TranslatedTitleBody = $TranslateTitle ? ([string]$Parsed.chinese_title).Trim() : ''
+    # 拼回作者前缀：模型只见过正文，作者名一个字符都没经过它
+    [string]$ChineseTitle = ''
+    if ($TranslatedTitleBody) {
+        $ChineseTitle = $TitleParts.Prefix ? "$($TitleParts.Prefix) $TranslatedTitleBody" : $TranslatedTitleBody
+    }
     [string]$ChineseOverview = $NeedOverview ? ([string]$Parsed.chinese_overview).Trim() : ''
 
     if ([string]::IsNullOrWhiteSpace($ChineseTitle) -and [string]::IsNullOrWhiteSpace($ChineseOverview)) {

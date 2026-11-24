@@ -58,5 +58,7 @@ function Test-NeedsTranslation {
         return $true
     }
 
-    return -not (Test-ChineseText -Text $Trimmed)
+    # 方括号里是作者名（专有名词），判定语种时只看正文，避免作者前缀把中文书名压成「日文」
+    [string]$BodyForLanguage = (Split-AuthorPrefix -Title $Trimmed).Body
+    return -not (Test-ChineseText -Text $BodyForLanguage)
 }

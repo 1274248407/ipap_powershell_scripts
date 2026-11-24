@@ -64,6 +64,10 @@ Describe 'Test-NeedsTranslation Unit Tests' -Tag 'Test-NeedsTranslation', 'IPAP'
         It '整句日文应判定为需要翻译' {
             Test-Needs -Value '僕の愛するおっとり妻' | Should -BeTrue
         }
+
+        It '带日文作者前缀的中文书名不应被误判为日文' {
+            Test-Needs -Value '[アイチルワークス (林チェリー)] 我心爱的妻子' | Should -BeFalse
+        }
     }
 
     Context 'L5 输出契约' {
