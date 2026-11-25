@@ -6,7 +6,7 @@ PowerShell 7 图像处理自动化项目（ipap_workflow）。修改任何 `.ps1
 
 - **构建**：`.\build.ps1 -Task Build`（打包模块到 `output/IPAP/`）
 - **静态分析**：`.\build.ps1 -Task Analyze`（PSScriptAnalyzer + AST 契约检查 `Invoke-OutputTypeAudit`）
-- **测试**：`.\build.ps1 -Task Test`（自动先执行 Build + Analyze；Pester v5 单元 + 集成）
+- **测试**：`.\build.ps1 -Task Test`（自动先执行 Build + Analyze；Pester 6.x 单元 + 集成）
 - **打包**：`.\build.ps1 -Task Pack`（依赖链：Build → Analyze → Test）
 - **发布**：`.\build.ps1 -Task Release`（依赖链：Pack，含 git commit/tag/push + gh release）
 - 直接跑测试：`Invoke-Pester .\tests` 或按文件 `.\tests\Unit\Public\IPAP_*.Unit.Tests.ps1`
@@ -22,10 +22,10 @@ PowerShell 7 图像处理自动化项目（ipap_workflow）。修改任何 `.ps1
 - **防御性编程**：IO 与网络操作必须包裹 try-catch；`Write-LogEntry` 四个级别均为**纯日志输出**（只写终端，不抛异常、不中断执行）；需要"记录并中断"时，先调用 `Write-LogEntry -Level Error` 记录现场，再在同一代码块内显式 `throw` 带类型异常（如 `[System.ArgumentException]`、`[System.IO.IOException]`），日志与控制流分离；catch 记录后必须重抛，禁止吞异常。
 - **帮助文档**：每个函数/类/类方法上方必须有完整 Help-Based Help 注释块，作者固定为 `lucas_gold`，使用简体中文。
 - **注释语言**：所有注释（单行 `#` 与块注释 `<#...#>`）必须使用简体中文；变量、函数名等标识符保持英文。
-- **测试（Pester v5，v5.3.0+）**：
+- **测试（Pester 6.x）**：
   - 文件命名 `*.Tests.ps1`：单元 `tests/Unit/Public/IPAP_*.Unit.Tests.ps1`，集成 `tests/Integration/*.Integration.Tests.ps1`，命名模式 `{ModuleName}_{FunctionName}.{Scope}.Tests.ps1`。
   - 单元测试完全隔离外部依赖用 Mock；集成测试用 `TestDrive` 真实文件操作、Mock 屏蔽日志输出、只覆盖核心正向路径与关键失败路径。
-  - 只 Mock 模块外部依赖；Mock 定义在 `BeforeEach` 中；Mock 模块内命令必须用 `-ModuleName`。
+  - 只 Mock 模块外部依赖（编排器 Mock 协作者、日志 Mock 静默两条例外见规则文档 §7.5）；Mock 定义在 `BeforeEach` 中；Mock 模块内命令必须用 `-ModuleName`。
   - 断言精确，避免模糊字符串匹配；测试之间不共享状态，`AfterEach/AfterAll` 清理。
   - 编写测试时参考 `docs/单元测试方法论.md` 的5级分级与纯函数/副作用函数原则。
 

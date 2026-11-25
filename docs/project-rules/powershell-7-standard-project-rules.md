@@ -223,6 +223,11 @@ class ClassName
 
 - **优先使用 TestDrive**：对于文件操作测试，优先使用 Pester 的 `TestDrive` 功能进行真实文件操作，而非 Mock。
 - **只 Mock 外部依赖**：仅 Mock 模块外部的依赖（如系统命令、外部服务调用），不 Mock 模块内部函数。
+  - **例外一（编排器/门面）**：串联外部进程的编排器（如 `Start-IPAPWorkflow` 调 ffmpeg / Real-CUGAN），
+    真实执行等于集成测试，单测允许 Mock 全部协作者；纯逻辑函数仍不得 Mock 模块内部实现。
+    配置守卫分支例外保留真实调用（`Test-ConfigurationInitialized`、`Get-Configuration`）。
+  - **例外二（日志噪声抑制）**：`Write-LogEntry` 是纯日志输出、无返回值，单测统一 Mock 为静默
+    属于测试基础设施，不算「Mock 内部实现」。
 - **Mock 应在 BeforeEach 中定义**：每个测试前重新定义 Mock，避免测试间的状态污染。
 - **避免过度 Mock**：不要为了测试而过度 Mock，保持测试的真实性和可靠性。
 - **使用 -ModuleName 参数**：当需要 Mock 模块内调用的命令时，必须使用 `-ModuleName` 参数指定目标模块。

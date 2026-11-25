@@ -24,7 +24,6 @@
         'New-ProjectStructure',
         'New-ReadmeFile',
         'Read-MultiLineInput',
-        'Get-ProjectBriefInfo',
         'Start-IPAPWorkflow',
         'Select-NonTextImage',
         'Test-UpscaleResult',

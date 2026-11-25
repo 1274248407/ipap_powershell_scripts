@@ -314,8 +314,9 @@ function New-ReadmeFile {
         }
         catch {
             # 记录上下文后抛出包装异常并保留 InnerException（禁止吞异常）
-            Write-LogEntry -Level Error -Message "创建/覆盖 README.toml 文件失败: $($PSItem.Exception.Message)"
-            throw [System.IO.IOException]::new("创建/覆盖 README.toml 文件失败: $($PSItem.Exception.Message)", $PSItem.Exception)
+            [string]$ErrorMessage = "创建/覆盖 README.toml 文件失败: $($PSItem.Exception.Message)"
+            Write-LogEntry -Level Error -Message $ErrorMessage
+            throw [System.IO.IOException]::new($ErrorMessage, $PSItem.Exception)
         }
     }
 }

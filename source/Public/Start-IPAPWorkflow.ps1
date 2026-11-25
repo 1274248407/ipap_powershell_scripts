@@ -100,15 +100,9 @@ function Start-IPAPWorkflow {
         $imageInfo = Get-ImageInfo -SourceDir $SourceDir
 
         if ($imageInfo.Count -gt 0) {
-            # Get-ProjectBriefInfo 仍在配置缺项时交互补齐，并统一「[作者] 原作品名」的拼接——
-            # 目录名只能由它一处生成；README.toml 的 [project] 段则直接取配置原始字段
-            [array]$BriefInfo = @(Get-ProjectBriefInfo `
-                    -Author $Config.Project.Author `
-                    -OriginalTitle $Config.Project.OriginalTitle `
-                    -ChineseTitle $Config.Project.ChineseTitle `
-                    -OriginalOverview $Config.Project.OriginalOverview `
-                    -ChineseOverview $Config.Project.ChineseOverview)
-            [string]$ProjectName = [string]$BriefInfo[1]
+            # 项目目录名与 README 标题共用同一个命名入口；配置缺项时由它交互补齐
+            [string]$ProjectName = Resolve-ProjectName `
+                -Author $Config.Project.Author -OriginalTitle $Config.Project.OriginalTitle
 
             if ($PSCmdlet.ShouldProcess($ProjectName, '创建项目结构')) {
                 $projectDir = New-ProjectStructure -BaseDir $BaseDir -ProjectName $ProjectName

@@ -84,7 +84,7 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
 
         Mock Write-LogEntry -ModuleName IPAP { }
         Mock Read-Host -ModuleName IPAP { return 'C:\FromPrompt' }
-        Mock Get-ProjectBriefInfo -ModuleName IPAP { return 'Brief text', 'TestProject' }
+        Mock Resolve-ProjectName -ModuleName IPAP { return 'TestProject' }
         Mock New-ProjectStructure -ModuleName IPAP { return $Script:ProjectDir }
         Mock New-ReadmeFile -ModuleName IPAP { }
         Mock Select-NonTextImage -ModuleName IPAP { return @() }
@@ -120,7 +120,7 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
             { Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images' } | Should -Not -Throw
 
             Should -Invoke -ModuleName IPAP Get-ImageInfo -Times 1 -Exactly
-            Should -Invoke -ModuleName IPAP Get-ProjectBriefInfo -Times 1 -Exactly
+            Should -Invoke -ModuleName IPAP Resolve-ProjectName -Times 1 -Exactly
             Should -Invoke -ModuleName IPAP New-ProjectStructure -Times 1 -Exactly
             Should -Invoke -ModuleName IPAP Select-NonTextImage -Times 1 -Exactly
             # README 在开始时写 running、校验通过后写 done，共两次
@@ -135,7 +135,7 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
             { Start-IPAPWorkflow -Config $Script:MockConfig -BaseDir 'C:\Projects' -SourceDir 'C:\Images' } |
                 Should -Not -Throw
 
-            Should -Invoke -ModuleName IPAP Get-ProjectBriefInfo -Times 1 -Exactly
+            Should -Invoke -ModuleName IPAP Resolve-ProjectName -Times 1 -Exactly
         }
 
         It '显式给出 BaseDir 与 SourceDir 时不应交互' {
@@ -345,7 +345,7 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
             # 夹具已通过 InModuleScope 注入实例；此处不传 -Config，覆盖 Test-ConfigurationInitialized 与 Get-Configuration
             { Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images' } | Should -Not -Throw
 
-            Should -Invoke -ModuleName IPAP Get-ProjectBriefInfo `
+            Should -Invoke -ModuleName IPAP Resolve-ProjectName `
                 -ParameterFilter { $Author -eq 'TestAuthor' } -Times 1 -Exactly
         }
 
@@ -721,11 +721,11 @@ Describe 'Start-IPAPWorkflow Unit Tests' -Tag 'Start-IPAPWorkflow', 'IPAP' {
                 -ParameterFilter { $BaseDir -eq 'C:\Projects' -and $ProjectName -eq 'TestProject' } -Times 1 -Exactly
         }
 
-        It 'Get-ProjectBriefInfo 应收到配置中的项目信息' {
+        It 'Resolve-ProjectName 应收到配置中的作者与原文' {
             Start-IPAPWorkflow -BaseDir 'C:\Projects' -SourceDir 'C:\Images'
 
-            Should -Invoke -ModuleName IPAP Get-ProjectBriefInfo `
-                -ParameterFilter { $Author -eq 'TestAuthor' -and $OriginalTitle -eq 'TestTitle' -and $ChineseTitle -eq '测试标题' } `
+            Should -Invoke -ModuleName IPAP Resolve-ProjectName `
+                -ParameterFilter { $Author -eq 'TestAuthor' -and $OriginalTitle -eq 'TestTitle' } `
                 -Times 1 -Exactly
         }
 
