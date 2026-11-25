@@ -23,7 +23,10 @@
 .PARAMETER Temperature
     采样温度，来自 `[ai].temperature`；0 表示同一输入稳定输出，取值范围 0-2。
 .PARAMETER MaxTokens
-    单次回复的最大 token 数，来自 `[ai].max_tokens`；推理模型会把思考内容也算进这个额度。
+    单次回复的最大 token 数，来自 `[ai].max_tokens`；**0 表示不传**，
+    交给服务端按模式给默认值（思考模式默认 64K）。固定传一个偏小的值会把思考额度压没。
+.PARAMETER ReasoningEffort
+    思考预算，来自 `[ai].reasoning_effort`（none / low / high / max）；空表示不传，跟随服务端默认。
 .PARAMETER OriginalTitle
     原文书名。
 .PARAMETER OriginalOverview
@@ -64,8 +67,11 @@ function Invoke-AiTranslation {
         [ValidateRange(0, 2)]
         [double]$Temperature = 0,
 
-        [ValidateRange(256, 65536)]
-        [int]$MaxTokens = 8192,
+        [ValidateRange(0, 384000)]
+        [int]$MaxTokens = 0,
+
+        [ValidateSet('', 'none', 'low', 'high', 'max')]
+        [string]$ReasoningEffort = '',
 
         [AllowEmptyString()]
         [string]$OriginalTitle = '',
@@ -130,12 +136,20 @@ $OriginalOverview
     [hashtable]$Payload = @{
         model           = $Model
         temperature     = $Temperature
-        max_tokens      = $MaxTokens
         response_format = @{ type = 'json_object' }
         messages        = @(
             @{ role = 'system'; content = $SystemPrompt }
             @{ role = 'user'; content = $UserPrompt }
         )
+    }
+    # 0 = 不干预：不传 max_tokens，让服务端按模式给默认值（思考模式 64K）。
+    # 传一个固定值只会把思考额度压没——这正是 v3.1.0 里「返回内容为空」的成因。
+    if ($MaxTokens -gt 0) {
+        $Payload['max_tokens'] = $MaxTokens
+    }
+    # 空 = 不干预：服务端默认 high；翻译任务可配 low 降本提速
+    if (-not [string]::IsNullOrWhiteSpace($ReasoningEffort)) {
+        $Payload['reasoning_effort'] = $ReasoningEffort
     }
     # 显式转成 UTF-8 字节，避免中文在请求体里被按本地代码页编码
     [byte[]]$Body = [System.Text.Encoding]::UTF8.GetBytes(($Payload | ConvertTo-Json -Depth 8))
@@ -154,16 +168,21 @@ $OriginalOverview
 
     [string]$RawContent = [string]$Response.choices[0].message.content
     if ([string]::IsNullOrWhiteSpace($RawContent)) {
-        # 推理模型会把思考过程也算进 max_tokens：额度耗尽时 content 为空、finish_reason 为 length，
-        # 此时只说「返回内容为空」会让人误以为是网络问题，必须指出真正原因
+        # 三种「看起来是空」的原因必须分开说，否则会把人引向网络/鉴权的错误方向：
+        # 1) length：思考把额度耗尽，content 没来得及生成
+        # 2) content_filter：被内容安全策略拦截
+        # 3) stop 但内容全为空白：JSON 模式下模型输出未被识别为 JSON，API 用空格替换了
         [string]$FinishReason = [string]$Response.choices[0].finish_reason
         [int]$CompletionTokens = [int]($Response.usage.completion_tokens ?? 0)
-        [bool]$HasReasoning = -not [string]::IsNullOrWhiteSpace([string]$Response.choices[0].message.reasoning_content)
+        [int]$ReasoningTokens = [int]($Response.usage.completion_tokens_details.reasoning_tokens ?? 0)
         if ($FinishReason -eq 'length') {
-            Write-LogEntry -Level Warning -Message ("AI 输出被 max_tokens 截断（completion={0}，含思考内容={1}）；请调大 [ai].max_tokens，或改用非推理模型" -f $CompletionTokens, $HasReasoning)
+            Write-LogEntry -Level Warning -Message ("AI 输出被 max_tokens 截断（completion={0}，其中思考 {1}）；请把 [ai].max_tokens 留空交给服务端默认，或调到足够大" -f $CompletionTokens, $ReasoningTokens)
+        }
+        elseif ($FinishReason -eq 'content_filter') {
+            Write-LogEntry -Level Warning -Message 'AI 输出被内容安全策略拦截（finish_reason=content_filter），未产生可用内容'
         }
         else {
-            Write-LogEntry -Level Warning -Message 'AI 翻译返回内容为空'
+            Write-LogEntry -Level Warning -Message ("AI 返回内容为空或全为空白（finish_reason={0}）：JSON 模式下模型输出未被识别为 JSON 时会被替换成空格，可尝试降低 [ai].temperature 或换用非思考模式" -f $FinishReason)
         }
         return $null
     }

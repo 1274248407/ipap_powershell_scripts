@@ -94,13 +94,38 @@ Describe 'Invoke-AiTranslation Unit Tests' -Tag 'Invoke-AiTranslation', 'IPAP' {
                             finish_reason = 'length'
                             message       = [PSCustomObject]@{ content = ''; reasoning_content = '思考了很久…' }
                         })
-                    usage   = [PSCustomObject]@{ prompt_tokens = 2128; completion_tokens = 4096; total_tokens = 6224 }
+                    usage   = [PSCustomObject]@{
+                        prompt_tokens             = 2128
+                        completion_tokens         = 4096
+                        total_tokens              = 6224
+                        completion_tokens_details = [PSCustomObject]@{ reasoning_tokens = 4096 }
+                    }
                 }
             }
 
             Invoke-Translation -Params $Script:BaseParams | Should -BeNullOrEmpty
             Should -Invoke -ModuleName IPAP Write-LogEntry -Times 1 -Exactly `
-                -ParameterFilter { $Level -eq 'Warning' -and $Message -like '*max_tokens 截断*' -and $Message -like '*含思考内容=True*' }
+                -ParameterFilter { $Level -eq 'Warning' -and $Message -like '*max_tokens 截断*' -and $Message -like '*其中思考 4096*' }
+        }
+
+        It '内容被安全策略拦截时应指出 content_filter' {
+            Mock -ModuleName IPAP Invoke-RestMethod {
+                [PSCustomObject]@{ choices = @([PSCustomObject]@{ finish_reason = 'content_filter'; message = [PSCustomObject]@{ content = '' } }) }
+            }
+
+            Invoke-Translation -Params $Script:BaseParams | Should -BeNullOrEmpty
+            Should -Invoke -ModuleName IPAP Write-LogEntry -Times 1 -Exactly `
+                -ParameterFilter { $Message -like '*内容安全策略拦截*' }
+        }
+
+        It 'finish_reason 为 stop 但内容全是空白时应提示 JSON 未被识别' {
+            Mock -ModuleName IPAP Invoke-RestMethod {
+                [PSCustomObject]@{ choices = @([PSCustomObject]@{ finish_reason = 'stop'; message = [PSCustomObject]@{ content = '   ' } }) }
+            }
+
+            Invoke-Translation -Params $Script:BaseParams | Should -BeNullOrEmpty
+            Should -Invoke -ModuleName IPAP Write-LogEntry -Times 1 -Exactly `
+                -ParameterFilter { $Message -like '*未被识别为 JSON*' -and $Message -like '*finish_reason=stop*' }
         }
 
         It '返回内容不是 JSON 时应记 Warning 并返回 $null' {
@@ -244,6 +269,47 @@ Describe 'Invoke-AiTranslation Unit Tests' -Tag 'Invoke-AiTranslation', 'IPAP' {
             Should -Invoke -ModuleName IPAP Invoke-RestMethod -Times 1 -Exactly -ParameterFilter {
                 [string]$BodyText = [System.Text.Encoding]::UTF8.GetString($Body)
                 $BodyText -match '"max_tokens"\s*:\s*16384'
+            }
+        }
+
+        It 'max_tokens 为 0 时请求体不应带该字段（交给服务端默认）' {
+            Mock -ModuleName IPAP Invoke-RestMethod {
+                [PSCustomObject]@{ choices = @([PSCustomObject]@{ message = [PSCustomObject]@{ content = '{"chinese_title":"标题"}' } }) }
+            }
+
+            $null = Invoke-Translation -Params $Script:BaseParams
+
+            Should -Invoke -ModuleName IPAP Invoke-RestMethod -Times 1 -Exactly -ParameterFilter {
+                [string]$BodyText = [System.Text.Encoding]::UTF8.GetString($Body)
+                $BodyText -notmatch 'max_tokens'
+            }
+        }
+
+        It 'reasoning_effort 有值时请求体应带上它' {
+            Mock -ModuleName IPAP Invoke-RestMethod {
+                [PSCustomObject]@{ choices = @([PSCustomObject]@{ message = [PSCustomObject]@{ content = '{"chinese_title":"标题"}' } }) }
+            }
+            $Params = $Script:BaseParams.Clone()
+            $Params['ReasoningEffort'] = 'low'
+
+            $null = Invoke-Translation -Params $Params
+
+            Should -Invoke -ModuleName IPAP Invoke-RestMethod -Times 1 -Exactly -ParameterFilter {
+                [string]$BodyText = [System.Text.Encoding]::UTF8.GetString($Body)
+                $BodyText -match '"reasoning_effort"\s*:\s*"low"'
+            }
+        }
+
+        It 'reasoning_effort 为空时请求体不应带该字段' {
+            Mock -ModuleName IPAP Invoke-RestMethod {
+                [PSCustomObject]@{ choices = @([PSCustomObject]@{ message = [PSCustomObject]@{ content = '{"chinese_title":"标题"}' } }) }
+            }
+
+            $null = Invoke-Translation -Params $Script:BaseParams
+
+            Should -Invoke -ModuleName IPAP Invoke-RestMethod -Times 1 -Exactly -ParameterFilter {
+                [string]$BodyText = [System.Text.Encoding]::UTF8.GetString($Body)
+                $BodyText -notmatch 'reasoning_effort'
             }
         }
 

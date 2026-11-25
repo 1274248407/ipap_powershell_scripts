@@ -80,9 +80,12 @@ api_key_env = "IPAP_AI_API_KEY"
 api_key = ""
 # 采样温度：0 = 每次结果稳定（推荐）；越大越发散，范围 0-2
 temperature = 0
-# 单次回复的最大 token 数。推理模型（如 deepseek-reasoner / flash）会把思考也算进这个额度，
-# 额度耗尽时返回内容为空；长简介建议 8192 以上
-max_tokens = 8192
+# 单次回复的最大 token 数。留空（0）表示不传，由服务端按模式给默认值
+# （思考模式默认 64K）；填了才会覆盖，填小了会把思考额度压没、导致返回内容为空
+max_tokens = 0
+# 思考预算：none / low / high / max。留空表示不传（服务端默认 high）；
+# 翻译任务可设 low 降本提速，none 则关闭思考（temperature 才会生效）
+reasoning_effort = ""
 # 单次请求超时（秒）
 timeout_sec = 30
 

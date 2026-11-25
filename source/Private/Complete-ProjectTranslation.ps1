@@ -96,7 +96,7 @@ function Complete-ProjectTranslation {
 
     [object]$Result = Invoke-AiTranslation -Endpoint $Config.App.AiEndpoint -Model $Config.App.AiModel `
         -ApiKey $ApiKey -TimeoutSec $Config.App.AiTimeoutSec -Temperature $Config.App.AiTemperature `
-        -MaxTokens $Config.App.AiMaxTokens `
+        -MaxTokens $Config.App.AiMaxTokens -ReasoningEffort $Config.App.AiReasoningEffort `
         -OriginalTitle $Config.Project.OriginalTitle `
         -OriginalOverview $Config.Project.OriginalOverview `
         -NeedTitle $NeedTitle -NeedOverview $NeedOverview
