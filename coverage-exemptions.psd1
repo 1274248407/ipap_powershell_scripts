@@ -17,9 +17,9 @@
         }
         @{
             File   = 'Invoke-ParallelUpscale.ps1'
-            Lines  = @(112, 113, 114)
+            Lines  = @(114, 115, 116)
             Reason = 'ForEach-Object -Parallel 子 runspace 注入；Pester 覆盖率插桩不跨 runspace'
-            Since  = '2026-11-05'
+            Since  = '2026-11-05（2026-11-25 因新增 -Quality 参数行号漂移同步）'
         }
     )
 }

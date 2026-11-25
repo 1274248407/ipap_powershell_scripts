@@ -169,9 +169,7 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
 
                 $config.App.UpscaleRatio | Should -Be 2
                 $config.App.NoiseLevel | Should -Be 0
-                $config.App.WebpEnabled | Should -Be $true
-                $config.App.WebpLossless | Should -Be $true
-                $config.App.WebpQuality | Should -Be 100
+                $config.App.WebpQuality | Should -Be 95
             }
         }
 
@@ -214,13 +212,13 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
                 # 直接调用隐藏静态方法读取文件不存在分支返回的默认配置表
                 $rawSettings = [IPAPConfiguration]::ReadConfigFile($p)
 
-                # 键集合断言：5 个区块，键数总计 5 + 5 + 4 + 2 + 3 = 19，同时守住「不多不少」
+                # 键集合断言：5 个区块，键数总计 5 + 5 + 4 + 2 + 1 = 17，同时守住「不多不少」
                 @($rawSettings.Keys | Sort-Object) | Should -Be @('app_settings', 'paths', 'project', 'upscale', 'webp')
                 @($rawSettings['paths'].Keys | Sort-Object) | Should -Be @('base_project_dir', 'ffmpeg_exe', 'ffprobe_exe', 'realcugan_exe', 'source_dir')
                 @($rawSettings['project'].Keys | Sort-Object) | Should -Be @('author', 'chinese_overview', 'chinese_title', 'original_overview', 'original_title')
                 @($rawSettings['app_settings'].Keys | Sort-Object) | Should -Be @('max_workers', 'model_select', 'supported_image_formats', 'upscale_timeout_sec')
                 @($rawSettings['upscale'].Keys | Sort-Object) | Should -Be @('noise_level', 'upscale_ratio')
-                @($rawSettings['webp'].Keys | Sort-Object) | Should -Be @('enabled', 'lossless', 'quality')
+                @($rawSettings['webp'].Keys | Sort-Object) | Should -Be @('quality')
 
                 # 值断言：逐键对应源码中的默认表，是全文件默认值的唯一真源
                 # 注意：键名断言只能守住键集合，键增删之外的「默认值被改动」全靠下面 19 行拦截
@@ -240,9 +238,7 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
                 $rawSettings['app_settings']['model_select'] | Should -Be 'models-se'
                 $rawSettings['upscale']['upscale_ratio'] | Should -Be 2
                 $rawSettings['upscale']['noise_level'] | Should -Be 0
-                $rawSettings['webp']['enabled'] | Should -Be $true
-                $rawSettings['webp']['lossless'] | Should -Be $true
-                $rawSettings['webp']['quality'] | Should -Be 100
+                $rawSettings['webp']['quality'] | Should -Be 95
             }
         }
     }
@@ -260,13 +256,13 @@ Describe 'IPAPConfiguration Unit Tests' -Tag 'IPAPConfiguration', 'IPAP', 'Class
                 # 该分支与「配置文件不存在」分支返回源码中同一张 $defaultSettings，故此处按原始表断言
                 $rawSettings = [IPAPConfiguration]::ReadConfigFile($p)
 
-                # 5 个区块，键集合总计 5 + 5 + 4 + 2 + 3 = 19 个
+                # 5 个区块，键集合总计 5 + 5 + 4 + 2 + 1 = 17 个
                 @($rawSettings.Keys | Sort-Object) | Should -Be @('app_settings', 'paths', 'project', 'upscale', 'webp')
                 @($rawSettings['paths'].Keys | Sort-Object) | Should -Be @('base_project_dir', 'ffmpeg_exe', 'ffprobe_exe', 'realcugan_exe', 'source_dir')
                 @($rawSettings['project'].Keys | Sort-Object) | Should -Be @('author', 'chinese_overview', 'chinese_title', 'original_overview', 'original_title')
                 @($rawSettings['app_settings'].Keys | Sort-Object) | Should -Be @('max_workers', 'model_select', 'supported_image_formats', 'upscale_timeout_sec')
                 @($rawSettings['upscale'].Keys | Sort-Object) | Should -Be @('noise_level', 'upscale_ratio')
-                @($rawSettings['webp'].Keys | Sort-Object) | Should -Be @('enabled', 'lossless', 'quality')
+                @($rawSettings['webp'].Keys | Sort-Object) | Should -Be @('quality')
                 # 值断言：max_workers 是默认表中唯一与类内兜底取值不同的键，恒定可证伪
                 $rawSettings['app_settings']['max_workers'] | Should -Be 8
 
@@ -582,8 +578,6 @@ author = "Lucas\\G\"old"
                 $config = [IPAPConfiguration]::Load($p)
 
                 $config.App.WebpQuality | Should -Be 75
-                $config.App.WebpEnabled | Should -Be $true
-                $config.App.WebpLossless | Should -Be $true
                 # 判别锚点：只覆盖 quality 时 max_workers 仍应取默认表的 8，证明其余子键未被连带清空
                 $config.App.MaxWorkers | Should -Be 8
             }
@@ -678,7 +672,7 @@ source_dir = "real_source"
                 # 判别锚点：默认表给 8，类内兜底给 ProcessorCount/2，此处为 8 才能证明上述默认值来自默认表
                 $config.App.MaxWorkers | Should -Be 8
                 $config.App.UpscaleRatio | Should -Be 2
-                $config.App.WebpQuality | Should -Be 100
+                $config.App.WebpQuality | Should -Be 95
             }
         }
 

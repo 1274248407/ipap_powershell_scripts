@@ -59,14 +59,11 @@ upscale_ratio = 2
 # 降噪级别，可选值：0, 1, 2, 3
 noise_level = 0
 
-# --- [webp] - WebP 转换配置 ---
+# --- [webp] - WebP 输出质量 ---
 [webp]
-# 是否启用 WebP 转换
-enabled = true
-# 是否使用无损压缩
-lossless = true
-# 压缩质量 (0-100)，仅在非无损模式下有效
-quality = 100
+# 有损编码质量 (0-100)：95 约等于视觉无损，越低文件越小、画质越差
+# 只影响 FFmpeg 路径（Level 0 转码 / Level 1 锐化）；Real-CUGAN 的输出质量由模型决定
+quality = 95
 
 # --- [ai] - 中文译名/简介自动补全（可选，默认关闭）---
 [ai]

@@ -40,7 +40,6 @@
 - **风险驱动的 Try-Catch**：
   - 凡涉及 **IO 操作**（文件读取、写入、移动等）的逻辑，必须包裹在 `try-catch` 结构中。
   - 凡涉及 **网络请求**（如 `Invoke-RestMethod`, `Invoke-WebRequest`）的逻辑，必须包裹在 `try-catch` 结构中。
-  - `catch` 块应包含明确的异常处理逻辑（如 `throw $PSItem`）。
 - **日志与控制流分离（Write-LogEntry 契约）**：
   - `Write-LogEntry` 是**日志函数**：四个级别（含 Error）均只写终端，**不抛出异常、不中断执行**。日志函数不承担错误传播职责。
   - 需要"记录并中断"时：先调用 `Write-LogEntry -Level Error` 记录现场，再在同一代码块内**显式 `throw` 带明确类型的异常**（如 `[System.ArgumentException]`、`[System.IO.DirectoryNotFoundException]`、`[System.InvalidOperationException]`、`[System.IO.IOException]`）。中断语义由显式 `throw` 提供，不得依赖日志函数触发。
@@ -98,18 +97,9 @@ class ClassName
 
 #### 5.1.2 类属性 Help
 
-每个类属性上方必须添加单行注释说明其用途：
+每个类属性上方添加一行 `#` 注释说明用途（不需要完整 Help 块）：
 
 ```powershell
-<#
-.SYNOPSIS
-    [简要描述类的功能]
-.DESCRIPTION
-    [详细解释类的作用]
-.NOTES
-    Author:  lucas_gold
-    Website: https://github.com/1274248407
-#>
 class ClassName
 {
     # 属性的简要说明
@@ -165,28 +155,15 @@ class ClassName
     ```powershell
     # 构建输出文件路径
     $OutputPath = Join-Path $TmpDir 'output.txt'
-
-    # 检查环境是否满足要求
-    if (-not (Test-Path $PythonPath))
-    {
-        throw "Python 环境不存在"
-    }
-
-    # 遍历所有待处理文件
-    foreach ($File in $Files)
-    {
-        # 处理单个文件
-        Process-File -Path $File
-    }
     ```
 
-## 7. 测试框架规范（Pester v5 - 单元测试与集成测试）
+## 7. 测试框架规范（Pester 6.x - 单元测试与集成测试）
 
 ### 7.0 版本要求
 
-- **强制版本**：必须使用 **Pester v5** 版本（v5.3.0 及以上）。
-- **版本声明**：测试文件开头应使用 `#Requires -Modules Pester` 声明依赖。
-- **兼容性**：禁止使用 Pester v4 及更早版本的语法（如 `Should Be` 需改为 `Should -Be`）。
+- **强制版本**：Pester 6.x（当前 6.1.0）；测试文件开头用 `#Requires -Modules Pester` 声明依赖。
+- **兼容性**：禁止 Pester v4 及更早语法（如 `Should Be` 需改为 `Should -Be`）。
+- **v6 注意**：Mock 不再回落到真实命令，`Should -Invoke` 前必须先有对应 Mock。
 
 ### 7.1 文件命名规范
 
@@ -205,6 +182,7 @@ class ClassName
 - **It 块**：单个测试用例，描述具体的测试断言。
 - **BeforeAll/AfterAll**：在所有测试前后执行，用于模块导入和清理。
 - **BeforeEach/AfterEach**：在每个测试前后执行，用于测试隔离和清理。
+- **状态隔离**：测试之间不得共享状态，每个测试独立可重跑。
 
 ### 7.3 单元测试规范
 
@@ -221,7 +199,6 @@ class ClassName
 
 ### 7.5 Mock 规范
 
-- **优先使用 TestDrive**：对于文件操作测试，优先使用 Pester 的 `TestDrive` 功能进行真实文件操作，而非 Mock。
 - **只 Mock 外部依赖**：仅 Mock 模块外部的依赖（如系统命令、外部服务调用），不 Mock 模块内部函数。
   - **例外一（编排器/门面）**：串联外部进程的编排器（如 `Start-IPAPWorkflow` 调 ffmpeg / Real-CUGAN），
     真实执行等于集成测试，单测允许 Mock 全部协作者；纯逻辑函数仍不得 Mock 模块内部实现。
@@ -239,12 +216,6 @@ class ClassName
   - 不好：`$content | Should -Match '\[X\]'`
   - 好：`$content | Should -Match '- 原始文件是否需要高清化: \[X\]'`
 - **使用适当的断言方法**：根据测试场景选择合适的断言方法（如 `-Be`, `-Match`, `-Exist` 等）。
-
-### 7.7 测试隔离规范
-
-- **使用 TestDrive**：文件操作测试必须使用 `TestDrive` 进行隔离，避免影响真实文件系统。
-- **清理测试数据**：在 `AfterEach` 或 `AfterAll` 中清理测试产生的数据和状态。
-- **避免共享状态**：测试之间不应共享状态，每个测试应独立运行。
 
 ## 8. 静态分析范围
 

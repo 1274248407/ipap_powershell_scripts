@@ -43,9 +43,7 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
                         noise_level   = 3
                     }
                     webp         = @{
-                        enabled  = $false
-                        lossless = $false
-                        quality  = 85
+                        quality = 85
                     }
                 }
                 $config = [ApplicationConfiguration]::new($settings)
@@ -56,8 +54,6 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
                 $config.ModelSelect | Should -Be 'models-pro'
                 $config.UpscaleRatio | Should -Be 4
                 $config.NoiseLevel | Should -Be 3
-                $config.WebpEnabled | Should -Be $false
-                $config.WebpLossless | Should -Be $false
                 $config.WebpQuality | Should -Be 85
             }
         }
@@ -281,62 +277,20 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
         }
     }
 
-    Context '构造函数 - webp 默认值回退（L3）' {
-        It 'webp 为 null 时应使用默认值' {
+    Context '构造函数 - webp 质量（L3）' {
+        It 'webp 为 null 时应使用默认质量 95' {
             InModuleScope IPAP {
                 $config = [ApplicationConfiguration]::new(@{})
 
-                $config.WebpEnabled | Should -Be $true
-                $config.WebpLossless | Should -Be $true
-                $config.WebpQuality | Should -Be 100
+                $config.WebpQuality | Should -Be 95
             }
         }
 
-        It 'webp 缺少 enabled 时应使用默认值' {
+        It 'webp 缺少 quality 时应使用默认质量 95' {
             InModuleScope IPAP {
-                $settings = @{
-                    webp = @{
-                        lossless = $false
-                        quality  = 90
-                    }
-                }
-                $config = [ApplicationConfiguration]::new($settings)
+                $config = [ApplicationConfiguration]::new(@{ webp = @{} })
 
-                $config.WebpEnabled | Should -Be $true
-                $config.WebpLossless | Should -Be $false
-                $config.WebpQuality | Should -Be 90
-            }
-        }
-
-        It 'webp 缺少 lossless 时应使用默认值' {
-            InModuleScope IPAP {
-                $settings = @{
-                    webp = @{
-                        enabled = $false
-                        quality = 80
-                    }
-                }
-                $config = [ApplicationConfiguration]::new($settings)
-
-                $config.WebpEnabled | Should -Be $false
-                $config.WebpLossless | Should -Be $true
-                $config.WebpQuality | Should -Be 80
-            }
-        }
-
-        It 'webp 缺少 quality 时应使用默认值' {
-            InModuleScope IPAP {
-                $settings = @{
-                    webp = @{
-                        enabled  = $false
-                        lossless = $false
-                    }
-                }
-                $config = [ApplicationConfiguration]::new($settings)
-
-                $config.WebpEnabled | Should -Be $false
-                $config.WebpLossless | Should -Be $false
-                $config.WebpQuality | Should -Be 100
+                $config.WebpQuality | Should -Be 95
             }
         }
 
@@ -355,7 +309,7 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
 
         It 'webp quality 超出有效值域时应钳制到 0~100' {
             InModuleScope IPAP {
-                # cwebp -q 有效范围: 0~100
+                # ffmpeg -quality 有效范围: 0~100
                 $configLow = [ApplicationConfiguration]::new(@{ webp = @{ quality = -10 } })
                 $configHigh = [ApplicationConfiguration]::new(@{ webp = @{ quality = 200 } })
 
@@ -454,41 +408,6 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
         }
     }
 
-    Context '构造函数 - 布尔值转换（L3）' {
-        It "webp.enabled 为字符串 'false' 时应转换为 `$false" {
-            InModuleScope IPAP {
-                $config = [ApplicationConfiguration]::new(@{ webp = @{ enabled = 'false' } })
-
-                $config.WebpEnabled | Should -Be $false
-            }
-        }
-
-        It "webp.lossless 为字符串 'False'（大写）时应转换为 `$false" {
-            InModuleScope IPAP {
-                $config = [ApplicationConfiguration]::new(@{ webp = @{ lossless = 'False' } })
-
-                $config.WebpLossless | Should -Be $false
-            }
-        }
-
-        It 'webp.enabled 为数字 0 或 1 时应分别转换为 $false / $true' {
-            InModuleScope IPAP {
-                $configZero = [ApplicationConfiguration]::new(@{ webp = @{ enabled = 0 } })
-                $configOne = [ApplicationConfiguration]::new(@{ webp = @{ enabled = 1 } })
-
-                $configZero.WebpEnabled | Should -Be $false
-                $configOne.WebpEnabled | Should -Be $true
-            }
-        }
-
-        It "webp.enabled 为非法字符串 'no' 时应抛出 ArgumentException" {
-            InModuleScope IPAP {
-                { [ApplicationConfiguration]::new(@{ webp = @{ enabled = 'no' } }) } |
-                    Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage '*enabled*不是有效的布尔值*'
-            }
-        }
-    }
-
     Context '构造函数 - MaxWorkers 动态计算（L1/L3）' {
         It 'max_workers 显式指定非零值时应直接使用' {
             InModuleScope IPAP {
@@ -560,9 +479,7 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
                 $config.ModelSelect | Should -Be 'models-se'
                 $config.UpscaleRatio | Should -Be 2
                 $config.NoiseLevel | Should -Be 0
-                $config.WebpEnabled | Should -Be $true
-                $config.WebpLossless | Should -Be $true
-                $config.WebpQuality | Should -Be 100
+                $config.WebpQuality | Should -Be 95
             }
         }
     }
@@ -579,7 +496,7 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
 
                 $config.MaxWorkers | Should -Be 4
                 $config.UpscaleRatio | Should -Be 2
-                $config.WebpEnabled | Should -Be $true
+                $config.WebpQuality | Should -Be 95
             }
         }
 
@@ -594,7 +511,7 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
 
                 $config.SupportedImageFormats | Should -Be @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
                 $config.UpscaleRatio | Should -Be 4
-                $config.WebpEnabled | Should -Be $true
+                $config.WebpQuality | Should -Be 95
             }
         }
 
@@ -639,9 +556,7 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
                 $config.ModelSelect | Should -Be 'models-se'
                 $config.UpscaleRatio | Should -Be 2
                 $config.NoiseLevel | Should -Be 0
-                $config.WebpEnabled | Should -Be $true
-                $config.WebpLossless | Should -Be $true
-                $config.WebpQuality | Should -Be 100
+                $config.WebpQuality | Should -Be 95
             }
         }
     }
@@ -734,8 +649,6 @@ Describe 'ApplicationConfiguration Unit Tests' -Tag 'ApplicationConfiguration', 
                 $config.ModelSelect | Should -BeOfType [string]
                 $config.UpscaleRatio | Should -BeOfType [int]
                 $config.NoiseLevel | Should -BeOfType [int]
-                $config.WebpEnabled | Should -BeOfType [bool]
-                $config.WebpLossless | Should -BeOfType [bool]
                 $config.WebpQuality | Should -BeOfType [int]
             }
         }

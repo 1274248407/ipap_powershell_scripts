@@ -188,6 +188,21 @@ Describe 'Invoke-ParallelUpscale Unit Tests' -Tag 'Invoke-ParallelUpscale', 'IPA
                 -ParameterFilter { [bool]$NoResize -eq $false }
         }
 
+        It 'Quality 应传给 Get-FfmpegArgument（Webp 与 FFmpeg 两条路径）' {
+            Mock Get-FfmpegArgument -ModuleName IPAP { return @('-i', 'C:\test1.jpg', '-y', 'C:\output\test1.webp') }
+
+            $null = Invoke-ParallelUpscale -Images $script:MockImages -OutputDir 'C:\output' -Engine 'Webp' -MaxWorkers 1 -Quality 80
+            $null = Invoke-ParallelUpscale -Images $script:MockImages -OutputDir 'C:\output' -Engine 'FFmpeg' -MaxWorkers 1 -Quality 80
+
+            Should -Invoke -ModuleName IPAP Get-FfmpegArgument -Times 2 -Exactly `
+                -ParameterFilter { $Quality -eq 80 }
+        }
+
+        It 'Quality 超出 0-100 时应被 ValidateRange 拒绝' {
+            { Invoke-ParallelUpscale -Images $script:MockImages -OutputDir 'C:\output' -Engine 'Webp' -Quality 101 } |
+                Should -Throw -ExceptionType ([System.Management.Automation.ParameterBindingException])
+        }
+
         It 'Engine Webp 搭配非 webp 输出格式时应抛 ArgumentException' {
             { Invoke-ParallelUpscale -Images $script:MockImages -OutputDir 'C:\output' -Engine 'Webp' -OutputFormat 'jpg' } |
                 Should -Throw -ExceptionType ([System.ArgumentException]) -ExpectedMessage "*只能配合*webp*"

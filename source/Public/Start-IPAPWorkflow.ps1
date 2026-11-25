@@ -220,13 +220,13 @@ function Start-IPAPWorkflow {
                     if ($ProjectLevel -eq 1) {
                         if ($textPending.Count -gt 0) {
                             Write-LogEntry -Level Info -Message "有文字图: 处理 $($textPending.Count) 张轻度模糊图片 (FFmpeg 锐化)"
-                            $textResult = Invoke-ParallelUpscale -Images $textPending -OutputDir $preprocessingDir -Engine 'FFmpeg' -MaxWorkers $maxWorkers
+                            $textResult = Invoke-ParallelUpscale -Images $textPending -OutputDir $preprocessingDir -Engine 'FFmpeg' -MaxWorkers $maxWorkers -Quality $Config.App.WebpQuality
                             Write-LogEntry -Level Info -Message "有文字图 Level 1 完成: 成功=$($textResult.SuccessCount), 失败=$($textResult.FailedCount)"
                         }
 
                         if ($nonTextPending.Count -gt 0) {
                             Write-LogEntry -Level Info -Message "无文字图: 处理 $($nonTextPending.Count) 张轻度模糊图片 (FFmpeg 锐化)"
-                            $nonTextResult = Invoke-ParallelUpscale -Images $nonTextPending -OutputDir $nonTextRawDir -Engine 'FFmpeg' -MaxWorkers $maxWorkers
+                            $nonTextResult = Invoke-ParallelUpscale -Images $nonTextPending -OutputDir $nonTextRawDir -Engine 'FFmpeg' -MaxWorkers $maxWorkers -Quality $Config.App.WebpQuality
                             Write-LogEntry -Level Info -Message "无文字图 Level 1 完成: 成功=$($nonTextResult.SuccessCount), 失败=$($nonTextResult.FailedCount)"
                         }
                     }
@@ -255,13 +255,13 @@ function Start-IPAPWorkflow {
                         # Level 0：不放大，但统一转码为 webp，保证 02_Preprocessing 全目录格式一致
                         if ($textPending.Count -gt 0) {
                             Write-LogEntry -Level Info -Message "有文字图: 转码 $($textPending.Count) 张为 webp（不放大）"
-                            $textResult = Invoke-ParallelUpscale -Images $textPending -OutputDir $preprocessingDir -Engine 'Webp' -MaxWorkers $maxWorkers
+                            $textResult = Invoke-ParallelUpscale -Images $textPending -OutputDir $preprocessingDir -Engine 'Webp' -MaxWorkers $maxWorkers -Quality $Config.App.WebpQuality
                             Write-LogEntry -Level Info -Message "有文字图 Level 0 完成: 成功=$($textResult.SuccessCount), 失败=$($textResult.FailedCount)"
                         }
 
                         if ($nonTextPending.Count -gt 0) {
                             Write-LogEntry -Level Info -Message "无文字图: 转码 $($nonTextPending.Count) 张为 webp（不放大）"
-                            $nonTextResult = Invoke-ParallelUpscale -Images $nonTextPending -OutputDir $nonTextRawDir -Engine 'Webp' -MaxWorkers $maxWorkers
+                            $nonTextResult = Invoke-ParallelUpscale -Images $nonTextPending -OutputDir $nonTextRawDir -Engine 'Webp' -MaxWorkers $maxWorkers -Quality $Config.App.WebpQuality
                             Write-LogEntry -Level Info -Message "无文字图 Level 0 完成: 成功=$($nonTextResult.SuccessCount), 失败=$($nonTextResult.FailedCount)"
                         }
                     }

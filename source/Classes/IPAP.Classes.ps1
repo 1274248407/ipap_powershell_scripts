@@ -317,13 +317,7 @@ class ApplicationConfiguration {
     # 降噪级别
     [int]$NoiseLevel
 
-    # WebP 输出启用状态
-    [bool]$WebpEnabled
-
-    # WebP 无损压缩启用状态
-    [bool]$WebpLossless
-
-    # WebP 质量参数
+    # WebP 输出质量（ffmpeg -quality，0-100；Real-CUGAN 输出不受此值控制）
     [int]$WebpQuality
 
     # 高细节判定阈值（边缘图 PNG 大小，KB）
@@ -383,9 +377,7 @@ class ApplicationConfiguration {
         $this.NoiseLevel = [int][math]::Clamp([ApplicationConfiguration]::TryIntConvert($upscaleSettings.noise_level, 'noise_level') ?? 0, -1, 3)      # Real-CUGAN -n: -1~3
 
         $webpSettings = [ApplicationConfiguration]::GetSettingsBlock($Settings.webp, 'webp')
-        $this.WebpEnabled = [ApplicationConfiguration]::TryBoolConvert($webpSettings.enabled ?? $true, 'enabled')
-        $this.WebpLossless = [ApplicationConfiguration]::TryBoolConvert($webpSettings.lossless ?? $true, 'lossless')
-        $this.WebpQuality = [int][math]::Clamp([ApplicationConfiguration]::TryIntConvert($webpSettings.quality, 'quality') ?? 100, 0, 100)            # cwebp -q: 0~100
+        $this.WebpQuality = [int][math]::Clamp([ApplicationConfiguration]::TryIntConvert($webpSettings.quality, 'quality') ?? 95, 0, 100)            # ffmpeg -quality: 0~100
 
         # 分级阈值：边缘图 PNG 大小（KB），用于 Level 0/1/2 判定
         $classifierSettings = [ApplicationConfiguration]::GetSettingsBlock($Settings.classifier, 'classifier')
@@ -489,42 +481,6 @@ class ApplicationConfiguration {
             return $parsed
         }
         throw [System.ArgumentException]::new("配置项 '$ParameterName' 的值 '$Value' 不是有效的数值")
-    }
-
-    <#
-    .SYNOPSIS
-        安全布尔转换
-    .DESCRIPTION
-        将配置值安全转换为 [bool]，失败时抛出逻辑异常，避免静默给出相反结果。
-        布尔值直接返回；字符串走 [bool]::TryParse（仅接受 True/False，大小写不敏感）；
-        数字按 0 = $false、非 0 = $true 处理（与 PowerShell 语义一致）。
-    .PARAMETER Value
-        待转换的配置值
-    .PARAMETER ParameterName
-        配置项名称，用于构造友好的错误信息
-    .OUTPUTS
-        bool
-    .NOTES
-        Author:  lucas_gold
-        Website: https://github.com/1274248407
-    #>
-    hidden static [bool] TryBoolConvert([object]$Value, [string]$ParameterName) {
-        # 布尔值直接返回
-        if ($Value -is [bool]) {
-            return $Value
-        }
-
-        # 字符串只接受 True/False（大小写不敏感），其余视为配置错误
-        if ($Value -is [string]) {
-            $parsed = $false
-            if ([bool]::TryParse($Value, [ref]$parsed)) {
-                return $parsed
-            }
-            throw [System.ArgumentException]::new("配置项 '$ParameterName' 的值 '$Value' 不是有效的布尔值（应为 true/false）")
-        }
-
-        # 数字按 0 = $false、非 0 = $true
-        return [bool]$Value
     }
 
 }
@@ -645,7 +601,7 @@ class IPAPConfiguration {
             project      = @{ author = ''; original_title = ''; chinese_title = ''; original_overview = ''; chinese_overview = '' }
             app_settings = @{ supported_image_formats = @('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'); max_workers = 8; upscale_timeout_sec = 3600; model_select = 'models-se' }
             upscale      = @{ upscale_ratio = 2; noise_level = 0 }
-            webp         = @{ enabled = $true; lossless = $true; quality = 100 }
+            webp         = @{ quality = 95 }
         }
 
         if (-not (Test-Path -LiteralPath $configPath)) {

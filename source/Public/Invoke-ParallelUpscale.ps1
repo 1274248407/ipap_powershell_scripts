@@ -4,7 +4,7 @@
 .DESCRIPTION
     使用 PowerShell 的并行处理功能同时高清化多张图片，支持 Real-CUGAN AI 超分、FFmpeg 锐化
     与 Webp 纯转码三种引擎。返回处理结果统计（成功数和失败数）。
-    Webp 引擎不改变尺寸，只把图片统一转码为 webp（libwebp -quality 95），
+    Webp 引擎不改变尺寸，只把图片统一转码为 webp（libwebp，质量取 `-Quality`），
     用于 Level 0 页面；转码失败时把原图复制到输出目录，避免整页丢失。
 .PARAMETER Images
     (array, Mandatory) 图片文件对象数组。
@@ -61,7 +61,9 @@ function Invoke-ParallelUpscale {
         [ValidateSet('jpg', 'png', 'webp')]
         [string]$OutputFormat = 'webp',
         [ValidateRange(32, 1024)]
-        [int]$TileSize = 128
+        [int]$TileSize = 128,
+        [ValidateRange(0, 100)]
+        [int]$Quality = 95
     )
 
     # 引擎与输出格式的组合约束：Webp 引擎固定转码为 webp，避免与 -OutputFormat 互相矛盾
@@ -91,10 +93,10 @@ function Invoke-ParallelUpscale {
         }
         elseif ($Engine -eq 'Webp') {
             # 纯转码：不加放大/锐化滤镜，尺寸保持不变
-            Get-FfmpegArgument -ImagePath $image.FullName -OutputPath $outputPath -OutputFormat 'webp' -NoResize
+            Get-FfmpegArgument -ImagePath $image.FullName -OutputPath $outputPath -OutputFormat 'webp' -Quality $Quality -NoResize
         }
         else {
-            Get-FfmpegArgument -ImagePath $image.FullName -OutputPath $outputPath -OutputFormat $OutputFormat
+            Get-FfmpegArgument -ImagePath $image.FullName -OutputPath $outputPath -OutputFormat $OutputFormat -Quality $Quality
         }
 
         [PSCustomObject]@{

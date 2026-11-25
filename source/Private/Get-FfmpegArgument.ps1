@@ -10,7 +10,7 @@
       unsharp=5:5:1.0 为亮度 USM 锐化（5x5 矩阵、强度 1.0），色度锐化保持默认 0，
       避免引入色彩噪点。指定 -NoResize 时不加该滤镜链，只做格式转换。
     - -c:v 编码器由输出格式映射（webp -> libwebp、jpg -> mjpeg、png -> png）。
-    - -quality 95 保证有损格式几乎无损，避免二次压缩掉画质。
+    - -quality 由调用方传入（`[webp].quality`，默认 95），保证有损格式几乎无损，避免二次压缩掉画质。
     - -y 覆盖同名输出，批处理时不会卡在交互询问上。
 .PARAMETER ImagePath
     输入图片完整路径。
@@ -20,6 +20,8 @@
     输出格式（jpg/png/webp）。
 .PARAMETER NoResize
     只做格式转换，不放大也不锐化。用于 Level 0 的统一转码（尺寸保持不变）。
+.PARAMETER Quality
+    有损编码质量（ffmpeg -quality，0-100），来自 `[webp].quality`，默认 95。
 .EXAMPLE
     Get-FfmpegArgument -ImagePath 'a.png' -OutputPath 'b.webp' -OutputFormat 'webp'
     构造「1.2 倍放大 + 锐化 + webp 编码」的参数。
@@ -51,6 +53,9 @@ function Get-FfmpegArgument {
         [Parameter(Mandatory = $true)]
         [string]$OutputFormat,
 
+        [ValidateRange(0, 100)]
+        [int]$Quality = 95,
+
         [switch]$NoResize
     )
 
@@ -64,7 +69,7 @@ function Get-FfmpegArgument {
         $arguments.AddRange([string[]]@('-vf', 'scale=iw*1.2:ih*1.2:flags=lanczos,unsharp=5:5:1.0'))
     }
 
-    $arguments.AddRange([string[]]@('-c:v', $codec, '-quality', '95', '-y', $OutputPath))
+    $arguments.AddRange([string[]]@('-c:v', $codec, '-quality', [string]$Quality, '-y', $OutputPath))
 
     return $arguments.ToArray()
 }
