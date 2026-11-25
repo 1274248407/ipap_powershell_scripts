@@ -80,6 +80,9 @@ api_key_env = "IPAP_AI_API_KEY"
 api_key = ""
 # 采样温度：0 = 每次结果稳定（推荐）；越大越发散，范围 0-2
 temperature = 0
+# 单次回复的最大 token 数。推理模型（如 deepseek-reasoner / flash）会把思考也算进这个额度，
+# 额度耗尽时返回内容为空；长简介建议 8192 以上
+max_tokens = 8192
 # 单次请求超时（秒）
 timeout_sec = 30
 

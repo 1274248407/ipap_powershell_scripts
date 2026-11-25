@@ -21,6 +21,7 @@ Describe 'Complete-ProjectTranslation Unit Tests' -Tag 'Complete-ProjectTranslat
                 [string]$Model = 'test-model',
                 [string]$ApiKey = '',
                 [double]$Temperature = 0,
+                [int]$MaxTokens = 8192,
                 [string]$ChineseTitle = '',
                 [string]$ChineseOverview = '',
                 [string]$OriginalTitle = '僕の妻',
@@ -28,14 +29,14 @@ Describe 'Complete-ProjectTranslation Unit Tests' -Tag 'Complete-ProjectTranslat
             )
 
             return InModuleScope IPAP -Parameters @{
-                R = $Root; Ep = $Endpoint; Md = $Model; Ak = $ApiKey; Tp = $Temperature
+                R = $Root; Ep = $Endpoint; Md = $Model; Ak = $ApiKey; Tp = $Temperature; Mt = $MaxTokens
                 Ct = $ChineseTitle; Co = $ChineseOverview; Ot = $OriginalTitle; Oo = $OriginalOverview
             } -ScriptBlock {
-                param($R, $Ep, $Md, $Ak, $Tp, $Ct, $Co, $Ot, $Oo)
+                param($R, $Ep, $Md, $Ak, $Tp, $Mt, $Ct, $Co, $Ot, $Oo)
                 $paths = [PathConfiguration]::new($R, 'C:\Projects', 'C:\Images')
                 $tools = [ToolConfiguration]::new($paths, @{})
                 $app = [ApplicationConfiguration]::new(@{
-                        ai = @{ endpoint = $Ep; model = $Md; api_key_env = 'IPAP_AI_API_KEY'; api_key = $Ak; temperature = $Tp; timeout_sec = 15 }
+                        ai = @{ endpoint = $Ep; model = $Md; api_key_env = 'IPAP_AI_API_KEY'; api_key = $Ak; temperature = $Tp; max_tokens = $Mt; timeout_sec = 15 }
                     })
                 $project = [ProjectConfiguration]::new(@{
                         project = @{
@@ -169,6 +170,18 @@ Describe 'Complete-ProjectTranslation Unit Tests' -Tag 'Complete-ProjectTranslat
 
             Should -Invoke -ModuleName IPAP Invoke-AiTranslation -Times 1 -Exactly `
                 -ParameterFilter { $Temperature -eq 0.7 }
+        }
+
+        It '配置里的 max_tokens 应传给翻译请求' {
+            Mock -ModuleName IPAP Invoke-AiTranslation {
+                [PSCustomObject]@{ ChineseTitle = '标题'; ChineseOverview = '简介' }
+            }
+            $Config = New-TestConfig -Root $Script:Root -MaxTokens 16384
+
+            Invoke-Complete -Config $Config
+
+            Should -Invoke -ModuleName IPAP Invoke-AiTranslation -Times 1 -Exactly `
+                -ParameterFilter { $MaxTokens -eq 16384 }
         }
 
         It 'AI 返回空时应保持原值并记 Warning' {

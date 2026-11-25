@@ -22,6 +22,8 @@
     单次请求超时（秒），默认 30。
 .PARAMETER Temperature
     采样温度，来自 `[ai].temperature`；0 表示同一输入稳定输出，取值范围 0-2。
+.PARAMETER MaxTokens
+    单次回复的最大 token 数，来自 `[ai].max_tokens`；推理模型会把思考内容也算进这个额度。
 .PARAMETER OriginalTitle
     原文书名。
 .PARAMETER OriginalOverview
@@ -61,6 +63,9 @@ function Invoke-AiTranslation {
 
         [ValidateRange(0, 2)]
         [double]$Temperature = 0,
+
+        [ValidateRange(256, 65536)]
+        [int]$MaxTokens = 8192,
 
         [AllowEmptyString()]
         [string]$OriginalTitle = '',
@@ -125,7 +130,7 @@ $OriginalOverview
     [hashtable]$Payload = @{
         model           = $Model
         temperature     = $Temperature
-        max_tokens      = 4096
+        max_tokens      = $MaxTokens
         response_format = @{ type = 'json_object' }
         messages        = @(
             @{ role = 'system'; content = $SystemPrompt }
@@ -149,7 +154,17 @@ $OriginalOverview
 
     [string]$RawContent = [string]$Response.choices[0].message.content
     if ([string]::IsNullOrWhiteSpace($RawContent)) {
-        Write-LogEntry -Level Warning -Message 'AI 翻译返回内容为空'
+        # 推理模型会把思考过程也算进 max_tokens：额度耗尽时 content 为空、finish_reason 为 length，
+        # 此时只说「返回内容为空」会让人误以为是网络问题，必须指出真正原因
+        [string]$FinishReason = [string]$Response.choices[0].finish_reason
+        [int]$CompletionTokens = [int]($Response.usage.completion_tokens ?? 0)
+        [bool]$HasReasoning = -not [string]::IsNullOrWhiteSpace([string]$Response.choices[0].message.reasoning_content)
+        if ($FinishReason -eq 'length') {
+            Write-LogEntry -Level Warning -Message ("AI 输出被 max_tokens 截断（completion={0}，含思考内容={1}）；请调大 [ai].max_tokens，或改用非推理模型" -f $CompletionTokens, $HasReasoning)
+        }
+        else {
+            Write-LogEntry -Level Warning -Message 'AI 翻译返回内容为空'
+        }
         return $null
     }
 

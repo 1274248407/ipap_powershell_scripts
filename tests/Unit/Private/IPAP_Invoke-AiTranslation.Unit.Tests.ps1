@@ -87,6 +87,22 @@ Describe 'Invoke-AiTranslation Unit Tests' -Tag 'Invoke-AiTranslation', 'IPAP' {
                 -ParameterFilter { $Message -like '*返回内容为空*' }
         }
 
+        It '推理模型把额度耗在思考上时应指出 max_tokens 截断' {
+            Mock -ModuleName IPAP Invoke-RestMethod {
+                [PSCustomObject]@{
+                    choices = @([PSCustomObject]@{
+                            finish_reason = 'length'
+                            message       = [PSCustomObject]@{ content = ''; reasoning_content = '思考了很久…' }
+                        })
+                    usage   = [PSCustomObject]@{ prompt_tokens = 2128; completion_tokens = 4096; total_tokens = 6224 }
+                }
+            }
+
+            Invoke-Translation -Params $Script:BaseParams | Should -BeNullOrEmpty
+            Should -Invoke -ModuleName IPAP Write-LogEntry -Times 1 -Exactly `
+                -ParameterFilter { $Level -eq 'Warning' -and $Message -like '*max_tokens 截断*' -and $Message -like '*含思考内容=True*' }
+        }
+
         It '返回内容不是 JSON 时应记 Warning 并返回 $null' {
             Mock -ModuleName IPAP Invoke-RestMethod {
                 [PSCustomObject]@{ choices = @([PSCustomObject]@{ message = [PSCustomObject]@{ content = '这不是 JSON' } }) }
@@ -213,6 +229,21 @@ Describe 'Invoke-AiTranslation Unit Tests' -Tag 'Invoke-AiTranslation', 'IPAP' {
             Should -Invoke -ModuleName IPAP Invoke-RestMethod -Times 1 -Exactly -ParameterFilter {
                 [string]$BodyText = [System.Text.Encoding]::UTF8.GetString($Body)
                 $BodyText -match '"temperature"\s*:\s*0\.7'
+            }
+        }
+
+        It '请求体应带上传入的 max_tokens' {
+            Mock -ModuleName IPAP Invoke-RestMethod {
+                [PSCustomObject]@{ choices = @([PSCustomObject]@{ message = [PSCustomObject]@{ content = '{"chinese_title":"标题"}' } }) }
+            }
+            $Params = $Script:BaseParams.Clone()
+            $Params['MaxTokens'] = 16384
+
+            $null = Invoke-Translation -Params $Params
+
+            Should -Invoke -ModuleName IPAP Invoke-RestMethod -Times 1 -Exactly -ParameterFilter {
+                [string]$BodyText = [System.Text.Encoding]::UTF8.GetString($Body)
+                $BodyText -match '"max_tokens"\s*:\s*16384'
             }
         }
 
