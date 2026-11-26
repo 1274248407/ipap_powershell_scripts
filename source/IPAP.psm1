@@ -15,6 +15,11 @@ $moduleLoadStart = [System.Diagnostics.Stopwatch]::StartNew()
 # 模块级配置实例（跨函数共享，使用 script: 作用域避免全局污染）
 $script:IPAPConfigInstance = $null
 
+# 本次会话最近一次成功的 AI 补全结果（原文指纹 → 译名/简介）。
+# 用途：配置预览选「不应用 → 打开编辑器」后会重读配置，内存里补好的中文会丢，
+# 若原文没变就直接复用这份结果，避免重复调用 AI。
+$script:LastTranslation = $null
+
 # 加载顺序：类 -> 私有函数 -> 公开函数（依赖顺序，不可调换）
 $loadOrder = @('Classes', 'Private', 'Public')
 

@@ -68,6 +68,8 @@ Describe 'Complete-ProjectTranslation Unit Tests' -Tag 'Complete-ProjectTranslat
         Mock Write-LogEntry -ModuleName IPAP { }
         # 默认桩：Pester 6 要求 Should -Invoke 必须先有 Mock，未单独覆盖的用例走「AI 没返回」
         Mock -ModuleName IPAP Invoke-AiTranslation { return $null }
+        # 清掉上一个用例留下的补全缓存，保证每个用例独立
+        InModuleScope IPAP { $script:LastTranslation = $null }
         $Script:Root = New-Item -ItemType Directory -Path (Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))) -Force |
             Select-Object -ExpandProperty FullName
         $env:IPAP_AI_API_KEY = 'sk-test-key'
@@ -285,6 +287,83 @@ chinese_overview = "这是中文简介的第一行。"
                 -ParameterFilter { $Level -eq 'Warning' -and $Message -like '*占位符判定降级*' }
             # 降级后占位符认不出来，按「已有中文」处理，保持原值
             $Config.Project.ChineseTitle | Should -BeExactly '中文译名'
+        }
+    }
+
+    Context 'L4 原文未变时复用结果' {
+        It '原文未变时应复用上次结果且不再请求 AI' {
+            Mock -ModuleName IPAP Invoke-AiTranslation {
+                [PSCustomObject]@{ ChineseTitle = '补全标题'; ChineseOverview = '补全简介' }
+            }
+            $First = New-TestConfig -Root $Script:Root
+            Invoke-Complete -Config $First
+
+            # 模拟 Reset-Configuration + Get-Configuration：新对象，中文字段回到占位符
+            $Second = New-TestConfig -Root $Script:Root
+            Invoke-Complete -Config $Second
+
+            Should -Invoke -ModuleName IPAP Invoke-AiTranslation -Times 1 -Exactly
+            $Second.Project.ChineseTitle | Should -BeExactly '补全标题'
+            $Second.Project.ChineseOverview | Should -BeExactly '补全简介'
+            Should -Invoke -ModuleName IPAP Write-LogEntry -Times 1 -Exactly `
+                -ParameterFilter { $Message -like '*复用上次 AI 补全结果*' }
+        }
+
+        It '原文改动后应重新请求 AI' {
+            Mock -ModuleName IPAP Invoke-AiTranslation {
+                [PSCustomObject]@{ ChineseTitle = "标题:$OriginalTitle"; ChineseOverview = '简介' }
+            }
+            $First = New-TestConfig -Root $Script:Root
+            Invoke-Complete -Config $First
+
+            $Second = New-TestConfig -Root $Script:Root -OriginalTitle '別の作品'
+            Invoke-Complete -Config $Second
+
+            Should -Invoke -ModuleName IPAP Invoke-AiTranslation -Times 2 -Exactly
+            $Second.Project.ChineseTitle | Should -BeExactly '标题:別の作品'
+        }
+
+        It '模型改动后应重新请求 AI' {
+            Mock -ModuleName IPAP Invoke-AiTranslation {
+                [PSCustomObject]@{ ChineseTitle = '标题'; ChineseOverview = '简介' }
+            }
+            $First = New-TestConfig -Root $Script:Root
+            Invoke-Complete -Config $First
+
+            $Second = New-TestConfig -Root $Script:Root -Model 'other-model'
+            Invoke-Complete -Config $Second
+
+            Should -Invoke -ModuleName IPAP Invoke-AiTranslation -Times 2 -Exactly
+        }
+
+        It '复用结果不应覆盖本次已由用户填好的字段' {
+            Mock -ModuleName IPAP Invoke-AiTranslation {
+                [PSCustomObject]@{ ChineseTitle = '补全标题'; ChineseOverview = '补全简介' }
+            }
+            $First = New-TestConfig -Root $Script:Root
+            Invoke-Complete -Config $First
+
+            # 用户只把译名改成自己的，简介仍缺
+            $Second = New-TestConfig -Root $Script:Root -ChineseTitle '用户自定义标题'
+            Invoke-Complete -Config $Second
+
+            $Second.Project.ChineseTitle | Should -BeExactly '用户自定义标题'
+            $Second.Project.ChineseOverview | Should -BeExactly '补全简介'
+            Should -Invoke -ModuleName IPAP Invoke-AiTranslation -Times 1 -Exactly
+        }
+
+        It '上次失败时不应写缓存，下次仍会请求' {
+            Mock -ModuleName IPAP Invoke-AiTranslation { return $null }
+            $First = New-TestConfig -Root $Script:Root
+            Invoke-Complete -Config $First
+
+            Mock -ModuleName IPAP Invoke-AiTranslation {
+                [PSCustomObject]@{ ChineseTitle = '补全标题'; ChineseOverview = '补全简介' }
+            }
+            $Second = New-TestConfig -Root $Script:Root
+            Invoke-Complete -Config $Second
+
+            $Second.Project.ChineseTitle | Should -BeExactly '补全标题'
         }
     }
 

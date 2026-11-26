@@ -92,6 +92,36 @@ function Complete-ProjectTranslation {
     [string[]]$MissingFields = @()
     if ($NeedTitle) { $MissingFields += '中文译名' }
     if ($NeedOverview) { $MissingFields += '中文简介' }
+
+    # 原文指纹：只看会改变译文的输入，配置里其它字段变了不影响复用
+    [string[]]$KeyParts = @(
+        $Config.App.AiEndpoint
+        $Config.App.AiModel
+        $Config.Project.OriginalTitle
+        $Config.Project.OriginalOverview
+    )
+    [string]$TranslationKey = $KeyParts -join '|'
+
+    # 配置预览选「不应用 → 打开编辑器」后会重读配置，内存里补好的中文会丢；
+    # 原文没变就直接复用上次结果——只「跳过」会让预览和 README 拿到占位符，必须重新应用
+    [object]$Cached = $script:LastTranslation
+    [bool]$CacheCovers = $false
+    if ($null -ne $Cached) {
+        [bool]$SameKey = [string]$Cached.Key -eq $TranslationKey
+        [bool]$HasTitle = -not [string]::IsNullOrWhiteSpace([string]$Cached.Title)
+        [bool]$HasOverview = -not [string]::IsNullOrWhiteSpace([string]$Cached.Overview)
+        [bool]$TitleCovered = -not $NeedTitle -or $HasTitle
+        [bool]$OverviewCovered = -not $NeedOverview -or $HasOverview
+        $CacheCovers = $SameKey -and $TitleCovered -and $OverviewCovered
+    }
+
+    if ($CacheCovers) {
+        if ($NeedTitle) { $Config.Project.ChineseTitle = [string]$Cached.Title }
+        if ($NeedOverview) { $Config.Project.ChineseOverview = [string]$Cached.Overview }
+        Write-LogEntry -Level Info -Message "原文未变，复用上次 AI 补全结果（未发起请求）: $($MissingFields -join '、')"
+        return
+    }
+
     Write-LogEntry -Level Info -Message "AI 补全待处理字段: $($MissingFields -join '、')"
 
     [object]$Result = Invoke-AiTranslation -Endpoint $Config.App.AiEndpoint -Model $Config.App.AiModel `
@@ -104,6 +134,13 @@ function Complete-ProjectTranslation {
     if ($null -eq $Result) {
         Write-LogEntry -Level Warning -Message 'AI 补全未成功，保持原值继续（未写回 config.toml）'
         return
+    }
+
+    # 成功才进缓存：失败时下次仍应重试
+    $script:LastTranslation = [PSCustomObject]@{
+        Key      = $TranslationKey
+        Title    = $Result.ChineseTitle
+        Overview = $Result.ChineseOverview
     }
 
     if ($NeedTitle -and -not [string]::IsNullOrWhiteSpace($Result.ChineseTitle)) {
