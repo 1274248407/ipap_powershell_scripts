@@ -65,7 +65,14 @@ function Confirm-ProjectConfiguration {
     Write-LogEntry -Level Info -Message "  原作品名: $($Config.Project.OriginalTitle ? $Config.Project.OriginalTitle : '[未配置]')"
     Write-LogEntry -Level Info -Message "  中文译名: $($Config.Project.ChineseTitle ? $Config.Project.ChineseTitle : '[未配置]')"
     Write-LogEntry -Level Info -Message "  原文简介: $($Config.Project.OriginalOverview ? '已配置' : '[未配置]')"
-    Write-LogEntry -Level Info -Message "  中文简介: $($Config.Project.ChineseOverview ? '已配置' : '[未配置]')"
+    # 中文简介全文输出：在选 Y/N 之前就能判断译文质量，不必去翻 README
+    if ($Config.Project.ChineseOverview) {
+        Write-LogEntry -Level Info -Message "  中文简介（共 $($Config.Project.ChineseOverview.Length) 字）:"
+        Write-LogEntry -Level Info -Message $Config.Project.ChineseOverview
+    }
+    else {
+        Write-LogEntry -Level Info -Message '  中文简介: [未配置]'
+    }
 
     Write-LogEntry -Level Warning -Message '【应用配置】'
     Write-LogEntry -Level Info -Message "  最大工作线程数: $($Config.App.MaxWorkers)"

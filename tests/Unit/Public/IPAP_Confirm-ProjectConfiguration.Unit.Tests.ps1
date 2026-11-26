@@ -402,4 +402,34 @@ Describe 'Confirm-ProjectConfiguration Unit Tests' -Tag 'Confirm-ProjectConfigur
             }
         }
     }
+
+    Context 'L5 预览显示' {
+        It '中文简介应全文显示而不是只显示「已配置」' {
+            Set-ConfirmTestState -ReadHostResponses @('Y')
+            InModuleScope IPAP {
+                $null = Confirm-ProjectConfiguration -Config $script:TestConfig
+
+                # 标题行带字数
+                Should -Invoke -CommandName Write-LogEntry -Times 1 -Exactly `
+                    -ParameterFilter { $Message -eq '  中文简介（共 4 字）:' }
+                # 正文单独一条日志
+                Should -Invoke -CommandName Write-LogEntry -Times 1 -Exactly `
+                    -ParameterFilter { $Message -eq '中文简介' }
+                # 旧写法「已配置」不应再出现
+                Should -Invoke -CommandName Write-LogEntry -Times 0 -Exactly `
+                    -ParameterFilter { $Message -eq '  中文简介: 已配置' }
+            }
+        }
+
+        It '中文简介为空时应显示未配置' {
+            Set-ConfirmTestState -ReadHostResponses @('Y')
+            InModuleScope IPAP {
+                $script:TestConfig.Project.ChineseOverview = ''
+                $null = Confirm-ProjectConfiguration -Config $script:TestConfig
+
+                Should -Invoke -CommandName Write-LogEntry -Times 1 -Exactly `
+                    -ParameterFilter { $Message -eq '  中文简介: [未配置]' }
+            }
+        }
+    }
 }
