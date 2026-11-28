@@ -5,6 +5,7 @@
     函数化构建脚本，支持 Task 依赖图调度。提供以下 Task：
     - Build：构建模块到 output/IPAP/
     - Analyze：PSScriptAnalyzer 静态检查
+    - Format：按 PSScriptAnalyzerSettings.psd1 格式化源码（独立任务，会改写源码）
     - Test：Pester 测试（单元 + 集成 + 真实工具链冒烟）+ 代码覆盖率（JaCoCo）
     - Smoke：只跑真实工具链冒烟（依赖 GPU 与 bin/ 工具）
     - Pack：打包发布 zip（强制前置 Build/Analyze/Test）
@@ -13,6 +14,7 @@
     Task 依赖图：
     - Build     -> （无）
     - Analyze   -> （无）
+    - Format    -> （无；会改写源码，故不进入任何依赖链）
     - Test      -> Build, Analyze
     - Smoke     -> （无）
     - Pack      -> Build, Analyze, Test
@@ -20,8 +22,9 @@
 
     调度器自动按依赖顺序执行，已跑过的 Task 不重复跑。
 .PARAMETER Task
-    (string[]) 要执行的 Task 列表（必填）。可选值：Build、Analyze、Test、Smoke、Pack、Release。
+    (string[]) 要执行的 Task 列表（必填）。可选值：Build、Analyze、Format、Test、Smoke、Pack、Release。
     前置依赖会自动触发，例如 -Task Pack 会依次执行 Build、Analyze、Test。
+    Format 不参与依赖链：它会改写源码，只在显式指定时执行。
 .PARAMETER ResolveDependency
     (switch) 是否解析外部依赖（PSToml），默认 $true。幂等：已安装则跳过。
 .PARAMETER UseModuleFast
@@ -60,7 +63,7 @@
 [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidDefaultValueSwitchParameter', '')]
 param (
     [Parameter(Mandatory)]
-    [ValidateSet('Build', 'Analyze', 'Test', 'Smoke', 'Pack', 'Release')]
+    [ValidateSet('Build', 'Analyze', 'Format', 'Test', 'Smoke', 'Pack', 'Release')]
     [string[]] $Task,
     [switch] $ResolveDependency = $true,
     [switch] $UseModuleFast = $true,
@@ -82,6 +85,7 @@ $script:ModuleName = 'IPAP'
 $script:TaskDependencies = @{
     Build   = @()
     Analyze = @()
+    Format  = @()
     Test    = @('Build', 'Analyze')
     Smoke   = @()
     Pack    = @('Build', 'Analyze', 'Test')
@@ -376,6 +380,97 @@ function Invoke-OutputTypeAudit
     }
     Write-Host 'OutputType 契约检查通过'
 }
+
+<#
+.SYNOPSIS
+    按 PSScriptAnalyzerSettings.psd1 格式化源码
+.DESCRIPTION
+    对 source/**/*.ps1 与 Main.ps1 运行 Invoke-Formatter，只回写内容有变化的文件。
+
+    该 Task 独立于 Build/Analyze/Test：它会改写源码，与「构建可重复」相冲突，
+    因此不进入任何依赖链，只在显式 -Task Format 时执行。
+
+    两条安全约束：
+    1. 混合行尾（既有 CRLF 又有孤立 LF）的文件列出后跳过，不猜用户想要哪种；
+    2. 逐文件保留原有 BOM 状态与行尾，避免一次格式化把 15 个带 BOM 的文件悄悄改成无 BOM。
+.OUTPUTS
+    [void]
+.NOTES
+    Author:  lucas_gold
+    Website: https://github.com/1274248407
+#>
+function Invoke-FormatTask
+{
+    [CmdletBinding()]
+    [OutputType([void])]
+    param ()
+
+    Write-Output '格式化源码...'
+
+    # 确保 PSScriptAnalyzer 已加载（Invoke-Formatter 由它提供）
+    if (-not (Get-Command -Name 'Invoke-Formatter' -ErrorAction SilentlyContinue)) {
+        try {
+            Import-Module -Name 'PSScriptAnalyzer' -Force -ErrorAction Stop
+        }
+        catch {
+            Write-Error "PSScriptAnalyzer 导入失败: $($PSItem.Exception.Message)"
+            exit 1
+        }
+    }
+
+    $settingsPath = Join-Path -Path $script:ModulePath -ChildPath 'PSScriptAnalyzerSettings.psd1'
+    $formatFiles = @(Get-ChildItem -Path (Join-Path -Path $script:ModulePath -ChildPath 'source') -Recurse -Filter '*.ps1' -File) +
+        @(Get-Item -Path (Join-Path -Path $script:ModulePath -ChildPath 'Main.ps1'))
+
+    [int]$changedCount = 0
+    [System.Collections.Generic.List[string]]$changed = [System.Collections.Generic.List[string]]::new()
+    [System.Collections.Generic.List[string]]$skipped = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($file in $formatFiles) {
+        [byte[]]$bytes = [System.IO.File]::ReadAllBytes($file.FullName)
+        # BOM 状态必须逐文件保留：本仓库有 15 个文件带 BOM，统一抹掉会造成无关 diff
+        [bool]$hasBom = $bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF
+        # ReadAllText 会自动剥离 BOM，得到不含 U+FEFF 的正文
+        [string]$original = [System.IO.File]::ReadAllText($file.FullName)
+
+        # 混合行尾：去掉 CRLF 后仍残留 LF，说明两种行尾并存
+        [bool]$hasCrlf = $original.Contains("`r`n")
+        [bool]$hasLoneLf = ($original -replace "`r`n", '').Contains("`n")
+        if ($hasCrlf -and $hasLoneLf) {
+            $skipped.Add($file.Name)
+            continue
+        }
+
+        try {
+            [string]$formatted = Invoke-Formatter -ScriptDefinition $original -Settings $settingsPath -ErrorAction Stop
+        }
+        catch {
+            Write-Error "格式化失败：$($file.FullName) - $($PSItem.Exception.Message)"
+            exit 1
+        }
+
+        if ($formatted -ceq $original) {
+            continue
+        }
+
+        # 行尾跟随原文件，避免格式化器改写整库行尾
+        $formatted = $hasCrlf ? (($formatted -replace "`r`n", "`n") -replace "`n", "`r`n") : ($formatted -replace "`r`n", "`n")
+
+        [System.IO.File]::WriteAllText($file.FullName, $formatted, [System.Text.UTF8Encoding]::new($hasBom))
+        $changed.Add($file.Name)
+        $changedCount++
+    }
+
+    if ($skipped.Count -gt 0) {
+        Write-Output ''
+        Write-Output '以下文件混合行尾，已跳过（请先统一为 LF 或 CRLF 再格式化）：'
+        foreach ($name in $skipped) { Write-Output "  $name" }
+    }
+
+    Write-Output "格式化完成：改动 $changedCount 个文件，跳过 $($skipped.Count) 个"
+    foreach ($name in $changed) { Write-Output "  已格式化：$name" }
+}
+
 
 <#
 .SYNOPSIS
@@ -1232,6 +1327,7 @@ function Invoke-TaskWithDependency
     {
         'Build' { Invoke-BuildTask }
         'Analyze' { Invoke-AnalyzeTask }
+        'Format' { Invoke-FormatTask }
         'Test' { Invoke-TestTask }
         'Smoke' { Invoke-SmokeTask }
         'Pack' { Invoke-PackTask }
