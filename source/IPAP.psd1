@@ -1,6 +1,6 @@
 ﻿@{
     RootModule        = 'IPAP.psm1'
-    ModuleVersion     = '4.0.1'
+    ModuleVersion     = '4.1.0'
     GUID              = 'f3a9d2c1-7b4e-4c8a-9d6f-1e2a3b4c5d6e'
     Author            = 'IPAP Team'
     CompanyName       = 'IPAP'
